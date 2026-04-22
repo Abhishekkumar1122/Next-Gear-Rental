@@ -92,7 +92,7 @@ export default async function VendorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--brand-cream)] text-black">
-      <SiteHeader variant="light" showDashboardLink={true} dashboardHref="/dashboard/vendor" />
+      <SiteHeader variant="light" />
       <main className="mx-auto max-w-5xl p-6 md:p-10 space-y-6">
         <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between mb-4">
