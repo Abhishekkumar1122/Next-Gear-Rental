@@ -4,7 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { toCitySlug } from "@/lib/city-seo";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 type CoverageCity = {
   name: string;
@@ -35,11 +35,19 @@ export default function CitiesPage() {
     vehiclesAvailable: 0,
     statesCovered: 0,
   });
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Debounce search query - updates filtered results only after 300ms of inactivity
+  // Debounce search query
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
-    return () => clearTimeout(timer);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
   }, [searchQuery]);
 
   useEffect(() => {

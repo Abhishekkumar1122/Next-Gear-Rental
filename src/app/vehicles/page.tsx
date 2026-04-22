@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState, Suspense } from "react";
+import { FormEvent, useEffect, useMemo, useState, Suspense, useRef, useCallback } from "react";
 import { PageShell } from "@/components/page-shell";
 import { WaitlistButton } from "@/components/waitlist-button";
 import { toCurrency } from "@/lib/mock-data";
@@ -12,7 +12,6 @@ import { Vehicle } from "@/lib/types";
 function VehiclesCatalogContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [city, setCity] = useState("");
   const [type, setType] = useState("");
   const [fuel, setFuel] = useState("");
@@ -22,17 +21,12 @@ function VehiclesCatalogContent() {
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const hasFilters = useMemo(
     () => Boolean(query || city || type || fuel || transmission || maxPrice),
     [query, city, type, fuel, transmission, maxPrice],
   );
-
-  // Debounce search query - only triggers filtering after 300ms of inactivity
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   useEffect(() => {
     const cityParam = searchParams.get("city") ?? "";
@@ -45,12 +39,18 @@ function VehiclesCatalogContent() {
     void fetchVehiclesWith();
   }, [searchParams]);
 
-  // Auto-fetch when debounced query changes (but not on initial render)
+  // Debounce filter changes to reduce API calls
   useEffect(() => {
-    // Don't fetch on mount, only when user has stopped typing
-    if (debouncedQuery !== query) return;
-    void fetchVehiclesWith({ query: debouncedQuery });
-  }, [debouncedQuery]);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    
+    debounceTimer.current = setTimeout(() => {
+      void fetchVehiclesWith();
+    }, 300);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [query, city, type, fuel, transmission, maxPrice]);
 
   async function fetchVehiclesWith(overrides?: {
     query?: string;
@@ -201,7 +201,7 @@ function VehiclesCatalogContent() {
                       width={400}
                       height={300}
                       className="h-40 w-full object-cover"
-                      loading="lazy"
+                      priority={false}
                     />
                   </div>
                 ) : null}

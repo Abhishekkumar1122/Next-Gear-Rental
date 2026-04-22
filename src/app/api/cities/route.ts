@@ -64,19 +64,23 @@ export async function GET() {
     const vehiclesAvailable = cities.reduce((sum, city) => sum + city.vehicleCount, 0);
     const statesCovered = new Set(cities.map((city) => city.state).filter(Boolean)).size;
 
-    return NextResponse.json({
-      stats: {
-        totalCities,
-        airportHubs,
-        vehiclesAvailable,
-        statesCovered,
+    return NextResponse.json(
+      {
+        stats: {
+          totalCities,
+          airportHubs,
+          vehiclesAvailable,
+          statesCovered,
+        },
+        cities,
       },
-      cities,
-    }, {
-      headers: {
-        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+      {
+        headers: {
+          "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+          "Pragma": "public",
+        },
       }
-    });
+    );
   }
 
   const cities: CoverageCity[] = cityConfigs.map((city) => {
@@ -98,17 +102,21 @@ export async function GET() {
   const vehiclesAvailable = cities.reduce((sum, city) => sum + city.vehicleCount, 0);
   const statesCovered = new Set(cities.map((city) => city.state).filter(Boolean)).size;
 
-  return NextResponse.json({
-    stats: {
-      totalCities,
-      airportHubs,
-      vehiclesAvailable,
-      statesCovered,
+  return NextResponse.json(
+    {
+      stats: {
+        totalCities,
+        airportHubs,
+        vehiclesAvailable,
+        statesCovered,
+      },
+      cities,
     },
-    cities,
-  }, {
-    headers: {
-      "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+    {
+      headers: {
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+        "Pragma": "public",
+      },
     }
-  });
+  );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { INDIA_CITIES_BY_STATE, INDIA_STATES } from "@/lib/india-locations";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
 
 type VehicleStatus = "available" | "booked" | "unavailable" | "maintenance" | "crashed";
@@ -1457,8 +1457,6 @@ export function AdminVehicleInventoryPanel() {
                         width={96}
                         height={64}
                         className="h-16 w-24 object-cover" 
-                        loading="lazy"
-                        unoptimized
                       />
                     </div>
                   ) : null}
