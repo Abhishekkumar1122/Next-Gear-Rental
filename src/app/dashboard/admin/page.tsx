@@ -138,7 +138,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-screen bg-[var(--brand-cream)] text-black">
-      <SiteHeader variant="light" showBadges={false} brandHref="/dashboard/admin" />
+      <SiteHeader variant="light" showBadges={false} brandHref="/dashboard/admin" showDashboardLink={true} dashboardHref="/dashboard/admin" />
       <main className="mx-auto w-full max-w-5xl p-4 sm:p-6 md:p-10">
       <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-6">
         <p className="text-xs uppercase tracking-wide text-black/60">Admin Dashboard</p>

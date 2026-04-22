@@ -9,7 +9,7 @@ export default async function CustomerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--brand-cream)] text-black">
-      <SiteHeader variant="light" />
+      <SiteHeader variant="light" showDashboardLink={true} dashboardHref="/dashboard/customer" />
       <main className="mx-auto max-w-5xl p-6 md:p-10">
         <CustomerDashboardClient email={user.email} name={user.email.split("@")[0]} />
       </main>

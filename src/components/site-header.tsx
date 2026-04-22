@@ -23,9 +23,11 @@ type SiteHeaderProps = {
   showBrandName?: boolean;
   showBadges?: boolean;
   brandHref?: string;
+  showDashboardLink?: boolean;
+  dashboardHref?: string;
 };
 
-export function SiteHeader({ variant = "dark", showBrandName = true, showBadges = true, brandHref = "/" }: SiteHeaderProps) {
+export function SiteHeader({ variant = "dark", showBrandName = true, showBadges = true, brandHref = "/", showDashboardLink = false, dashboardHref = "/dashboard" }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [coverageModalOpen, setCoverageModalOpen] = useState(false);
   const isDark = variant === "dark";
@@ -121,6 +123,27 @@ export function SiteHeader({ variant = "dark", showBrandName = true, showBadges 
         <div className={`md:hidden ${isDark ? "bg-gradient-to-b from-[var(--brand-ink)] via-[var(--brand-ink)] to-black/95" : "bg-white"} border-b ${borderColor} shadow-2xl shadow-black/50 animate-in slide-in-from-top duration-300`}>
           <nav className="mx-auto w-full max-w-6xl px-6 py-6">
             <div className="flex flex-col gap-3">
+              {/* Dashboard Link - shown when authenticated */}
+              {showDashboardLink && (
+                <Link
+                  href={dashboardHref}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`group relative rounded-xl px-5 py-3.5 text-base font-semibold transition-all duration-300 ${
+                    isDark 
+                      ? "bg-gradient-to-r from-[var(--brand-red)]/20 to-[var(--brand-red)]/10 border border-[var(--brand-red)]/50 hover:border-[var(--brand-red)]/80 hover:bg-gradient-to-r hover:from-[var(--brand-red)]/30 hover:to-[var(--brand-red)]/15 shadow-lg shadow-red-500/20 text-[var(--brand-red)]" 
+                      : "bg-red-50 hover:bg-red-100 border border-red-300 hover:border-red-400 text-[var(--brand-red)]"
+                  } hover:translate-x-1`}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">📊</span>
+                      Dashboard
+                    </span>
+                    <span className={`opacity-100 transition-opacity duration-300`}>→</span>
+                  </span>
+                </Link>
+              )}
+              
               {navItems.map((item, index) => (
                 <Link
                   key={item.href}
