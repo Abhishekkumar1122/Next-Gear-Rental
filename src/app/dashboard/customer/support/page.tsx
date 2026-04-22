@@ -130,27 +130,27 @@ export default function SupportTicketsPage() {
 
   return (
     <PageShell title="Support Center" subtitle="View and manage your support tickets">
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="rounded-xl border border-black/10 bg-black/5 p-4">
+      <div className="grid gap-3 grid-cols-2 sm:gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-black/10 bg-black/5 p-3 sm:p-4">
           <p className="text-xs text-black/60">Open Tickets</p>
-          <p className="mt-2 text-2xl font-bold">{tickets.filter((t) => t.status === "open").length}</p>
+          <p className="mt-2 text-xl sm:text-2xl font-bold">{tickets.filter((t) => t.status === "open").length}</p>
         </div>
-        <div className="rounded-xl border border-black/10 bg-black/5 p-4">
+        <div className="rounded-xl border border-black/10 bg-black/5 p-3 sm:p-4">
           <p className="text-xs text-black/60">In Progress</p>
-          <p className="mt-2 text-2xl font-bold">{tickets.filter((t) => t.status === "in-progress").length}</p>
+          <p className="mt-2 text-xl sm:text-2xl font-bold">{tickets.filter((t) => t.status === "in-progress").length}</p>
         </div>
-        <div className="rounded-xl border border-black/10 bg-black/5 p-4">
+        <div className="rounded-xl border border-black/10 bg-black/5 p-3 sm:p-4 col-span-2 sm:col-span-1">
           <p className="text-xs text-black/60">Total Tickets</p>
-          <p className="mt-2 text-2xl font-bold">{tickets.length}</p>
+          <p className="mt-2 text-xl sm:text-2xl font-bold">{tickets.length}</p>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">My Tickets</h2>
+      <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm md:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <h2 className="text-lg md:text-xl font-semibold">My Tickets</h2>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="rounded-full bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+            className="w-full sm:w-auto rounded-full bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white text-center transition hover:-translate-y-0.5"
           >
             + New Ticket
           </button>
@@ -172,11 +172,11 @@ export default function SupportTicketsPage() {
               className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm"
               rows={3}
             />
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid gap-2 grid-cols-2 sm:grid-cols-2">
               <select
                 value={newTicket.category}
                 onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value as any })}
-                className="rounded-lg border border-black/10 px-3 py-2 text-sm"
+                className="rounded-lg border border-black/10 px-3 py-2 text-xs sm:text-sm"
               >
                 <option value="booking">Booking</option>
                 <option value="payment">Payment</option>
@@ -187,11 +187,11 @@ export default function SupportTicketsPage() {
               <select
                 value={newTicket.priority}
                 onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value as any })}
-                className="rounded-lg border border-black/10 px-3 py-2 text-sm"
+                className="rounded-lg border border-black/10 px-3 py-2 text-xs sm:text-sm"
               >
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="high">High Priority</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
                 <option value="critical">Critical</option>
               </select>
             </div>
@@ -199,13 +199,13 @@ export default function SupportTicketsPage() {
             <div className="flex gap-2">
               <button
                 onClick={createTicket}
-                className="rounded-lg bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
+                className="flex-1 rounded-lg bg-[var(--brand-red)] px-3 py-2 text-xs sm:text-sm font-semibold text-white transition hover:-translate-y-0.5"
               >
                 Create Ticket
               </button>
               <button
                 onClick={() => setShowCreateForm(false)}
-                className="rounded-lg border border-black/15 px-4 py-2 text-sm font-semibold transition hover:-translate-y-0.5"
+                className="flex-1 rounded-lg border border-black/15 px-3 py-2 text-xs sm:text-sm font-semibold transition hover:-translate-y-0.5"
               >
                 Cancel
               </button>
@@ -220,21 +220,21 @@ export default function SupportTicketsPage() {
                 setSelectedTicket(null);
                 setReplies([]);
               }}
-              className="text-sm text-blue-600 underline hover:no-underline"
+              className="text-xs sm:text-sm text-blue-600 underline hover:no-underline"
             >
               ← Back to tickets
             </button>
-            <div className="rounded-lg border border-black/10 bg-black/5 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{selectedTicket.subject}</p>
-                  <p className="mt-1 text-sm text-black/70">{selectedTicket.description}</p>
+            <div className="rounded-lg border border-black/10 bg-black/5 p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm sm:text-base">{selectedTicket.subject}</p>
+                  <p className="mt-1 text-xs sm:text-sm text-black/70 break-words">{selectedTicket.description}</p>
                 </div>
-                <div className="text-right">
-                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getPriorityColor(selectedTicket.priority)}`}>
+                <div className="flex gap-2 flex-wrap mt-2 sm:mt-0 lg:flex-col lg:text-right">
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap ${getPriorityColor(selectedTicket.priority)}`}>
                     {selectedTicket.priority}
                   </span>
-                  <span className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(selectedTicket.status)}`}>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap ${getStatusColor(selectedTicket.status)}`}>
                     {selectedTicket.status}
                   </span>
                 </div>
@@ -242,16 +242,16 @@ export default function SupportTicketsPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Conversation</p>
+              <p className="text-xs sm:text-sm font-semibold">Conversation</p>
               {replies.map((reply) => (
                 <div
                   key={reply.id}
-                  className={`rounded-lg p-3 text-sm ${
+                  className={`rounded-lg p-3 text-xs sm:text-sm ${
                     reply.userRole === "admin" ? "border border-green-200 bg-green-50" : "border border-black/10 bg-black/5"
                   }`}
                 >
                   <p className="font-semibold">{reply.userName} {reply.userRole === "admin" && "(Support Team)"}</p>
-                  <p className="mt-1 text-black/80">{reply.message}</p>
+                  <p className="mt-1 text-black/80 break-words">{reply.message}</p>
                   <p className="mt-1 text-xs text-black/60">{new Date(reply.createdAt).toLocaleString()}</p>
                 </div>
               ))}
@@ -263,13 +263,13 @@ export default function SupportTicketsPage() {
                   value={newReply}
                   onChange={(e) => setNewReply(e.target.value)}
                   placeholder="Add a reply..."
-                  className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-black/10 px-3 py-2 text-xs sm:text-sm"
                   rows={2}
                 />
                 <button
                   onClick={addReply}
                   disabled={!newReply.trim()}
-                  className="rounded-lg bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-50"
+                  className="w-full rounded-lg bg-[var(--brand-red)] px-3 py-2 text-xs sm:text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-50"
                 >
                   Send Reply
                 </button>
@@ -279,7 +279,7 @@ export default function SupportTicketsPage() {
         ) : (
           <div className="space-y-2">
             {tickets.length === 0 ? (
-              <p className="text-sm text-black/60">No support tickets yet.</p>
+              <p className="text-xs sm:text-sm text-black/60">No support tickets yet.</p>
             ) : (
               tickets.map((ticket) => (
                 <button
@@ -290,12 +290,12 @@ export default function SupportTicketsPage() {
                   }}
                   className="w-full rounded-lg border border-black/10 bg-white p-3 text-left transition hover:bg-black/[0.02]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-sm">{ticket.subject}</p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-xs sm:text-sm break-words">{ticket.subject}</p>
                       <p className="mt-1 text-xs text-black/60">{ticket.category} · {new Date(ticket.createdAt).toLocaleDateString()}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getPriorityColor(ticket.priority)}`}>
                         {ticket.priority}
                       </span>

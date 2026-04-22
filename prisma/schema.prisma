@@ -64,6 +64,22 @@ enum WebhookRetryStatus {
   FAILED
 }
 
+enum ReturnRequestStatus {
+  INITIATED
+  APPROVED_BY_CUSTOMER
+  PENDING_VENDOR_INSPECTION
+  VENDOR_INSPECTED
+  SETTLED
+  CANCELLED
+}
+
+enum InspectionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DISPUTED
+}
+
 model User {
   id            String          @id @default(cuid())
   name          String
@@ -150,6 +166,10 @@ model Booking {
   payments       Payment[]
   deliveryJobs   DeliveryJob[]
   alertLogs      BookingAlertLog[]
+  returnRequest  ReturnRequest?
+  vendorInspection VendorInspection?
+  damageCharges  DamageCharge[]
+  rentalSettlement RentalSettlement?
 }
 model Driver {
   id            String       @id @default(cuid())
@@ -259,4 +279,86 @@ model WebhookRetryJob {
   updatedAt        DateTime          @updatedAt
 
   @@index([status, nextRunAt])
+}
+
+model ReturnRequest {
+  id                String              @id @default(cuid())
+  bookingId         String              @unique
+  status            ReturnRequestStatus @default(INITIATED)
+  initiatedAt       DateTime            @default(now())
+  approvedAt        DateTime?
+  approvalNotes     String?
+  cancelledAt       DateTime?
+  cancellationReason String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  booking           Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model VendorInspection {
+  id                String               @id @default(cuid())
+  bookingId         String               @unique
+  status            InspectionStatus    @default(PENDING)
+  fuelLevel         Int?
+  odometerReading   Int?
+  bodyCondition     String?
+  engineCondition   String?
+  tiresCondition    String?
+  interiorCondition String?
+  damagePhotos      String?
+  inspectorName     String?
+  notes             String?
+  inspectAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  booking           Booking              @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model DamageCharge {
+  id                String   @id @default(cuid())
+  bookingId         String
+  chargeType        String
+  description       String
+  severityLevel     String
+  estimatedAmount   Int
+  approvedAmount    Int?
+  isApproved        Boolean  @default(false)
+  approvedBy        String?
+  approvalNotes     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+model RentalSettlement {
+  id                  String   @id @default(cuid())
+  bookingId           String   @unique
+  originalAmount      Int
+  remainingDays       Int?
+  totalDamageCharges  Int      @default(0)
+  lateFeeCharges      Int      @default(0)
+  otherCharges        Int      @default(0)
+  totalDeductions     Int      @default(0)
+  refundAmount        Int      @default(0)
+  settlementStatus    String   @default("PENDING")
+  settlementNotes     String?
+  settledAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model BookingAlertLog {
+  id          String   @id @default(cuid())
+  bookingId   String
+  alertType   String
+  message     String
+  sentAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([alertType])
 }
