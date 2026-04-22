@@ -10,6 +10,20 @@ import Link from "next/link";
 
 type Tab = "bookings" | "payments" | "kyc" | "damage" | "waitlist" | "tracking" | "returns" | "support";
 
+type Booking = {
+  id: string;
+  vehicleId: string;
+  userName: string;
+  userEmail: string;
+  city: string;
+  startDate: string;
+  endDate: string;
+  totalAmountINR: number;
+  currency: string;
+  status: "confirmed" | "cancelled" | "completed";
+  createdAt: string;
+};
+
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "bookings", label: "My Bookings", icon: "🏍️" },
   { id: "payments", label: "Payments", icon: "💳" },
@@ -21,7 +35,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "support", label: "Support", icon: "💬" },
 ];
 
-export function CustomerDashboardClient({ email, name }: { email: string; name: string }) {
+export function CustomerDashboardClient({ email, name, initialBookings = [] }: { email: string; name: string; initialBookings?: Booking[] }) {
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
 
   return (
@@ -74,7 +88,7 @@ export function CustomerDashboardClient({ email, name }: { email: string; name: 
                 All your bookings appear here in real-time. Cancel any confirmed booking directly.
               </p>
             </div>
-            <CustomerBookingsPanel userEmail={email} />
+            <CustomerBookingsPanel userEmail={email} initialBookings={initialBookings} />
           </div>
         )}
 

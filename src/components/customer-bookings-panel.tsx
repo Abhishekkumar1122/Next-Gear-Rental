@@ -48,11 +48,12 @@ const STATUS_CONFIG: Record<
 
 interface Props {
   userEmail: string;
+  initialBookings?: Booking[];
 }
 
-export function CustomerBookingsPanel({ userEmail }: Props) {
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props) {
+  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [loading, setLoading] = useState(initialBookings.length === 0);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
@@ -70,8 +71,11 @@ export function CustomerBookingsPanel({ userEmail }: Props) {
   }, [userEmail]);
 
   useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
+    // Only fetch if no initial bookings provided (data not pre-fetched on server)
+    if (initialBookings.length === 0) {
+      fetchBookings();
+    }
+  }, [fetchBookings, initialBookings.length]);
 
   async function handleCancel(bookingId: string) {
     setCancellingId(bookingId);
