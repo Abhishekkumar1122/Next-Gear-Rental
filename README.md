@@ -73,13 +73,9 @@ npm run prisma:migrate
 npm run prisma:seed
 ```
 
-Default seed users:
-- admin@nextgear.in (ADMIN)
-- vendor@nextgear.in (VENDOR)
-- customer@nextgear.in (CUSTOMER)
-
-Default seed password:
-- Password@123
+Test credentials:
+- Test accounts are available upon request
+- Contact: support@nextgear.in
 
 ## Logo Setup
 

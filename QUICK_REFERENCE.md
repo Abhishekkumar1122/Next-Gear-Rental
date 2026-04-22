@@ -70,9 +70,8 @@ npm start            # Production server
 ## 📱 Test Login Credentials
 
 ```
-Admin:    admin@nextgear.in / Password@123
-Vendor:   vendor@nextgear.in / Password@123
-Customer: customer@nextgear.in / Password@123
+Test credentials available upon request.
+Contact: support@nextgear.in
 ```
 
 ---

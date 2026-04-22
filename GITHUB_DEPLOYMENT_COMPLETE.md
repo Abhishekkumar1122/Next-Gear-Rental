@@ -171,17 +171,8 @@ npm start
 Demo Account Credentials:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Admin Dashboard:
-  Email: admin@nextgear.in
-  Password: Password@123
-
-Vendor Dashboard:
-  Email: vendor@nextgear.in
-  Password: Password@123
-
-Customer Booking:
-  Email: customer@nextgear.in
-  Password: Password@123
+Test credentials available upon request.
+Contact the development team for access.
 ```
 
 ---

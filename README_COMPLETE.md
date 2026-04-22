@@ -225,9 +225,8 @@ Visit `http://localhost:3000` 🎉
 
 ### 6️⃣ Test Login (Development)
 ```
-Admin:    admin@nextgear.in / Password@123
-Vendor:   vendor@nextgear.in / Password@123
-Customer: customer@nextgear.in / Password@123
+Test credentials available upon request.
+Contact: support@nextgear.in
 ```
 
 ---
@@ -603,17 +602,8 @@ POST   /api/returns/[bookingId]/settle  - Settle return
 
 ### Test Credentials
 ```
-👨‍💼 Admin
-Email: admin@nextgear.in
-Password: Password@123
-
-🏢 Vendor
-Email: vendor@nextgear.in
-Password: Password@123
-
-👤 Customer
-Email: customer@nextgear.in
-Password: Password@123
+Test credentials are available upon request from the development team.
+Contact: support@nextgear.in
 ```
 
 ### Test Scenarios

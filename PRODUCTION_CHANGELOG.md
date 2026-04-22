@@ -574,17 +574,8 @@ vercel logs
 
 ### Test Credentials
 ```
-Admin Account:
-Email: admin@nextgear.in
-Password: Password@123
-
-Vendor Account:
-Email: vendor@nextgear.in
-Password: Password@123
-
-Customer Account:
-Email: customer@nextgear.in
-Password: Password@123
+Test credentials are available upon request from the development team.
+Please contact the admin for access to test accounts.
 ```
 
 ### Critical Paths to Test
