@@ -2,6 +2,7 @@ import { SiteHeader } from "@/components/site-header";
 import { getVendorHistory } from "@/lib/dashboard-history";
 import { getServerSessionUser } from "@/lib/server-session";
 import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { VendorFleetManager } from "@/components/vendor-fleet-manager";
@@ -10,72 +11,81 @@ import { getVendorFleet } from "@/lib/vendor-fleet";
 
 export const revalidate = 120; // Cache dashboard for 2 minutes
 
-async function getVendorFinancials(ownerUserId: string, commissionRate: number) {
-  if (!process.env.DATABASE_URL) {
+// Cache vendor financials to avoid repeated expensive database queries
+const getCachedVendorFinancials = unstable_cache(
+  async (ownerUserId: string, commissionRate: number) => {
+    if (!process.env.DATABASE_URL) {
+      return {
+        totalBookings: 0,
+        revenueThisMonthINR: 0,
+        totalRevenueINR: 0,
+        earningsThisMonthINR: 0,
+        totalEarningsINR: 0,
+      };
+    }
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [totalBookings, monthRevenueAgg, totalRevenueAgg] = await Promise.all([
+      prisma.booking.count({
+        where: {
+          vehicle: {
+            vendor: {
+              ownerUserId,
+            },
+          },
+        },
+      }),
+      prisma.payment.aggregate({
+        _sum: { amountINR: true },
+        where: {
+          status: "PAID",
+          createdAt: {
+            gte: monthStart,
+          },
+          booking: {
+            vehicle: {
+              vendor: {
+                ownerUserId,
+              },
+            },
+          },
+        },
+      }),
+      prisma.payment.aggregate({
+        _sum: { amountINR: true },
+        where: {
+          status: "PAID",
+          booking: {
+            vehicle: {
+              vendor: {
+                ownerUserId,
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const revenueThisMonthINR = monthRevenueAgg._sum.amountINR ?? 0;
+    const totalRevenueINR = totalRevenueAgg._sum.amountINR ?? 0;
+    const payoutMultiplier = Math.max(0, 1 - commissionRate / 100);
+
     return {
-      totalBookings: 0,
-      revenueThisMonthINR: 0,
-      totalRevenueINR: 0,
-      earningsThisMonthINR: 0,
-      totalEarningsINR: 0,
+      totalBookings,
+      revenueThisMonthINR,
+      totalRevenueINR,
+      earningsThisMonthINR: Math.round(revenueThisMonthINR * payoutMultiplier),
+      totalEarningsINR: Math.round(totalRevenueINR * payoutMultiplier),
     };
-  }
+  },
+  ["vendor-financials"],
+  { revalidate: 90, tags: ["financials"] }
+);
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const [totalBookings, monthRevenueAgg, totalRevenueAgg] = await Promise.all([
-    prisma.booking.count({
-      where: {
-        vehicle: {
-          vendor: {
-            ownerUserId,
-          },
-        },
-      },
-    }),
-    prisma.payment.aggregate({
-      _sum: { amountINR: true },
-      where: {
-        status: "PAID",
-        createdAt: {
-          gte: monthStart,
-        },
-        booking: {
-          vehicle: {
-            vendor: {
-              ownerUserId,
-            },
-          },
-        },
-      },
-    }),
-    prisma.payment.aggregate({
-      _sum: { amountINR: true },
-      where: {
-        status: "PAID",
-        booking: {
-          vehicle: {
-            vendor: {
-              ownerUserId,
-            },
-          },
-        },
-      },
-    }),
-  ]);
-
-  const revenueThisMonthINR = monthRevenueAgg._sum.amountINR ?? 0;
-  const totalRevenueINR = totalRevenueAgg._sum.amountINR ?? 0;
-  const payoutMultiplier = Math.max(0, 1 - commissionRate / 100);
-
-  return {
-    totalBookings,
-    revenueThisMonthINR,
-    totalRevenueINR,
-    earningsThisMonthINR: Math.round(revenueThisMonthINR * payoutMultiplier),
-    totalEarningsINR: Math.round(totalRevenueINR * payoutMultiplier),
-  };
+async function getVendorFinancials(ownerUserId: string, commissionRate: number) {
+  return getCachedVendorFinancials(ownerUserId, commissionRate);
 }
 
 export default async function VendorDashboardPage() {
