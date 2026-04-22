@@ -10,7 +10,8 @@ import { getTrendingRideMap } from "@/lib/trending-rides";
 import Image from "next/image";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
+export const revalidate = 60; // Revalidate every 60 seconds for fresh data with caching
 
 type HomeTrendingRide = {
   icon: string;
@@ -41,57 +42,60 @@ async function getHomeTrendingRides(): Promise<HomeTrendingRide[]> {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 7);
 
-    const bookingCounts = await prisma.booking.groupBy({
-      by: ["vehicleId"],
-      where: {
-        status: "CONFIRMED",
-        createdAt: { gte: weekStart },
+    // Optimized: Single query to get all vehicles with their booking counts
+    const vehiclesWithBookings = await prisma.vehicle.findMany({
+      include: {
+        city: true,
+        _count: {
+          select: {
+            bookings: {
+              where: {
+                status: "CONFIRMED",
+                createdAt: { gte: weekStart },
+              },
+            },
+          },
+        },
       },
-      _count: {
-        _all: true,
+      orderBy: {
+        createdAt: "desc",
       },
+      take: 50, // Get top 50, we'll filter to 3
     });
 
-    const bookingCountMap = new Map<string, number>(
-      bookingCounts.map((item) => [item.vehicleId, item._count._all])
-    );
+    // Build booking count map
+    const bookingCountMap = new Map<string, number>();
+    vehiclesWithBookings.forEach((vehicle) => {
+      bookingCountMap.set(vehicle.id, vehicle._count.bookings);
+    });
 
     const configured = Array.from(trendingMap.values()).sort((a, b) => a.rank - b.rank);
     const configuredIds = configured.map((item) => item.vehicleId);
     const selectedIds: string[] = [];
 
+    // Add configured vehicles first
     for (const vehicleId of configuredIds) {
       if (!selectedIds.includes(vehicleId)) selectedIds.push(vehicleId);
       if (selectedIds.length === 3) break;
     }
 
+    // Fill gaps with highest booked vehicles
     if (selectedIds.length < 3) {
-      const fallbackVehicles = await prisma.vehicle.findMany({
-        include: { city: true },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      });
-
-      const rankedFallback = [...fallbackVehicles].sort((a, b) => {
+      const rankedByBookings = vehiclesWithBookings.sort((a, b) => {
         const countA = bookingCountMap.get(a.id) ?? 0;
         const countB = bookingCountMap.get(b.id) ?? 0;
         if (countA !== countB) return countB - countA;
         return b.createdAt.getTime() - a.createdAt.getTime();
       });
 
-      for (const vehicle of rankedFallback) {
+      for (const vehicle of rankedByBookings) {
         if (selectedIds.includes(vehicle.id)) continue;
         selectedIds.push(vehicle.id);
         if (selectedIds.length === 3) break;
       }
     }
 
-    const selectedVehicles = await prisma.vehicle.findMany({
-      where: { id: { in: selectedIds } },
-      include: { city: true },
-    });
-
-    const vehicleMap = new Map(selectedVehicles.map((vehicle) => [vehicle.id, vehicle]));
+    const vehicleMap = new Map(vehiclesWithBookings.map((vehicle) => [vehicle.id, vehicle]));
 
     return selectedIds
       .map((vehicleId, index) => {

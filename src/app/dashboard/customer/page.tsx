@@ -3,6 +3,8 @@ import { getServerSessionUser } from "@/lib/server-session";
 import { redirect } from "next/navigation";
 import { CustomerDashboardClient } from "@/components/customer-dashboard-client";
 
+export const revalidate = 120; // Cache dashboard for 2 minutes
+
 export default async function CustomerDashboardPage() {
   const user = await getServerSessionUser();
   if (!user) redirect("/login?next=%2Fdashboard%2Fcustomer");

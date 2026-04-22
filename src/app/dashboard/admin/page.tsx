@@ -14,6 +14,8 @@ import { getWebhookAuditLogs } from "@/lib/webhook-admin";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
+export const revalidate = 120; // Cache dashboard for 2 minutes
+
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };

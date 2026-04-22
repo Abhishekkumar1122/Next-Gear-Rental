@@ -8,6 +8,8 @@ import { VendorFleetManager } from "@/components/vendor-fleet-manager";
 import { VendorProfileDocumentsPanel } from "@/components/vendor-profile-documents-panel";
 import { getVendorFleet } from "@/lib/vendor-fleet";
 
+export const revalidate = 120; // Cache dashboard for 2 minutes
+
 async function getVendorFinancials(ownerUserId: string, commissionRate: number) {
   if (!process.env.DATABASE_URL) {
     return {
