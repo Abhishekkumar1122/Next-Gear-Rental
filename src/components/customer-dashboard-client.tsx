@@ -5,9 +5,10 @@ import { CustomerBookingsPanel } from "@/components/customer-bookings-panel";
 import { CustomerWaitlistPanel } from "@/components/customer-waitlist-panel";
 import { CustomerKycAutomationPanel } from "@/components/customer-kyc-automation-panel";
 import { CustomerDamageChecklistPanel } from "@/components/customer-damage-checklist-panel";
+import { ReturnTrackingPanel } from "@/components/return-tracking-panel";
 import Link from "next/link";
 
-type Tab = "bookings" | "payments" | "kyc" | "damage" | "waitlist" | "tracking" | "support";
+type Tab = "bookings" | "payments" | "kyc" | "damage" | "waitlist" | "tracking" | "returns" | "support";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "bookings", label: "My Bookings", icon: "🏍️" },
@@ -16,6 +17,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "damage", label: "Damage Checks", icon: "🛠️" },
   { id: "waitlist", label: "Waitlist", icon: "⏳" },
   { id: "tracking", label: "Tracking", icon: "📍" },
+  { id: "returns", label: "Returns", icon: "↩️" },
   { id: "support", label: "Support", icon: "💬" },
 ];
 
@@ -99,6 +101,10 @@ export function CustomerDashboardClient({ email, name }: { email: string; name: 
               📍 Open Live Tracking →
             </Link>
           </div>
+        )}
+
+        {activeTab === "returns" && (
+          <ReturnsTab email={email} />
         )}
 
         {activeTab === "waitlist" && (
@@ -199,6 +205,64 @@ function PaymentsTab({ email }: { email: string }) {
               </span>
             </div>
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReturnsTab({ email }: { email: string }) {
+  const [bookings, setBookings] = useState<
+    { id: string; endDate: string; status: string; city: string }[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/bookings?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      const bookings = data.bookings ?? [];
+      setBookings(bookings);
+      setLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1">
+          <h2 className="text-lg md:text-xl font-bold">Return Requests</h2>
+          <p className="text-xs md:text-sm text-black/60 mt-1">Track bike returns, damage assessments, and refund status.</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="rounded-lg border border-black/10 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition hover:bg-black/5 disabled:opacity-50 w-full sm:w-auto"
+        >
+          {loading ? "Loading..." : loaded ? "↻ Refresh" : "Load Returns"}
+        </button>
+      </div>
+
+      {!loaded && !loading && (
+        <div className="rounded-xl border border-dashed border-black/15 p-4 md:p-6 text-center text-xs md:text-sm text-black/50">
+          Click &quot;Load Returns&quot; to view your return requests.
+        </div>
+      )}
+
+      {loaded && bookings.length === 0 && (
+        <p className="text-xs md:text-sm text-black/60">No bookings found. Book a bike first to initiate returns.</p>
+      )}
+
+      {loaded && bookings.map((booking) => (
+        <div key={booking.id} className="rounded-xl border border-black/10 overflow-hidden">
+          <ReturnTrackingPanel
+            bookingId={booking.id}
+            customerName={email.split("@")[0]}
+          />
         </div>
       ))}
     </div>
