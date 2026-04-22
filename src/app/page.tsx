@@ -3,12 +3,14 @@ import { SiteHeader } from "@/components/site-header";
 import { BookVehicleButton } from "@/components/book-vehicle-button";
 import { FloatingChatbot } from "@/components/floating-chatbot";
 import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 import { getEffectiveDailyPrice } from "@/lib/pricing";
 import { vehicles } from "@/lib/mock-data";
 import { bookingsStore } from "@/lib/store";
 import { getTrendingRideMap } from "@/lib/trending-rides";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 
 export const dynamic = "auto";
 export const revalidate = 60; // Revalidate every 60 seconds for fresh data with caching
@@ -35,7 +37,7 @@ function getDefaultBadge(index: number) {
   return badges[index] ?? "Trending";
 }
 
-async function getHomeTrendingRides(): Promise<HomeTrendingRide[]> {
+async function getHomeTrendingRidesUncached(): Promise<HomeTrendingRide[]> {
   const trendingMap = await getTrendingRideMap();
 
   if (process.env.DATABASE_URL) {
@@ -168,6 +170,13 @@ async function getHomeTrendingRides(): Promise<HomeTrendingRide[]> {
     })
     .filter((item): item is HomeTrendingRide => item !== null);
 }
+
+// Wrap with server-side caching to prevent repeated database calls
+const getHomeTrendingRides = unstable_cache(
+  async () => getHomeTrendingRidesUncached(),
+  ["home-trending-rides"],
+  { revalidate: 60, tags: ["trending-rides"] }
+);
 
 export default async function Home() {
   const trendingRides = await getHomeTrendingRides();
@@ -555,7 +564,9 @@ export default async function Home() {
           </div>
         </main>
       <SiteFooter />
+      <Suspense fallback={null}>
         <FloatingChatbot />
+      </Suspense>
     </div>
   );
 }
