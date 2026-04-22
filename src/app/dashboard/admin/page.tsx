@@ -11,10 +11,31 @@ import { getAdminHistory } from "@/lib/dashboard-history";
 import { allowedTrendHours, getOpsMetricsReport, normalizeTrendHours } from "@/lib/ops-report";
 import { getServerSessionUser } from "@/lib/server-session";
 import { getWebhookAuditLogs } from "@/lib/webhook-admin";
+import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export const revalidate = 120; // Cache dashboard for 2 minutes
+
+// Cache admin data to reduce database load
+const getCachedAdminHistory = unstable_cache(
+  async (provider: string, status: string) => getAdminHistory({ provider, status }),
+  ["admin-history"],
+  { revalidate: 90, tags: ["admin-data"] }
+);
+
+const getCachedWebhookAuditLogs = unstable_cache(
+  async (provider: string, status: string, page: number) => 
+    getWebhookAuditLogs({ provider, status, page, pageSize: 12 }),
+  ["webhook-audit"],
+  { revalidate: 90, tags: ["admin-data"] }
+);
+
+const getCachedOpsReport = unstable_cache(
+  async (hours: number) => getOpsMetricsReport({ trendHours: hours }),
+  ["ops-report"],
+  { revalidate: 90, tags: ["admin-data"] }
+);
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -40,9 +61,9 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     : "overview";
 
   const [history, webhookAudit, opsReport] = await Promise.all([
-    getAdminHistory({ provider, status }),
-    getWebhookAuditLogs({ provider: whProvider, status: whStatus, page: whPage, pageSize: 12 }),
-    getOpsMetricsReport({ trendHours: hours }),
+    getCachedAdminHistory(provider, status),
+    getCachedWebhookAuditLogs(whProvider, whStatus, whPage),
+    getCachedOpsReport(hours),
   ]);
   const webhookLogs = webhookAudit.items;
   const hasDatabase = Boolean(process.env.DATABASE_URL);
