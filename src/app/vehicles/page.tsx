@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState, Suspense } from "react";
 import { PageShell } from "@/components/page-shell";
@@ -11,6 +12,7 @@ import { Vehicle } from "@/lib/types";
 function VehiclesCatalogContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [city, setCity] = useState("");
   const [type, setType] = useState("");
   const [fuel, setFuel] = useState("");
@@ -26,6 +28,12 @@ function VehiclesCatalogContent() {
     [query, city, type, fuel, transmission, maxPrice],
   );
 
+  // Debounce search query - only triggers filtering after 300ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   useEffect(() => {
     const cityParam = searchParams.get("city") ?? "";
     if (cityParam) {
@@ -36,6 +44,13 @@ function VehiclesCatalogContent() {
 
     void fetchVehiclesWith();
   }, [searchParams]);
+
+  // Auto-fetch when debounced query changes (but not on initial render)
+  useEffect(() => {
+    // Don't fetch on mount, only when user has stopped typing
+    if (debouncedQuery !== query) return;
+    void fetchVehiclesWith({ query: debouncedQuery });
+  }, [debouncedQuery]);
 
   async function fetchVehiclesWith(overrides?: {
     query?: string;
@@ -180,9 +195,11 @@ function VehiclesCatalogContent() {
               <div key={vehicle.id} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                 {vehicle.imageUrls?.[0] ? (
                   <div className="mb-3 overflow-hidden rounded-xl border border-black/10">
-                    <img
+                    <Image
                       src={vehicle.imageUrls[0]}
                       alt={vehicle.title}
+                      width={400}
+                      height={300}
                       className="h-40 w-full object-cover"
                       loading="lazy"
                     />

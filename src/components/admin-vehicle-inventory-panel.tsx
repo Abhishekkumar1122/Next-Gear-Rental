@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { INDIA_CITIES_BY_STATE, INDIA_STATES } from "@/lib/india-locations";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
 
@@ -1450,7 +1451,15 @@ export function AdminVehicleInventoryPanel() {
                   <p className="text-xs text-black/55">Vehicle No: {vehicle.vehicleNumber || "Not set"}</p>
                   {vehicle.imageUrl ? (
                     <div className="mt-2 overflow-hidden rounded border border-black/10 bg-white">
-                      <img src={vehicle.imageUrl} alt={vehicle.title} className="h-16 w-24 object-cover" loading="lazy" />
+                      <Image 
+                        src={vehicle.imageUrl} 
+                        alt={vehicle.title} 
+                        width={96}
+                        height={64}
+                        className="h-16 w-24 object-cover" 
+                        loading="lazy"
+                        unoptimized
+                      />
                     </div>
                   ) : null}
                 </div>

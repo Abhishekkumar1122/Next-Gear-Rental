@@ -115,6 +115,9 @@ model City {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   vehicles    Vehicle[]
+
+  // Performance index
+  @@index([isActive, name])
 }
 
 model Vendor {
@@ -146,6 +149,10 @@ model Vehicle {
   city           City      @relation(fields: [cityId], references: [id], onDelete: Restrict)
   vendor         Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   bookings       Booking[]
+
+  // Performance indexes
+  @@index([cityId])
+  @@index([vendorId])
 }
 
 model Booking {
@@ -170,6 +177,10 @@ model Booking {
   vendorInspection VendorInspection?
   damageCharges  DamageCharge[]
   rentalSettlement RentalSettlement?
+
+  // Performance indexes
+  @@index([vehicleId, status, endDate])
+  @@index([userId, status])
 }
 model Driver {
   id            String       @id @default(cuid())

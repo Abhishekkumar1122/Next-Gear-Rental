@@ -27,6 +27,7 @@ type CoverageResponse = {
 
 export default function CitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [cities, setCities] = useState<CoverageCity[]>([]);
   const [stats, setStats] = useState<CoverageResponse["stats"]>({
     totalCities: 0,
@@ -34,6 +35,12 @@ export default function CitiesPage() {
     vehiclesAvailable: 0,
     statesCovered: 0,
   });
+
+  // Debounce search query - updates filtered results only after 300ms of inactivity
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,10 +71,10 @@ export default function CitiesPage() {
   const filteredCities = useMemo(
     () =>
       cities.filter((city) => {
-        const query = searchQuery.toLowerCase();
+        const query = debouncedQuery.toLowerCase();
         return city.displayName.toLowerCase().includes(query) || city.state.toLowerCase().includes(query);
       }),
-    [cities, searchQuery]
+    [cities, debouncedQuery]
   );
 
   const popularCities = [...cities]
