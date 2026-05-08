@@ -188,70 +188,105 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const parsed = createVehicleSchema.safeParse(await request.json().catch(() => ({})));
+  let jsonPayload: unknown;
+  try {
+    jsonPayload = await request.json();
+  } catch (e) {
+    console.error("Failed to parse JSON:", e);
+    return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+  }
+
+  const parsed = createVehicleSchema.safeParse(jsonPayload);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid vehicle payload", details: parsed.error.flatten() }, { status: 400 });
+    const errorDetails = parsed.error.flatten();
+    console.error("Vehicle schema validation failed:", errorDetails);
+    return NextResponse.json(
+      {
+        error: "Invalid vehicle data",
+        details: errorDetails,
+      },
+      { status: 400 }
+    );
   }
 
   const payload = parsed.data;
+  console.log("Creating vehicle with payload:", { title: payload.title, type: payload.type, city: payload.cityName });
 
   if (process.env.DATABASE_URL) {
     if (!payload.cityId) {
-      return NextResponse.json({ error: "cityId is required" }, { status: 400 });
+      return NextResponse.json({ error: "cityId is required in database mode" }, { status: 400 });
     }
 
-    const city = await prisma.city.findUnique({ where: { id: payload.cityId }, select: { id: true } });
-    if (!city) {
-      return NextResponse.json({ error: "City not found" }, { status: 404 });
-    }
-
-    if (payload.vendorId) {
-      const vendor = await prisma.vendor.findUnique({ where: { id: payload.vendorId }, select: { id: true } });
-      if (!vendor) {
-        return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
+    try {
+      const city = await prisma.city.findUnique({ where: { id: payload.cityId }, select: { id: true } });
+      if (!city) {
+        console.warn(`City not found: ${payload.cityId}`);
+        return NextResponse.json({ error: `City not found: ${payload.cityId}` }, { status: 404 });
       }
-    }
 
-    const created = await prisma.vehicle.create({
-      data: {
-        title: payload.title.trim(),
-        type: payload.type,
-        fuel: payload.fuel,
-        transmission: payload.transmission,
-        seats: payload.seats,
-        pricePerDayINR: payload.pricePerDayINR,
-        airportPickup: payload.airportPickup,
-        cityId: payload.cityId,
-        vendorId: payload.vendorId || null,
-      },
-      select: {
-        id: true,
-        title: true,
-      },
-    });
+      if (payload.vendorId) {
+        const vendor = await prisma.vendor.findUnique({ where: { id: payload.vendorId }, select: { id: true } });
+        if (!vendor) {
+          console.warn(`Vendor not found: ${payload.vendorId}`);
+          return NextResponse.json({ error: `Vendor not found: ${payload.vendorId}` }, { status: 404 });
+        }
+      }
 
-    await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
-    await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
-
-    return NextResponse.json(
-      {
-        message: "Vehicle created",
-        vehicle: {
-          ...created,
-          vehicleNumber: payload.vehicleNumber.trim(),
-          imageUrl: payload.imageUrl,
+      const created = await prisma.vehicle.create({
+        data: {
+          title: payload.title.trim(),
+          type: payload.type,
+          fuel: payload.fuel,
+          transmission: payload.transmission,
+          seats: payload.seats,
+          pricePerDayINR: payload.pricePerDayINR,
+          airportPickup: payload.airportPickup,
+          cityId: payload.cityId,
+          vendorId: payload.vendorId || null,
         },
-      },
-      { status: 201 }
-    );
+        select: {
+          id: true,
+          title: true,
+        },
+      });
+
+      console.log(`Vehicle created in database: ${created.id} - ${created.title}`);
+
+      await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
+      await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+
+      return NextResponse.json(
+        {
+          message: "Vehicle created successfully",
+          vehicle: {
+            ...created,
+            vehicleNumber: payload.vehicleNumber.trim(),
+            imageUrl: payload.imageUrl,
+          },
+        },
+        { status: 201 }
+      );
+    } catch (dbError) {
+      console.error("Database error during vehicle creation:", dbError);
+      return NextResponse.json(
+        {
+          error: "Failed to create vehicle in database",
+          detail: dbError instanceof Error ? dbError.message : "Unknown error",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   const city = payload.cityName?.trim();
   if (!city) {
+    console.warn("Mock mode: cityName is required but was not provided");
     return NextResponse.json({ error: "cityName is required in mock mode" }, { status: 400 });
   }
 
   const id = `veh-${Date.now()}`;
+  const vehicleCount = vehicles.length;
+  
   vehicles.unshift({
     id,
     title: payload.title.trim(),
@@ -268,13 +303,15 @@ export async function POST(request: Request) {
     imageUrls: [payload.imageUrl],
   });
 
+  console.log(`Vehicle added to in-memory array: ${id} - ${payload.title.trim()} (Total vehicles: ${vehicleCount + 1})`);
+
   await setVehicleNumberForVehicle(id, payload.vehicleNumber);
   await setImageUrlsForVehicle(id, [payload.imageUrl]);
 
   return NextResponse.json(
     {
-      message: "Vehicle created",
-      vehicle: { id, title: payload.title, vehicleNumber: payload.vehicleNumber.trim(), imageUrl: payload.imageUrl },
+      message: "Vehicle created successfully",
+      vehicle: { id, title: payload.title, vehicleNumber: payload.vehicleNumber.trim(), imageUrl: payload.imageUrl, totalVehicles: vehicleCount + 1 },
     },
     { status: 201 }
   );

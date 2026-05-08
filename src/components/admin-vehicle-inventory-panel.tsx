@@ -146,6 +146,17 @@ export function AdminVehicleInventoryPanel() {
     void fetchVehicles();
   }, [fetchVehicles]);
 
+  useEffect(() => {
+    // Debug logging for vehicle count
+    if (vehicles.length > 0) {
+      console.log(`[Vehicle Panel] Total vehicles loaded: ${vehicles.length}`, {
+        types: { all: vehicles.length, car: vehicles.filter((v) => v.type === "car").length, bike: vehicles.filter((v) => v.type === "bike").length, scooty: vehicles.filter((v) => v.type === "scooty").length },
+        withVendor: vehicles.filter((v) => v.vendorId).length,
+        statuses: { available: vehicles.filter((v) => v.status === "available").length, booked: vehicles.filter((v) => v.status === "booked").length },
+      });
+    }
+  }, [vehicles]);
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return vehicles.filter((vehicle) => {
@@ -523,7 +534,7 @@ export function AdminVehicleInventoryPanel() {
         throw new Error(data.error ?? "Failed to create vehicle");
       }
 
-      setMessage(`Vehicle created: ${data.vehicle?.title ?? payload.title}`);
+      setMessage(`✅ Vehicle created: ${data.vehicle?.title ?? payload.title}`);
       setVehicleForm((prev) => ({
         ...prev,
         title: "",
@@ -816,7 +827,15 @@ export function AdminVehicleInventoryPanel() {
         </div>
       </div>
 
-      {message && <p className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/70">{message}</p>}
+      {message && (
+        <div className={`rounded-lg border px-3 py-2 text-xs animate-in fade-in slide-in-from-top ${
+          message.startsWith("✅")
+            ? "border-green-200 bg-green-50 text-green-800"
+            : "border-red-200 bg-red-50 text-red-800"
+        }`}>
+          {message}
+        </div>
+      )}
 
       {workspaceMode !== "fleet" && (
       <div className="rounded-lg border border-black/10 p-3">
