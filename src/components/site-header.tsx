@@ -4,11 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { HeaderAuthButton } from "@/components/header-auth-button";
 import { IndiaCoverageModal } from "@/components/india-coverage-modal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const navItems = [
+const baseNavItems = [
   { href: "/", label: "Home" },
-  { href: "/dashboard", label: "Dashboard" },
   { href: "/vehicles", label: "Book Vehicle" },
   { href: "/cities", label: "Cities" },
   { href: "/pricing", label: "Pricing" },
@@ -18,6 +17,8 @@ const navItems = [
   { href: "/contact", label: "Contact" },
   { href: "/faq", label: "FAQ" },
 ];
+
+const dashboardItem = { href: "/dashboard", label: "Dashboard" };
 
 type SiteHeaderProps = {
   variant?: "dark" | "light";
@@ -29,11 +30,46 @@ type SiteHeaderProps = {
 export function SiteHeader({ variant = "dark", showBrandName = true, showBadges = true, brandHref = "/" }: SiteHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [coverageModalOpen, setCoverageModalOpen] = useState(false);
+  const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const isDark = variant === "dark";
   const textColor = isDark ? "text-white" : "text-black";
   const borderColor = isDark ? "border-white/15" : "border-black/10";
   const chipBg = isDark ? "bg-white/10" : "bg-black/5";
   const bgColor = isDark ? "bg-[var(--brand-ink)]" : "bg-white";
+
+  // Check authentication status
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        }
+      } catch {
+        // User not authenticated
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void checkAuth();
+  }, []);
+
+  // Build navigation items - Dashboard only visible when logged in
+  const navItems = user ? [
+    { href: "/", label: "Home" },
+    dashboardItem,
+    { href: "/vehicles", label: "Book Vehicle" },
+    { href: "/cities", label: "Cities" },
+    { href: "/pricing", label: "Pricing" },
+    { href: "/vendor-registration", label: "Vendor Registration" },
+    { href: "/nri-rentals", label: "NRI Rentals" },
+    { href: "/about", label: "About Us" },
+    { href: "/contact", label: "Contact" },
+    { href: "/faq", label: "FAQ" },
+  ] : baseNavItems;
 
   return (
     <header className={`w-full ${textColor}`}>
