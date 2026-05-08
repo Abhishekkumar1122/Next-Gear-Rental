@@ -21,11 +21,63 @@ function buildAvailabilitySlots(dates: string[], slots: string[]) {
 }
 
 export const cityConfigs: CityConfig[] = [
-  { name: "Delhi", airport: "Indira Gandhi International Airport" },
-  { name: "Mumbai", airport: "Chhatrapati Shivaji Maharaj Airport" },
-  { name: "Bengaluru", airport: "Kempegowda International Airport" },
-  { name: "Hyderabad", airport: "Rajiv Gandhi International Airport" },
-  { name: "Pune", airport: "Pune International Airport" },
+  // Delhi Region
+  { name: "Delhi, Delhi", airport: "Indira Gandhi International Airport" },
+  { name: "Noida, Uttar Pradesh", airport: "" },
+  { name: "Gurugram, Haryana", airport: "" },
+  { name: "Ghaziabad, Uttar Pradesh", airport: "" },
+  { name: "Greater Noida, Uttar Pradesh", airport: "" },
+  
+  // Mumbai Region
+  { name: "Mumbai, Maharashtra", airport: "Chhatrapati Shivaji Maharaj Airport" },
+  { name: "Pune, Maharashtra", airport: "Pune International Airport" },
+  { name: "Nagpur, Maharashtra", airport: "" },
+  { name: "Thane, Maharashtra", airport: "" },
+  { name: "Aurangabad, Maharashtra", airport: "" },
+  
+  // Karnataka
+  { name: "Bengaluru, Karnataka", airport: "Kempegowda International Airport" },
+  { name: "Mysuru, Karnataka", airport: "" },
+  { name: "Mangaluru, Karnataka", airport: "" },
+  
+  // Telangana & Andhra Pradesh
+  { name: "Hyderabad, Telangana", airport: "Rajiv Gandhi International Airport" },
+  { name: "Visakhapatnam, Andhra Pradesh", airport: "" },
+  { name: "Vijayawada, Andhra Pradesh", airport: "" },
+  
+  // Tamil Nadu
+  { name: "Chennai, Tamil Nadu", airport: "Chennai International Airport" },
+  { name: "Coimbatore, Tamil Nadu", airport: "" },
+  { name: "Salem, Tamil Nadu", airport: "" },
+  
+  // Rajasthan
+  { name: "Jaipur, Rajasthan", airport: "" },
+  { name: "Udaipur, Rajasthan", airport: "" },
+  { name: "Jodhpur, Rajasthan", airport: "" },
+  
+  // Uttar Pradesh
+  { name: "Lucknow, Uttar Pradesh", airport: "" },
+  { name: "Kanpur, Uttar Pradesh", airport: "" },
+  { name: "Varanasi, Uttar Pradesh", airport: "" },
+  { name: "Agra, Uttar Pradesh", airport: "" },
+  
+  // Kerala
+  { name: "Kochi, Kerala", airport: "Cochin International Airport" },
+  { name: "Thiruvananthapuram, Kerala", airport: "" },
+  { name: "Kozhikode, Kerala", airport: "" },
+  
+  // Other Major Cities
+  { name: "Chandigarh, Chandigarh", airport: "" },
+  { name: "Ahmedabad, Gujarat", airport: "" },
+  { name: "Surat, Gujarat", airport: "" },
+  { name: "Vadodara, Gujarat", airport: "" },
+  { name: "Kolkata, West Bengal", airport: "" },
+  { name: "Patna, Bihar", airport: "" },
+  { name: "Indore, Madhya Pradesh", airport: "" },
+  { name: "Bhopal, Madhya Pradesh", airport: "" },
+  { name: "Goa, Goa", airport: "Dabolim Airport" },
+  { name: "Ludhiana, Punjab", airport: "" },
+  { name: "Amritsar, Punjab", airport: "" },
 ];
 
 export const vendors: Vendor[] = [
