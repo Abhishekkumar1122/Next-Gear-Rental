@@ -342,7 +342,7 @@ function VehiclesCatalogContent() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {vehicles.map((vehicle) => (
-              <div key={vehicle.id} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+              <div key={vehicle.id} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm hover:shadow-md transition">
                 {vehicle.imageUrls?.[0] ? (
                   <div className="mb-3 overflow-hidden rounded-xl border border-black/10">
                     <Image
@@ -355,26 +355,48 @@ function VehiclesCatalogContent() {
                     />
                   </div>
                 ) : null}
+                
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{vehicle.title}</p>
-                    <p className="text-xs text-black/60">{vehicle.city} · {vehicle.type.toUpperCase()}</p>
+                  <div className="flex-1">
+                    <p className="text-lg font-bold text-black">{vehicle.title}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="inline-block rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                        📍 {vehicle.city}
+                      </span>
+                      <span className="inline-block rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">
+                        {vehicle.type.toUpperCase() === "BIKE" ? "🏍️" : vehicle.type.toUpperCase() === "CAR" ? "🚗" : "🛵"} {vehicle.type.toUpperCase()}
+                      </span>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-black/5 px-3 py-1 text-xs">{vehicle.seats} seats</span>
+                  <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium">{vehicle.seats} seats</span>
                 </div>
 
-                <p className="mt-2 text-sm text-black/70">
-                  {vehicle.fuel} · {vehicle.transmission} · {vehicle.airportPickup ? "Airport pickup" : "City pickup"}
+                <p className="mt-3 text-sm text-black/70">
+                  ⛽ {vehicle.fuel} · ⚙️ {vehicle.transmission} · {vehicle.airportPickup ? "✈️ Airport pickup" : "🏙️ City pickup"}
                 </p>
-                {vehicle.vehicleNumber ? <p className="mt-1 text-xs text-black/60">Vehicle No: {vehicle.vehicleNumber}</p> : null}
-                <p className="mt-1 text-xs font-medium text-black/70">
-                  Status: {(vehicle.availabilityStatus ?? "available").toUpperCase()}
-                  {vehicle.availabilityMessage ? ` · ${vehicle.availabilityMessage}` : ""}
-                </p>
+                
+                {vehicle.vehicleNumber ? <p className="mt-1 text-xs text-black/60">🔖 Vehicle: {vehicle.vehicleNumber}</p> : null}
+                
+                <div className="mt-2 flex items-center gap-2">
+                  {(vehicle.availabilityStatus ?? "available").toUpperCase() === "AVAILABLE" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                      ✅ AVAILABLE
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
+                      ❌ BOOKED
+                    </span>
+                  )}
+                  {vehicle.availabilityMessage && (
+                    <span className="text-xs text-black/60">{vehicle.availabilityMessage}</span>
+                  )}
+                </div>
+                
                 {vehicle.rating ? (
-                  <p className="mt-1 text-xs text-black/60">Rating: {vehicle.rating.toFixed(1)} / 5</p>
+                  <p className="mt-1 text-xs text-black/60">⭐ Rating: {vehicle.rating.toFixed(1)} / 5</p>
                 ) : null}
-                <p className="mt-2 text-sm font-semibold text-[var(--brand-red)]">
+                
+                <p className="mt-3 text-lg font-bold text-[var(--brand-red)]">
                   {toCurrency(vehicle.pricePerDayINR, "INR")} / day
                 </p>
 
