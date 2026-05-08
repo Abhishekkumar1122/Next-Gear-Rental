@@ -7,10 +7,10 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { notificationId: string } }
+  { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
-    const notificationId = params.notificationId;
+    const { notificationId } = await params;
 
     const notification = await prisma.notification.update({
       where: { id: notificationId },
@@ -40,10 +40,10 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { notificationId: string } }
+  { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
-    const notificationId = params.notificationId;
+    const { notificationId } = await params;
 
     await prisma.notification.delete({
       where: { id: notificationId },

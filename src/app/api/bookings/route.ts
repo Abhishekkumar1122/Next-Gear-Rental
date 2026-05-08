@@ -247,18 +247,18 @@ export async function POST(request: NextRequest) {
           },
         },
         include: {
-          managedBy: true,
+          ownerUser: true,
         },
       });
 
       // Create notification for vendor
-      if (vendor?.managedBy) {
+      if (vendor?.ownerUser) {
         await prisma.notification.create({
           data: {
-            userId: vendor.managedBy.id,
+            userId: vendor.ownerUser.id,
             bookingId: booking.id,
             title: "New Booking Received! 🎉",
-            message: `${userName} booked ${vehicle.make} ${vehicle.model} from ${startDate} to ${endDate}`,
+            message: `${userName} booked ${vehicle.title} from ${startDate} to ${endDate}`,
             type: "booking",
           },
         });
@@ -269,13 +269,13 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              to: vendor.managedBy.email,
-              subject: `New Booking - ${vehicle.make} ${vehicle.model}`,
+              to: vendor.ownerUser.email,
+              subject: `New Booking - ${vehicle.title}`,
               template: 'booking_notification',
               data: {
-                vendorName: vendor.managedBy.name,
+                vendorName: vendor.ownerUser.name,
                 customerName: userName,
-                vehicleName: `${vehicle.make} ${vehicle.model}`,
+                vehicleName: `${vehicle.title}`,
                 startDate,
                 endDate,
                 city,
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
             userId: admin.id,
             bookingId: booking.id,
             title: "New Booking - Admin Alert 📊",
-            message: `${userName} booked ${vehicle.make} ${vehicle.model} for ₹${totalAmountINR} in ${city}`,
+            message: `${userName} booked ${vehicle.title} for ₹${totalAmountINR} in ${city}`,
             type: "booking",
           },
         });
