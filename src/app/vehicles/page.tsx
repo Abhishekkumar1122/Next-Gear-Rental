@@ -265,6 +265,78 @@ function VehiclesCatalogContent() {
           <p className="text-sm text-black/60">{status}</p>
         </div>
 
+        {/* Show selected filters as tags */}
+        {(city || type || fuel || transmission || maxPrice || query) && (
+          <div className="flex flex-wrap gap-2">
+            {city && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 border border-blue-200">
+                📍 {city}
+                <button
+                  onClick={() => setCity("")}
+                  className="ml-1 hover:text-blue-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {type && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 border border-purple-200">
+                🚗 {type}
+                <button
+                  onClick={() => setType("")}
+                  className="ml-1 hover:text-purple-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {fuel && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 border border-green-200">
+                ⛽ {fuel}
+                <button
+                  onClick={() => setFuel("")}
+                  className="ml-1 hover:text-green-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {transmission && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 border border-orange-200">
+                ⚙️ {transmission}
+                <button
+                  onClick={() => setTransmission("")}
+                  className="ml-1 hover:text-orange-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {maxPrice && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 border border-red-200">
+                💰 ₹{maxPrice}/day
+                <button
+                  onClick={() => setMaxPrice("")}
+                  className="ml-1 hover:text-red-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {query && (
+              <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300">
+                🔍 {query}
+                <button
+                  onClick={() => setQuery("")}
+                  className="ml-1 hover:text-gray-900 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
         {vehicles.length === 0 ? (
           <p className="text-sm text-black/60">No vehicles found. Try different filters.</p>
         ) : (
