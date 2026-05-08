@@ -14,6 +14,7 @@ import { getWebhookAuditLogs } from "@/lib/webhook-admin";
 import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import NotificationBell from "@/components/notification-bell";
 
 export const revalidate = 120; // Cache dashboard for 2 minutes
 
@@ -165,7 +166,10 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
       <main className="mx-auto w-full max-w-5xl p-4 sm:p-6 md:p-10">
       <section className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-6">
         <p className="text-xs uppercase tracking-wide text-black/60">Admin Dashboard</p>
-        <h1 className="mt-1 text-2xl font-semibold">Control Center</h1>
+        <div className="mt-1 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Control Center</h1>
+          <NotificationBell userId={user.id} role="ADMIN" />
+        </div>
         <p className="mt-2 text-sm text-black/70">Signed in as {user?.email}</p>
 
         <div className="mt-4 mb-6 flex gap-2 overflow-x-auto pb-1">

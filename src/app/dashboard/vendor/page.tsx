@@ -8,6 +8,7 @@ import Link from "next/link";
 import { VendorFleetManager } from "@/components/vendor-fleet-manager";
 import { VendorProfileDocumentsPanel } from "@/components/vendor-profile-documents-panel";
 import { getVendorFleet } from "@/lib/vendor-fleet";
+import NotificationBell from "@/components/notification-bell";
 
 export const revalidate = 120; // Cache dashboard for 2 minutes
 
@@ -118,7 +119,8 @@ export default async function VendorDashboardPage() {
                 </div>
               ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <NotificationBell userId={user.id} role="VENDOR" />
               <Link href="/dashboard/vendor/deliveries" className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${isBlacklisted ? "pointer-events-none border-black/10 text-black/40" : "border-black/15 hover:bg-black/[0.02]"}`}>
                 Deliveries
               </Link>

@@ -21,6 +21,7 @@ function VehiclesCatalogContent() {
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const hasFilters = useMemo(
@@ -111,6 +112,73 @@ function VehiclesCatalogContent() {
     });
   }
 
+  const handleUseCurrentLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    setStatus("Detecting your location...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          // Reverse geocode using Nominatim (Open Street Map)
+          const geoResponse = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const geoData = await geoResponse.json();
+          
+          // Extract city name from address
+          const addressCity = geoData.address?.city || geoData.address?.town || geoData.address?.village || "";
+          
+          if (addressCity) {
+            // Find matching city from cityOptions
+            const matchedCity = cityOptions.find(
+              (option) => option.toLowerCase() === addressCity.toLowerCase()
+            );
+            
+            if (matchedCity) {
+              setCity(matchedCity);
+              // Fetch vehicles for the detected city
+              await fetchVehiclesWith({ city: matchedCity });
+              setStatus(`Located in ${matchedCity}. Showing available vehicles...`);
+            } else {
+              // Show all cities if detected city doesn't match available options
+              setStatus(`Located in ${addressCity}, but no vehicles available there. Showing all cities.`);
+              await fetchVehiclesWith();
+            }
+          } else {
+            setStatus("Could not determine city from location. Try selecting manually.");
+            await fetchVehiclesWith();
+          }
+        } catch (error) {
+          console.error("Reverse geocoding error:", error);
+          setStatus("Could not determine city. Try selecting manually.");
+          await fetchVehiclesWith();
+        }
+
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setStatus("Location access denied. Please select city manually.");
+        setIsDetectingLocation(false);
+        
+        if (error.code === error.PERMISSION_DENIED) {
+          alert("Location permission denied. Please enable location access in your browser settings.");
+        } else if (error.code === error.TIMEOUT) {
+          alert("Location detection timed out. Please try again.");
+        } else {
+          alert("Unable to detect location. Please select city manually.");
+        }
+      }
+    );
+  }, [cityOptions]);
+
   return (
     <PageShell
       title="Vehicle Catalog"
@@ -123,15 +191,25 @@ function VehiclesCatalogContent() {
             <h2 className="text-xl font-semibold">Find your ride</h2>
             <p className="mt-2 text-sm text-black/70">Use filters to narrow results by city, type, fuel, and price.</p>
           </div>
-          {hasFilters && (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={resetFilters}
-              className="rounded-full border border-black/15 px-4 py-2 text-xs font-semibold transition hover:-translate-y-0.5"
+              onClick={handleUseCurrentLocation}
+              disabled={isDetectingLocation}
+              className="rounded-full border border-black/15 px-4 py-2 text-xs font-semibold transition hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Reset filters
+              {isDetectingLocation ? "Detecting..." : "📍 Current location"}
             </button>
-          )}
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-full border border-black/15 px-4 py-2 text-xs font-semibold transition hover:-translate-y-0.5"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
         </div>
 
         <form onSubmit={fetchVehicles} className="mt-4 grid gap-3 md:grid-cols-3">

@@ -235,6 +235,81 @@ export async function POST(request: NextRequest) {
       dedupeKey: `booking-confirmed-${booking.id}`,
     });
 
+    // Send notifications to vendor and admin
+    try {
+      // Get vendor who owns this vehicle
+      const vendor = await prisma.vendor.findFirst({
+        where: {
+          vehicles: {
+            some: {
+              id: vehicleId,
+            },
+          },
+        },
+        include: {
+          managedBy: true,
+        },
+      });
+
+      // Create notification for vendor
+      if (vendor?.managedBy) {
+        await prisma.notification.create({
+          data: {
+            userId: vendor.managedBy.id,
+            bookingId: booking.id,
+            title: "New Booking Received! 🎉",
+            message: `${userName} booked ${vehicle.make} ${vehicle.model} from ${startDate} to ${endDate}`,
+            type: "booking",
+          },
+        });
+
+        // Send email to vendor
+        try {
+          await fetch('/api/emails/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: vendor.managedBy.email,
+              subject: `New Booking - ${vehicle.make} ${vehicle.model}`,
+              template: 'booking_notification',
+              data: {
+                vendorName: vendor.managedBy.name,
+                customerName: userName,
+                vehicleName: `${vehicle.make} ${vehicle.model}`,
+                startDate,
+                endDate,
+                city,
+                totalAmount: totalAmountINR,
+                bookingId: booking.id,
+              },
+            }),
+          });
+        } catch (emailError) {
+          console.error('Failed to send vendor email:', emailError);
+        }
+      }
+
+      // Create notification for admin
+      const admin = await prisma.user.findFirst({
+        where: { role: "ADMIN" },
+      });
+
+      if (admin) {
+        await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            bookingId: booking.id,
+            title: "New Booking - Admin Alert 📊",
+            message: `${userName} booked ${vehicle.make} ${vehicle.model} for ₹${totalAmountINR} in ${city}`,
+            type: "booking",
+          },
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to create notifications:', notificationError);
+      // Don't fail the booking if notifications fail
+    }
+
     return NextResponse.json(
       {
         booking: {
