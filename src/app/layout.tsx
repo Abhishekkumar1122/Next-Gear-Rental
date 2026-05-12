@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Plus_Jakarta_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const brandDisplay = Bebas_Neue({
@@ -42,6 +43,7 @@ export default function RootLayout({
         className={`${brandDisplay.variable} ${bodySans.variable} antialiased`}
       >
         {children}
+        <Analytics />
       </body>
     </html>
   );
