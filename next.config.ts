@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "cdn.bikedekho.com",
+        pathname: "/**",
+      },
     ],
     unoptimized: false,
   },
