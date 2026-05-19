@@ -55,6 +55,22 @@ function LoginContent() {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     if (nextParam && nextParam.startsWith("/")) {
+      // Only honor the next param if it's not a dashboard redirect or if it matches the user's role
+      const isAdminPath = nextParam.includes("/dashboard/admin");
+      const isVendorPath = nextParam.includes("/dashboard/vendor");
+      const isCustomerPath = nextParam.includes("/dashboard/customer");
+      
+      const userRole = role || "CUSTOMER";
+      
+      // Don't redirect to wrong dashboard for their role
+      if ((isAdminPath && userRole !== "ADMIN") || 
+          (isVendorPath && userRole !== "VENDOR") ||
+          (isCustomerPath && userRole !== "CUSTOMER")) {
+        // Redirect to correct dashboard for their role instead
+        navigateByRole(userRole);
+        return;
+      }
+      
       router.push(nextDestination);
       return;
     }
