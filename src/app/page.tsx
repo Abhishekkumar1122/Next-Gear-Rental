@@ -5,8 +5,6 @@ import { FloatingChatbot } from "@/components/floating-chatbot";
 import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { getEffectiveDailyPrice } from "@/lib/pricing";
-import { vehicles } from "@/lib/mock-data";
-import { bookingsStore } from "@/lib/store";
 import { getTrendingRideMap } from "@/lib/trending-rides";
 import Image from "next/image";
 import Link from "next/link";
@@ -40,114 +38,64 @@ function getDefaultBadge(index: number) {
 async function getHomeTrendingRidesUncached(): Promise<HomeTrendingRide[]> {
   const trendingMap = await getTrendingRideMap();
 
-  if (process.env.DATABASE_URL) {
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - 7);
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
 
-    // Optimized: Single query to get all vehicles with their booking counts
-    const vehiclesWithBookings = await prisma.vehicle.findMany({
-      include: {
-        city: true,
-        _count: {
-          select: {
-            bookings: {
-              where: {
-                status: "CONFIRMED",
-                createdAt: { gte: weekStart },
-              },
+  // Optimized: Single query to get all vehicles with their booking counts
+  const vehiclesWithBookings = await prisma.vehicle.findMany({
+    include: {
+      city: true,
+      _count: {
+        select: {
+          bookings: {
+            where: {
+              status: "CONFIRMED",
+              createdAt: { gte: weekStart },
             },
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 50, // Get top 50, we'll filter to 3
-    });
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 50, // Get top 50, we'll filter to 3
+  });
 
-    // Build booking count map
-    const bookingCountMap = new Map<string, number>();
-    vehiclesWithBookings.forEach((vehicle) => {
-      bookingCountMap.set(vehicle.id, vehicle._count.bookings);
-    });
-
-    const configured = Array.from(trendingMap.values()).sort((a, b) => a.rank - b.rank);
-    const configuredIds = configured.map((item) => item.vehicleId);
-    const selectedIds: string[] = [];
-
-    // Add configured vehicles first
-    for (const vehicleId of configuredIds) {
-      if (!selectedIds.includes(vehicleId)) selectedIds.push(vehicleId);
-      if (selectedIds.length === 3) break;
-    }
-
-    // Fill gaps with highest booked vehicles
-    if (selectedIds.length < 3) {
-      const rankedByBookings = vehiclesWithBookings.sort((a, b) => {
-        const countA = bookingCountMap.get(a.id) ?? 0;
-        const countB = bookingCountMap.get(b.id) ?? 0;
-        if (countA !== countB) return countB - countA;
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      });
-
-      for (const vehicle of rankedByBookings) {
-        if (selectedIds.includes(vehicle.id)) continue;
-        selectedIds.push(vehicle.id);
-        if (selectedIds.length === 3) break;
-      }
-    }
-
-    const vehicleMap = new Map(vehiclesWithBookings.map((vehicle) => [vehicle.id, vehicle]));
-
-    return selectedIds
-      .map((vehicleId, index) => {
-        const vehicle = vehicleMap.get(vehicleId);
-        if (!vehicle) return null;
-
-        const weeklyBookings = bookingCountMap.get(vehicle.id) ?? 0;
-        const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
-        const rating = (4.5 + Math.min(0.4, weeklyBookings * 0.03)).toFixed(1);
-        const config = trendingMap.get(vehicle.id);
-
-        return {
-          icon: getIconByType(vehicle.type),
-          title: vehicle.title,
-          meta: `${vehicle.city.name} · ${vehicle.transmission === "automatic" ? "Auto" : "Manual"} · ${vehicle.seats} seats`,
-          price: `INR ${effectivePrice.toLocaleString("en-IN")}/day`,
-          rating,
-          booked: weeklyBookings > 0 ? `${weeklyBookings} booked this week` : "New this week",
-          badge: config?.badge || getDefaultBadge(index),
-        };
-      })
-      .filter((item): item is HomeTrendingRide => item !== null);
-  }
-
-  const weekStartIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Build booking count map
   const bookingCountMap = new Map<string, number>();
-  for (const booking of bookingsStore) {
-    if (booking.status !== "confirmed") continue;
-    if (booking.createdAt < weekStartIso) continue;
-    bookingCountMap.set(booking.vehicleId, (bookingCountMap.get(booking.vehicleId) ?? 0) + 1);
+  vehiclesWithBookings.forEach((vehicle) => {
+    bookingCountMap.set(vehicle.id, vehicle._count.bookings);
+  });
+
+  const configured = Array.from(trendingMap.values()).sort((a, b) => a.rank - b.rank);
+  const configuredIds = configured.map((item) => item.vehicleId);
+  const selectedIds: string[] = [];
+
+  // Add configured vehicles first
+  for (const vehicleId of configuredIds) {
+    if (!selectedIds.includes(vehicleId)) selectedIds.push(vehicleId);
+    if (selectedIds.length === 3) break;
   }
 
-  const configuredIds = Array.from(trendingMap.values())
-    .sort((a, b) => a.rank - b.rank)
-    .map((item) => item.vehicleId);
-
-  const selected = vehicles
-    .slice()
-    .sort((a, b) => {
+  // Fill gaps with highest booked vehicles
+  if (selectedIds.length < 3) {
+    const rankedByBookings = vehiclesWithBookings.sort((a, b) => {
       const countA = bookingCountMap.get(a.id) ?? 0;
       const countB = bookingCountMap.get(b.id) ?? 0;
-      return countB - countA;
-    })
-    .slice(0, 10);
+      if (countA !== countB) return countB - countA;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
 
-  const selectedIds = [...configuredIds, ...selected.map((vehicle) => vehicle.id)]
-    .filter((value, index, array) => array.indexOf(value) === index)
-    .slice(0, 3);
+    for (const vehicle of rankedByBookings) {
+      if (selectedIds.includes(vehicle.id)) continue;
+      selectedIds.push(vehicle.id);
+      if (selectedIds.length === 3) break;
+    }
+  }
 
-  const vehicleMap = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
+  const vehicleMap = new Map(vehiclesWithBookings.map((vehicle) => [vehicle.id, vehicle]));
+
   return selectedIds
     .map((vehicleId, index) => {
       const vehicle = vehicleMap.get(vehicleId);
@@ -155,13 +103,13 @@ async function getHomeTrendingRidesUncached(): Promise<HomeTrendingRide[]> {
 
       const weeklyBookings = bookingCountMap.get(vehicle.id) ?? 0;
       const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
-      const rating = (vehicle.rating ?? 4.6).toFixed(1);
+      const rating = (4.5 + Math.min(0.4, weeklyBookings * 0.03)).toFixed(1);
       const config = trendingMap.get(vehicle.id);
 
       return {
         icon: getIconByType(vehicle.type),
         title: vehicle.title,
-        meta: `${vehicle.city} · ${vehicle.transmission === "automatic" ? "Auto" : "Manual"} · ${vehicle.seats} seats`,
+        meta: `${vehicle.city.name} · ${vehicle.transmission === "automatic" ? "Auto" : "Manual"} · ${vehicle.seats} seats`,
         price: `INR ${effectivePrice.toLocaleString("en-IN")}/day`,
         rating,
         booked: weeklyBookings > 0 ? `${weeklyBookings} booked this week` : "New this week",

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState, Suspense, useRef, useCallback } from "react";
 import { PageShell } from "@/components/page-shell";
 import { WaitlistButton } from "@/components/waitlist-button";
-import { toCurrency } from "@/lib/mock-data";
+import { toCurrency } from "@/lib/pricing";
 import { Vehicle } from "@/lib/types";
 
 function VehiclesCatalogContent() {

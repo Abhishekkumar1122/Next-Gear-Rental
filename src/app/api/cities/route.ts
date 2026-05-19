@@ -1,5 +1,4 @@
 import { splitCityAndState } from "@/lib/india-locations";
-import { cityConfigs, vehicles } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -36,64 +35,25 @@ function toCoverageCity(params: {
 }
 
 export async function GET() {
-  if (process.env.DATABASE_URL) {
-    const dbCities = await prisma.city.findMany({
-      where: { isActive: true },
-      include: {
-        vehicles: {
-          select: { type: true },
-        },
+  const dbCities = await prisma.city.findMany({
+    where: { isActive: true },
+    include: {
+      vehicles: {
+        select: { type: true },
       },
-      orderBy: { name: "asc" },
-    });
+    },
+    orderBy: { name: "asc" },
+  });
 
-    const cities: CoverageCity[] = dbCities.map((city) => {
-      const base = toCoverageCity({
-        name: city.name,
-        airport: city.airportName,
-        vehicleTypes: city.vehicles.map((vehicle) => vehicle.type),
-      });
-      return {
-        ...base,
-        vehicleCount: city.vehicles.length,
-      };
-    });
-
-    const totalCities = cities.length;
-    const airportHubs = cities.filter((city) => city.airport && city.airport !== "Airport details coming soon").length;
-    const vehiclesAvailable = cities.reduce((sum, city) => sum + city.vehicleCount, 0);
-    const statesCovered = new Set(cities.map((city) => city.state).filter(Boolean)).size;
-
-    return NextResponse.json(
-      {
-        stats: {
-          totalCities,
-          airportHubs,
-          vehiclesAvailable,
-          statesCovered,
-        },
-        cities,
-      },
-      {
-        headers: {
-          "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
-          "Pragma": "public",
-        },
-      }
-    );
-  }
-
-  const cities: CoverageCity[] = cityConfigs.map((city) => {
-    const cityVehicles = vehicles.filter((vehicle) => vehicle.city === city.name);
+  const cities: CoverageCity[] = dbCities.map((city) => {
     const base = toCoverageCity({
       name: city.name,
-      airport: city.airport,
-      vehicleTypes: cityVehicles.map((vehicle) => vehicle.type),
+      airport: city.airportName,
+      vehicleTypes: city.vehicles.map((vehicle) => vehicle.type),
     });
-
     return {
       ...base,
-      vehicleCount: cityVehicles.length,
+      vehicleCount: city.vehicles.length,
     };
   });
 

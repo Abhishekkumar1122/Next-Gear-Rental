@@ -1,6 +1,6 @@
 "use client";
 
-import { cityConfigs, toCurrency } from "@/lib/mock-data";
+import { toCurrency } from "@/lib/pricing";
 import { Booking, Vehicle } from "@/lib/types";
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";

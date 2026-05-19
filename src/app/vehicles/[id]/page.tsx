@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/page-shell";
 import { ReviewSection } from "@/components/review-section";
-import { vehicles, toCurrency } from "@/lib/mock-data";
+import { toCurrency } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
 import { bookingsStore } from "@/lib/store";
 import { getEffectiveDailyPrice } from "@/lib/pricing";

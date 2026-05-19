@@ -1,6 +1,5 @@
 import { assertAdminMutationRequest, assertAdminSession } from "@/lib/admin-security";
 import { splitCityAndState } from "@/lib/india-locations";
-import { cityConfigs, vehicles, vendors } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { bookingsStore } from "@/lib/store";
 import { getVehicleAvailabilityOverrides } from "@/lib/vehicle-availability-db";
@@ -128,64 +127,6 @@ export async function GET() {
         };
       }),
     });
-  }
-
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const activeVehicleIds = new Set(
-    bookingsStore
-      .filter((entry) => entry.status === "confirmed" && entry.endDate >= todayIso)
-      .map((entry) => entry.vehicleId),
-  );
-  const bookedUntilMap = new Map<string, string>();
-  for (const entry of bookingsStore.filter((item) => item.status === "confirmed" && item.endDate >= todayIso)) {
-    const existing = bookedUntilMap.get(entry.vehicleId);
-    if (!existing || entry.endDate > existing) bookedUntilMap.set(entry.vehicleId, entry.endDate);
-  }
-
-  const trendingMap = await getTrendingRideMap();
-
-  return NextResponse.json({
-    cities: cityConfigs.map((item) => {
-      const parsed = splitCityAndState(item.name);
-      return {
-        id: item.name,
-        name: parsed.city || item.name,
-        state: parsed.state,
-        displayName: parsed.state ? `${parsed.city}, ${parsed.state}` : item.name,
-        airportName: item.airport,
-      };
-    }),
-    vendors: vendors.map((item) => ({ id: item.id, businessName: item.businessName })),
-    vehicles: vehicles.map((vehicle) => {
-      const hasActiveBooking = activeVehicleIds.has(vehicle.id);
-      const override = adminVehicleStatusStore[vehicle.id];
-      return {
-        id: vehicle.id,
-        title: vehicle.title,
-        type: vehicle.type,
-        fuel: vehicle.fuel,
-        transmission: vehicle.transmission,
-        seats: vehicle.seats,
-        airportPickup: vehicle.airportPickup,
-        cityId: vehicle.city,
-        vendorId: vehicle.vendorId,
-        vehicleNumber: vehicle.vehicleNumber,
-        imageUrl: vehicle.imageUrls?.[0],
-        city: vehicle.city,
-        pricePerDayINR: getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR),
-        status: resolveVehicleAvailability({ vehicleId: vehicle.id, hasActiveBooking, override }),
-        statusMessage: hasActiveBooking
-          ? `Booked until ${bookedUntilMap.get(vehicle.id) ?? "upcoming date"}`
-          : override?.note ?? "Ready for booking",
-        bookedUntil: bookedUntilMap.get(vehicle.id),
-        note: override?.note,
-        hasActiveBooking,
-        isTrending: trendingMap.has(vehicle.id),
-        trendingBadge: trendingMap.get(vehicle.id)?.badge,
-        trendingRank: trendingMap.get(vehicle.id)?.rank,
-      };
-    }),
-  });
 }
 
 export async function POST(request: Request) {
@@ -218,108 +159,66 @@ export async function POST(request: Request) {
   const payload = parsed.data;
   console.log("Creating vehicle with payload:", { title: payload.title, type: payload.type, city: payload.cityName });
 
-  if (process.env.DATABASE_URL) {
-    if (!payload.cityId) {
-      return NextResponse.json({ error: "cityId is required in database mode" }, { status: 400 });
-    }
-
-    try {
-      const city = await prisma.city.findUnique({ where: { id: payload.cityId }, select: { id: true } });
-      if (!city) {
-        console.warn(`City not found: ${payload.cityId}`);
-        return NextResponse.json({ error: `City not found: ${payload.cityId}` }, { status: 404 });
-      }
-
-      if (payload.vendorId) {
-        const vendor = await prisma.vendor.findUnique({ where: { id: payload.vendorId }, select: { id: true } });
-        if (!vendor) {
-          console.warn(`Vendor not found: ${payload.vendorId}`);
-          return NextResponse.json({ error: `Vendor not found: ${payload.vendorId}` }, { status: 404 });
-        }
-      }
-
-      const created = await prisma.vehicle.create({
-        data: {
-          title: payload.title.trim(),
-          type: payload.type,
-          fuel: payload.fuel,
-          transmission: payload.transmission,
-          seats: payload.seats,
-          pricePerDayINR: payload.pricePerDayINR,
-          airportPickup: payload.airportPickup,
-          cityId: payload.cityId,
-          vendorId: payload.vendorId || null,
-        },
-        select: {
-          id: true,
-          title: true,
-        },
-      });
-
-      console.log(`Vehicle created in database: ${created.id} - ${created.title}`);
-
-      await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
-      const savedImages = await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
-      console.log(`Images saved for vehicle ${created.id}:`, savedImages);
-
-      return NextResponse.json(
-        {
-          message: "Vehicle created successfully",
-          vehicle: {
-            ...created,
-            vehicleNumber: payload.vehicleNumber.trim(),
-            imageUrl: payload.imageUrl,
-          },
-        },
-        { status: 201 }
-      );
-    } catch (dbError) {
-      console.error("Database error during vehicle creation:", dbError);
-      return NextResponse.json(
-        {
-          error: "Failed to create vehicle in database",
-          detail: dbError instanceof Error ? dbError.message : "Unknown error",
-        },
-        { status: 500 }
-      );
-    }
+  if (!payload.cityId) {
+    return NextResponse.json({ error: "cityId is required" }, { status: 400 });
   }
 
-  const city = payload.cityName?.trim();
-  if (!city) {
-    console.warn("Mock mode: cityName is required but was not provided");
-    return NextResponse.json({ error: "cityName is required in mock mode" }, { status: 400 });
-  }
+  try {
+    const city = await prisma.city.findUnique({ where: { id: payload.cityId }, select: { id: true } });
+    if (!city) {
+      console.warn(`City not found: ${payload.cityId}`);
+      return NextResponse.json({ error: `City not found: ${payload.cityId}` }, { status: 404 });
+    }
 
-  const id = `veh-${Date.now()}`;
-  const vehicleCount = vehicles.length;
-  
-  vehicles.unshift({
-    id,
-    title: payload.title.trim(),
-    city,
-    type: payload.type,
-    fuel: payload.fuel,
-    transmission: payload.transmission,
-    seats: payload.seats,
-    pricePerDayINR: payload.pricePerDayINR,
-    vehicleNumber: payload.vehicleNumber.trim(),
-    availableDates: [],
-    vendorId: payload.vendorId || undefined,
-    airportPickup: payload.airportPickup,
-    imageUrls: [payload.imageUrl],
-  });
+    if (payload.vendorId) {
+      const vendor = await prisma.vendor.findUnique({ where: { id: payload.vendorId }, select: { id: true } });
+      if (!vendor) {
+        console.warn(`Vendor not found: ${payload.vendorId}`);
+        return NextResponse.json({ error: `Vendor not found: ${payload.vendorId}` }, { status: 404 });
+      }
+    }
 
-  console.log(`Vehicle added to in-memory array: ${id} - ${payload.title.trim()} (Total vehicles: ${vehicleCount + 1})`);
+    const created = await prisma.vehicle.create({
+      data: {
+        title: payload.title.trim(),
+        type: payload.type,
+        fuel: payload.fuel,
+        transmission: payload.transmission,
+        seats: payload.seats,
+        pricePerDayINR: payload.pricePerDayINR,
+        airportPickup: payload.airportPickup,
+        cityId: payload.cityId,
+        vendorId: payload.vendorId || null,
+      },
+      select: {
+        id: true,
+        title: true,
+      },
+    });
 
-  await setVehicleNumberForVehicle(id, payload.vehicleNumber);
-  await setImageUrlsForVehicle(id, [payload.imageUrl]);
+    console.log(`Vehicle created in database: ${created.id} - ${created.title}`);
 
-  return NextResponse.json(
-    {
-      message: "Vehicle created successfully",
-      vehicle: { id, title: payload.title, vehicleNumber: payload.vehicleNumber.trim(), imageUrl: payload.imageUrl, totalVehicles: vehicleCount + 1 },
-    },
-    { status: 201 }
-  );
-}
+    await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
+    const savedImages = await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+    console.log(`Images saved for vehicle ${created.id}:`, savedImages);
+
+    return NextResponse.json(
+      {
+        message: "Vehicle created successfully",
+        vehicle: {
+          ...created,
+          vehicleNumber: payload.vehicleNumber.trim(),
+          imageUrl: payload.imageUrl,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (dbError) {
+    console.error("Database error during vehicle creation:", dbError);
+    return NextResponse.json(
+      {
+        error: "Failed to create vehicle in database",
+        detail: dbError instanceof Error ? dbError.message : "Unknown error",
+      },
+      { status: 500 }
+    );

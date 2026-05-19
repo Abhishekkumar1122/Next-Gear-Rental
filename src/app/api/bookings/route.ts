@@ -1,4 +1,5 @@
-import { bookingAddOns, calculateDays, calculateHours, getHourlyRate } from "@/lib/mock-data";
+import { calculateDays, calculateHours, getHourlyRate } from "@/lib/pricing";
+import { bookingAddOns } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { bookingsStore } from "@/lib/store";
 import { getVehicleAvailabilityOverride } from "@/lib/vehicle-availability-db";

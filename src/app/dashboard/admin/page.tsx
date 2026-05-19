@@ -67,62 +67,15 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     getCachedOpsReport(hours),
   ]);
   const webhookLogs = webhookAudit.items;
-  const hasDatabase = Boolean(process.env.DATABASE_URL);
-
-  const mockPayments = [
-    { id: "pay-001", provider: "razorpay", status: "PAID", amountINR: 1899, currency: "INR", bookingId: "BK-1001", cityName: "Delhi", customerEmail: "riva@example.com", createdAt: new Date().toISOString() },
-    { id: "pay-002", provider: "stripe", status: "PAID", amountINR: 2499, currency: "INR", bookingId: "BK-1002", cityName: "Mumbai", customerEmail: "arun@example.com", createdAt: new Date().toISOString() },
-    { id: "pay-003", provider: "paypal", status: "FAILED", amountINR: 1599, currency: "INR", bookingId: "BK-1003", cityName: "Bengaluru", customerEmail: "sara@example.com", createdAt: new Date().toISOString() },
-    { id: "pay-004", provider: "razorpay", status: "REFUNDED", amountINR: 1299, currency: "INR", bookingId: "BK-1004", cityName: "Pune", customerEmail: "naveen@example.com", createdAt: new Date().toISOString() },
-    { id: "pay-005", provider: "stripe", status: "PAID", amountINR: 2099, currency: "INR", bookingId: "BK-1005", cityName: "Goa", customerEmail: "megha@example.com", createdAt: new Date().toISOString() },
-    { id: "pay-006", provider: "razorpay", status: "CREATED", amountINR: 999, currency: "INR", bookingId: "BK-1006", cityName: "Jaipur", customerEmail: "kiran@example.com", createdAt: new Date().toISOString() },
-  ];
-
-  const mockBookings = [
-    { id: "BK-1001", city: "Delhi", vehicle: "Honda Activa", customer: "Riva Verma", status: "CONFIRMED", amount: 1899 },
-    { id: "BK-1002", city: "Mumbai", vehicle: "Hyundai i20", customer: "Arun Shah", status: "CONFIRMED", amount: 2499 },
-    { id: "BK-1003", city: "Bengaluru", vehicle: "Royal Enfield", customer: "Sara Iqbal", status: "PENDING", amount: 1599 },
-    { id: "BK-1004", city: "Pune", vehicle: "Suzuki Access", customer: "Naveen Rao", status: "REFUNDED", amount: 1299 },
-    { id: "BK-1005", city: "Goa", vehicle: "Maruti Swift", customer: "Megha Rao", status: "COMPLETED", amount: 2099 },
-    { id: "BK-1006", city: "Jaipur", vehicle: "TVS Ntorq", customer: "Kiran Das", status: "CREATED", amount: 999 },
-  ];
-
-  const mockUsers = [
-    { name: "Riva Verma", email: "riva@example.com", role: "CUSTOMER", status: "Active" },
-    { name: "Arun Shah", email: "arun@example.com", role: "CUSTOMER", status: "Active" },
-    { name: "Sara Iqbal", email: "sara@example.com", role: "CUSTOMER", status: "KYC Pending" },
-  ];
-
-  const mockVendors = [
-    { name: "Metro Fleet Co.", ownerEmail: "vendor1@example.com", status: "Approved", fleetCount: 14 },
-    { name: "CityRide Motors", ownerEmail: "vendor2@example.com", status: "Under Review", fleetCount: 7 },
-    { name: "Airport Wheels", ownerEmail: "vendor3@example.com", status: "Approved", fleetCount: 9 },
-  ];
-
-  const mockFleet = [
-    { vehicle: "Honda Activa", type: "Scooter", city: "Delhi", status: "Available" },
-    { vehicle: "Hyundai i20", type: "Car", city: "Mumbai", status: "On Trip" },
-    { vehicle: "Royal Enfield", type: "Bike", city: "Bengaluru", status: "Service Due" },
-    { vehicle: "Maruti Swift", type: "Car", city: "Goa", status: "Available" },
-  ];
-
-  const mockTickets = [
-    { id: "TCK-1201", subject: "Refund not received", priority: "High", status: "Open", customer: "Riva Verma" },
-    { id: "TCK-1202", subject: "KYC verification help", priority: "Medium", status: "In Progress", customer: "Sara Iqbal" },
-    { id: "TCK-1203", subject: "Vendor payout query", priority: "Low", status: "Resolved", customer: "Metro Fleet Co." },
-  ];
-
-  const financeItems = hasDatabase ? history : mockPayments;
-  const bookingCards = hasDatabase
-    ? history.slice(0, 6).map((item) => ({
-        id: item.bookingId,
-        city: item.cityName,
-        vehicle: "",
-        customer: item.customerEmail || "",
-        status: item.status,
-        amount: item.amountINR,
-      }))
-    : mockBookings;
+  const financeItems = history;
+  const bookingCards = history.slice(0, 6).map((item) => ({
+    id: item.bookingId,
+    city: item.cityName,
+    vehicle: "",
+    customer: item.customerEmail || "",
+    status: item.status,
+    amount: item.amountINR,
+  }));
 
   const paidTotal = financeItems.filter((item) => item.status === "PAID").reduce((sum, item) => sum + item.amountINR, 0);
   const refundTotal = financeItems.filter((item) => item.status === "REFUNDED").reduce((sum, item) => sum + item.amountINR, 0);
@@ -310,14 +263,11 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="mt-2 text-black/60">Database metrics unavailable in mock mode.</p>
-              )}
             </div>
 
             <div className="rounded-lg border border-black/10 p-3 text-sm">
               <p className="font-medium">Last {hours}h Trend</p>
-              {opsReport.trends ? (
+              {opsReport.trends && (
                 <div className="mt-2 space-y-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-black/60">Totals</p>
@@ -352,8 +302,6 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="mt-2 text-black/60">Trend metrics unavailable in mock mode.</p>
               )}
             </div>
           </div>
@@ -430,42 +378,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             <p className="mt-2 text-sm text-black/70">
               View registrations, approve vendors, and manage roles.
             </p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-black/60">Latest Users</p>
-                <div className="mt-2 space-y-2">
-                  {mockUsers.map((user) => (
-                    <div key={user.email} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm">
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-black/60">{user.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs uppercase text-black/60">{user.role}</p>
-                        <p className="text-sm font-medium">{user.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-black/60">Vendor Pipeline</p>
-                <div className="mt-2 space-y-2">
-                  {mockVendors.map((vendor) => (
-                    <div key={vendor.ownerEmail} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm">
-                      <div>
-                        <p className="font-medium">{vendor.name}</p>
-                        <p className="text-black/60">{vendor.ownerEmail}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs uppercase text-black/60">Fleet</p>
-                        <p className="text-sm font-medium">{vendor.fleetCount} vehicles</p>
-                        <p className="text-xs text-black/60">{vendor.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-4">
+              <p className="text-sm text-black/70">User and vendor data will be loaded from the database.</p>
             </div>
           </section>
 
@@ -540,19 +454,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             <p className="mt-2 text-sm text-black/70">
               Track unresolved issues, escalations, and SLA status.
             </p>
-            <div className="mt-4 space-y-2">
-              {mockTickets.map((ticket) => (
-                <div key={ticket.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm">
-                  <div>
-                    <p className="font-medium">{ticket.subject}</p>
-                    <p className="text-black/60">{ticket.id} · {ticket.customer}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase text-black/60">{ticket.priority}</p>
-                    <p className="text-sm font-medium">{ticket.status}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4">
+              <p className="text-sm text-black/70">Support tickets will be loaded from the database.</p>
             </div>
           </section>
 
