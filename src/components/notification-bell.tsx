@@ -36,33 +36,67 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
   // Fetch notifications on mount and set up polling
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+
     const fetchNotifications = async () => {
       try {
-        const response = await fetch(`/api/notifications?userId=${userId}&limit=10`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+        const response = await fetch(`/api/notifications?userId=${userId}&limit=10`, {
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
         if (response.ok) {
           const data = await response.json();
-          setNotifications(data.notifications);
-          setUnreadCount(data.unreadCount);
+          setNotifications(data.notifications || []);
+          setUnreadCount(data.unreadCount || 0);
+          retryCount = 0; // Reset retry count on success
+        } else if (response.status === 400 || response.status === 401) {
+          // Client error - don't retry
+          console.warn(`Notification API returned ${response.status}`);
+          setIsLoading(false);
+        } else if (response.status >= 500 && retryCount < maxRetries) {
+          // Server error - retry
+          retryCount++;
+          console.warn(`Notification API error (${response.status}), retry ${retryCount}/${maxRetries}`);
+          setTimeout(fetchNotifications, 2000 * retryCount);
         }
       } catch (error) {
-        console.error('Failed to fetch notifications:', error);
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.warn('Notification fetch timeout');
+        } else {
+          console.warn('Failed to fetch notifications:', error);
+        }
+        // Don't spam logs, just continue
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchNotifications();
+    if (userId) {
+      fetchNotifications();
 
-    // Poll for new notifications every 10 seconds
-    const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
+      // Poll for new notifications every 10 seconds (only if we have userId)
+      const interval = setInterval(fetchNotifications, 10000);
+      return () => clearInterval(interval);
+    }
   }, [userId]);
 
   const markAsRead = async (notificationId: string) => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: 'PATCH',
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         // Update local state
@@ -72,9 +106,16 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
           )
         );
         setUnreadCount(Math.max(0, unreadCount - 1));
+      } else {
+        console.warn(`Failed to mark notification as read: ${response.status}`);
       }
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Mark as read request timeout');
+      } else {
+        console.warn('Failed to mark notification as read:', error);
+      }
+      // Continue silently - don't block UI
     }
   };
 

@@ -25,28 +25,42 @@ export async function GET(request: NextRequest) {
       whereCondition.isRead = isReadParam === "true";
     }
 
-    const notifications = await prisma.notification.findMany({
-      where: whereCondition,
-      include: {
-        booking: {
-          include: {
-            vehicle: true,
+    let notifications: any[] = [];
+    let unreadCount = 0;
+
+    try {
+      notifications = await prisma.notification.findMany({
+        where: whereCondition,
+        include: {
+          booking: {
+            include: {
+              vehicle: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: limit,
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: limit,
+      });
 
-    // Count unread notifications
-    const unreadCount = await prisma.notification.count({
-      where: {
-        userId,
-        isRead: false,
-      },
-    });
+      // Count unread notifications
+      unreadCount = await prisma.notification.count({
+        where: {
+          userId,
+          isRead: false,
+        },
+      });
+    } catch (dbError) {
+      // If database fails, return empty notifications gracefully
+      console.warn("Database error fetching notifications:", dbError);
+      // Return empty notifications instead of failing - UI will handle gracefully
+      return NextResponse.json({
+        notifications: [],
+        unreadCount: 0,
+        status: "offline",
+      });
+    }
 
     return NextResponse.json({
       notifications,
