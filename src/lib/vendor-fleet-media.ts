@@ -42,19 +42,26 @@ export async function getImageMapForVehicles(vehicleIds: string[]) {
   }
 
   if (!process.env.DATABASE_URL) {
+    console.log(`[In-Memory Media] Retrieving images for ${vehicleIds.length} vehicles`);
     for (const vehicleId of vehicleIds) {
-      map.set(vehicleId, inMemoryMedia.get(vehicleId) ?? []);
+      const urls = inMemoryMedia.get(vehicleId) ?? [];
+      console.log(`  Vehicle ${vehicleId}: ${urls.length} images`);
+      map.set(vehicleId, urls);
     }
     return map;
   }
 
   await ensureMediaTable();
+  console.log(`[Database Media] Querying images for ${vehicleIds.length} vehicles`);
+  
   const rows = await prisma.$queryRaw<MediaRow[]>(Prisma.sql`
     SELECT vehicle_id, image_url
     FROM "VendorVehicleMedia"
     WHERE vehicle_id IN (${Prisma.join(vehicleIds)})
     ORDER BY sort_order ASC, created_at ASC
   `);
+
+  console.log(`[Database Media] Retrieved ${rows.length} image rows from database`);
 
   for (const row of rows) {
     const list = map.get(row.vehicle_id) ?? [];
@@ -75,14 +82,18 @@ export async function setImageUrlsForVehicle(vehicleId: string, imageUrls: strin
   );
 
   if (!process.env.DATABASE_URL) {
+    console.log(`[In-Memory Media] Storing ${normalized.length} images for vehicle ${vehicleId}`);
     inMemoryMedia.set(vehicleId, normalized);
     return normalized;
   }
 
   await ensureMediaTable();
+  console.log(`[Database Media] Storing ${normalized.length} images for vehicle ${vehicleId}:`, normalized);
+  
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw(Prisma.sql`DELETE FROM "VendorVehicleMedia" WHERE vehicle_id = ${vehicleId}`);
     if (normalized.length === 0) {
+      console.log(`[Database Media] No images to store for ${vehicleId}`);
       return;
     }
 

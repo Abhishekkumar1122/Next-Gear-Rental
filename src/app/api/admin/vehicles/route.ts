@@ -69,6 +69,12 @@ export async function GET() {
     ]);
     const vehicleNumberMap = await getVehicleNumberMap(dbVehicles.map((vehicle) => vehicle.id));
     const imageMap = await getImageMapForVehicles(dbVehicles.map((vehicle) => vehicle.id));
+    
+    console.log(`[GET /api/admin/vehicles] Retrieved ${dbVehicles.length} vehicles`);
+    for (const vehicle of dbVehicles.slice(0, 3)) {
+      const images = imageMap.get(vehicle.id);
+      console.log(`  Vehicle ${vehicle.id}: ${images?.length ?? 0} images stored`, images);
+    }
 
     return NextResponse.json({
       cities: (await prisma.city.findMany({
@@ -253,7 +259,8 @@ export async function POST(request: Request) {
       console.log(`Vehicle created in database: ${created.id} - ${created.title}`);
 
       await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
-      await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+      const savedImages = await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+      console.log(`Images saved for vehicle ${created.id}:`, savedImages);
 
       return NextResponse.json(
         {
