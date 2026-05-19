@@ -49,19 +49,29 @@ function LoginContent() {
     router.push("/dashboard/customer");
   }, [router]);
 
-  // Memoize handleGoogleSignIn to prevent it from being recreated on every render
-  const redirectAfterAuth = useCallback(async () => {
-    if (nextParam) {
+  // Redirect after auth with proper delay to allow cookie to be set
+  const redirectAfterAuth = useCallback(async (role?: string) => {
+    // Wait for cookie to be set properly (100ms)
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    if (nextParam && nextParam.startsWith("/")) {
       router.push(nextDestination);
       return;
     }
 
+    // Use provided role, or default to customer
+    if (role) {
+      navigateByRole(role);
+      return;
+    }
+
+    // If no role provided, try to get it from /api/auth/me
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
         const data = await res.json();
-        const role = String(data?.user?.role ?? "CUSTOMER");
-        navigateByRole(role);
+        const userRole = String(data?.user?.role ?? "CUSTOMER");
+        navigateByRole(userRole);
         return;
       }
     } catch {
@@ -91,9 +101,8 @@ function LoginContent() {
 
       if (res.ok) {
         setStatus("Login successful! Redirecting...");
-        setTimeout(() => {
-          void redirectAfterAuth();
-        }, 1000);
+        const role = String(data?.user?.role ?? "");
+        await redirectAfterAuth(role);
       } else {
         setStatus(data.error ?? "Google sign-in failed");
       }
@@ -225,9 +234,9 @@ function LoginContent() {
       
       if (response.ok) {
         setStatus("Account created! Redirecting...");
-        setTimeout(() => {
-          void redirectAfterAuth();
-        }, 1000);
+        const role = String(data?.user?.role ?? "");
+        // Pass role if available, otherwise let redirectAfterAuth fetch it
+        await redirectAfterAuth(role);
       } else {
         setStatus(data.error ?? "Registration failed");
       }
@@ -269,11 +278,8 @@ function LoginContent() {
       if (response.ok) {
         setStatus("Login successful! Redirecting...");
         const role = String(data?.user?.role ?? "");
-        if (!nextParam && role) {
-          navigateByRole(role);
-        } else {
-          void redirectAfterAuth();
-        }
+        // Pass role to redirectAfterAuth to avoid extra API call
+        await redirectAfterAuth(role);
       } else {
         setStatus(data.error ?? "Login failed");
       }
@@ -348,9 +354,9 @@ function LoginContent() {
       
       if (response.ok) {
         setStatus("Verified! Redirecting...");
-        setTimeout(() => {
-          void redirectAfterAuth();
-        }, 1000);
+        const role = String(data?.user?.role ?? "");
+        // Pass role if available, otherwise let redirectAfterAuth fetch it
+        await redirectAfterAuth(role);
       } else {
         setStatus(data.error ?? "Invalid OTP");
       }
