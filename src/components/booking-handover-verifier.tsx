@@ -126,11 +126,15 @@ export function BookingHandoverVerifier() {
           if (active) {
             setTorchSupported(hasTorch);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Scanner start error:", err);
           if (active) {
-            setError("Could not access camera. Please check permissions.");
-            setIsScanning(false);
+            const isPermissionDenied = err?.name === "NotAllowedError" || String(err).includes("NotAllowedError") || String(err).includes("Permission denied");
+            if (isPermissionDenied) {
+              setError("PERMISSION_DENIED");
+            } else {
+              setError("Could not access camera. Please check permissions.");
+            }
           }
         }
       };
@@ -255,8 +259,51 @@ export function BookingHandoverVerifier() {
       {isScanning ? (
         <div className="mt-4 space-y-3">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-1">
-            <div id="qr-reader" className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden" />
-                        {/* Up & Down Animated Cyber Laser Scanline */}
+            <div id="qr-reader" className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center">
+              {error === "PERMISSION_DENIED" && (
+                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2">
+                  <span className="text-xl">📵</span>
+                  <p className="text-[11px] font-bold text-red-400">Camera Access Blocked</p>
+                  <p className="text-[9px] text-slate-300 leading-relaxed">
+                    Browser settings me camera access block ho rakha hai.
+                  </p>
+                  <div className="text-left w-full bg-white/5 rounded-lg p-2 space-y-1">
+                    <p className="text-[8px] text-white">🔒 <strong>Chrome:</strong> URL bar ke pass lock 🔒 icon tap karein → Camera → Allow</p>
+                    <p className="text-[8px] text-white">🍎 <strong>Safari/iOS:</strong> Settings → Safari → Camera → Allow</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError("");
+                      setIsScanning(false);
+                      setTimeout(() => setIsScanning(true), 200);
+                    }}
+                    className="w-full py-1.5 px-3 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+                  >
+                    Allow karne ke baad Retry karein
+                  </button>
+                </div>
+              )}
+
+              {error && error !== "PERMISSION_DENIED" && (
+                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2">
+                  <span className="text-xl">⚠️</span>
+                  <p className="text-[10px] text-amber-300 font-medium leading-relaxed">{error}</p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError("");
+                      setIsScanning(false);
+                      setTimeout(() => setIsScanning(true), 200);
+                    }}
+                    className="w-full py-1.5 px-3 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
+                  >
+                    Retry Camera
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* Up & Down Animated Cyber Laser Scanline */}
             {!error && (
               <>
                 <div className="pointer-events-none absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_15px_#ef4444,_0_0_25px_#ef4444] z-20 animate-scanline" />
