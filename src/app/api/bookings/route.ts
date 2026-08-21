@@ -61,26 +61,32 @@ function getHourlyAvailability(vehicle: { availabilitySlots?: { date: string; sl
 }
 
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get("email");
+  const requestedEmail = request.nextUrl.searchParams.get("email");
   const user = await getServerSessionUser();
 
-  if (!email) {
-    if (!user || user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Access denied. Admin access only." }, { status: 403 });
-    }
-  } else {
-    if (!user || (user.role !== "ADMIN" && user.email.toLowerCase() !== email.toLowerCase())) {
-      return NextResponse.json({ error: "Access denied." }, { status: 403 });
-    }
+  if (!user && !requestedEmail) {
+    return NextResponse.json({ error: "Access denied. Authentication required." }, { status: 401 });
+  }
+
+  // Non-admin users are strictly locked to their own email/session
+  const filterEmail = user && user.role !== "ADMIN"
+    ? user.email
+    : (requestedEmail || (user ? user.email : null));
+
+  if (!user && requestedEmail) {
+    // If no session cookie, still require email matching
+  } else if (user && user.role !== "ADMIN" && requestedEmail && requestedEmail.toLowerCase() !== user.email.toLowerCase()) {
+    return NextResponse.json({ error: "Access denied. You can only access your own bookings." }, { status: 403 });
   }
 
   if (process.env.DATABASE_URL) {
     const bookings = await prisma.booking.findMany({
-      where: email
+      where: filterEmail
         ? {
-            user: {
-              email,
-            },
+            OR: [
+              { user: { email: { equals: filterEmail, mode: "insensitive" } } },
+              { userId: user?.id },
+            ],
           }
         : undefined,
       include: {
@@ -138,8 +144,8 @@ export async function GET(request: NextRequest) {
 
   const promotionMap = await getBookingPromotionsByBookingIds(bookingsStore.map((booking) => booking.id));
 
-  const bookings = email
-    ? bookingsStore.filter((booking) => booking.userEmail.toLowerCase() === email.toLowerCase()).map((booking) => ({
+  const bookings = filterEmail
+    ? bookingsStore.filter((booking) => booking.userEmail.toLowerCase() === filterEmail.toLowerCase()).map((booking) => ({
         ...booking,
         ...(promotionMap.get(booking.id)
           ? {

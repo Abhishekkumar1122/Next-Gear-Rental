@@ -93,10 +93,8 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
   }, [userEmail]);
 
   useEffect(() => {
-    if (initialBookings.length === 0) {
-      fetchBookings();
-    }
-  }, [fetchBookings, initialBookings.length]);
+    fetchBookings();
+  }, [fetchBookings]);
 
   async function handleCancel(bookingId: string) {
     setCancellingId(bookingId);
