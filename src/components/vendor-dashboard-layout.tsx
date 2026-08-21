@@ -31,7 +31,8 @@ import {
   Edit2,
   QrCode,
   Zap,
-  MessageSquare
+  Camera,
+  MessageSquare,
 } from "lucide-react";
 
 interface Booking {
@@ -236,6 +237,19 @@ export function VendorDashboardLayout({
           await new Promise(resolve => setTimeout(resolve, 350));
           if (!active) return;
 
+          // Explicitly request native browser camera permission prompt first!
+          if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } }
+              });
+              // Stop stream immediately so Html5Qrcode can bind to the device cleanly
+              stream.getTracks().forEach(track => track.stop());
+            } catch (nativeErr) {
+              console.warn("Native browser camera permission prompt denied/failed:", nativeErr);
+            }
+          }
+
           const html5QrCode = new window.Html5Qrcode("layout-qr-reader");
           scannerRef.current = html5QrCode;
 
@@ -347,6 +361,32 @@ export function VendorDashboardLayout({
     setIsScanModalOpen(false);
     setIsTorchOn(false);
     setTorchSupported(false);
+  };
+
+  const requestNativeCameraAndRetry = async () => {
+    setScannerError("");
+    if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } }
+        });
+        stream.getTracks().forEach(t => t.stop());
+      } catch (err) {
+        console.warn("User denied or browser blocked camera prompt:", err);
+      }
+    }
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch {}
+      scannerRef.current = null;
+    }
+    setIsScanModalOpen(false);
+    setTimeout(() => {
+      setIsScanModalOpen(true);
+    }, 200);
   };
 
   const toggleLayoutTorch = async () => {
@@ -687,10 +727,19 @@ export function VendorDashboardLayout({
               {scannerError && (
                 <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-3">
                   <p className="text-xs text-amber-300 font-medium leading-relaxed">
-                    📷 Camera permission needed for live scanning. Check phone browser settings or enter Booking ID below:
+                    📷 Camera permission prompt required to start live scanning feed.
                   </p>
 
-                  <div className="w-full space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={requestNativeCameraAndRetry}
+                    className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Camera className="w-4 h-4" /> Tap to Allow Camera Access
+                  </button>
+
+                  <div className="w-full border-t border-white/10 my-1 pt-2 space-y-2">
+                    <p className="text-[10px] text-slate-400">Or enter Booking ID manually below:</p>
                     <input
                       type="text"
                       placeholder="e.g. NG849102 or Booking ID"
