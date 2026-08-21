@@ -235,10 +235,31 @@ export function VendorDashboardLayout({
 
           // Wait a brief moment to let any previous teardown finish cleanly
           await new Promise(resolve => setTimeout(resolve, 350));
-          if (!active) return;
+          // Direct native getUserMedia call - THIS GUARANTEES THE BROWSER PERMISSION DIALOG SHOWS UP!
+          let grantedStream: MediaStream | null = null;
+          if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+            try {
+              grantedStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } }
+              });
+            } catch {
+              try {
+                grantedStream = await navigator.mediaDevices.getUserMedia({ video: true });
+              } catch (permErr) {
+                console.error("Browser camera permission denied or unavailable:", permErr);
+              }
+            }
+          }
 
           const html5QrCode = new window.Html5Qrcode("layout-qr-reader");
           scannerRef.current = html5QrCode;
+
+          // Keep temporary stream alive briefly so browser hardware stays active during Html5Qrcode start
+          if (grantedStream) {
+            setTimeout(() => {
+              grantedStream?.getTracks().forEach(t => t.stop());
+            }, 1500);
+          }
 
           const handleScanSuccess = async (decodedText: string) => {
             audioSynth.playSuccess();
@@ -359,10 +380,8 @@ export function VendorDashboardLayout({
     setScannerError("");
     if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } }
-        });
-        stream.getTracks().forEach(t => t.stop());
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setTimeout(() => stream.getTracks().forEach(t => t.stop()), 1500);
       } catch (err) {
         console.warn("User denied or browser blocked camera prompt:", err);
       }
