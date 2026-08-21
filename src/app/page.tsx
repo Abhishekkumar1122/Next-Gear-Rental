@@ -230,33 +230,32 @@ export default async function Home() {
           <div className="absolute -right-20 top-10 h-80 w-80 rounded-full bg-[var(--brand-red)]/25 blur-3xl pointer-events-none" aria-hidden="true" />
           <div className="absolute -left-20 bottom-0 h-56 w-56 rounded-full bg-white/10 blur-3xl pointer-events-none" aria-hidden="true" />
 
-          <div className="mx-auto w-full max-w-6xl px-6 pb-12 pt-2 md:pb-16 md:pt-4">
-            <div className="mt-2 grid items-center gap-8 md:grid-cols-[1.05fr_0.95fr]">
+          <div className="mx-auto w-full max-w-6xl px-6 pb-12 pt-10 md:pb-16 md:pt-14">
+            <div className="mt-10 grid items-center gap-8 md:grid-cols-[1.05fr_0.95fr]">
               <div>
-                <h1 className="font-display text-4xl uppercase tracking-wider md:text-5xl leading-none flex flex-col gap-1.5 md:gap-2">
+                <h1 className="font-display text-4xl uppercase tracking-wider md:text-5xl leading-[1.08]">
                   {heroLines.map((line, idx) => (
-                    <div key={idx} className="leading-tight">
-                      <span 
-                        className="inline-block opacity-0 animate-[fade-up_0.8s_ease_forwards]"
-                        style={{ animationDelay: `${idx * 0.3}s` }}
-                      >
-                        {idx === 0 ? (
-                          <span className="gradient-text">{line}</span>
-                        ) : (
-                          <span>
-                            {line.toLowerCase().includes("anywhere") ? (
-                              <>
-                                {line.split(/anywhere/i)[0]}
-                                <span className="text-glow">Anywhere</span>
-                                {line.split(/anywhere/i)[1]}
-                              </>
-                            ) : (
-                              line
-                            )}
-                          </span>
-                        )}
-                      </span>
-                    </div>
+                    <span 
+                      key={idx}
+                      className="block opacity-0 animate-[fade-up_0.8s_ease_forwards]"
+                      style={{ animationDelay: `${idx * 0.3}s` }}
+                    >
+                      {idx === 0 ? (
+                        <span className="gradient-text">{line}</span>
+                      ) : (
+                        <span>
+                          {line.toLowerCase().includes("anywhere") ? (
+                            <>
+                              {line.split(/anywhere/i)[0]}
+                              <span className="text-glow">Anywhere</span>
+                              {line.split(/anywhere/i)[1]}
+                            </>
+                          ) : (
+                            line
+                          )}
+                        </span>
+                      )}
+                    </span>
                   ))}
                 </h1>
                 <p className="mt-4 max-w-xl text-sm text-white/75 md:text-base opacity-0 animate-[fade-up_0.8s_ease_0.5s_forwards]">
