@@ -202,6 +202,7 @@ export function VendorDashboardLayout({
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [torchSupported, setTorchSupported] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const [manualBookingInput, setManualBookingInput] = useState("");
 
   // Dynamically load html5-qrcode script when scanner is activated
   useEffect(() => {
@@ -238,36 +239,53 @@ export function VendorDashboardLayout({
           const html5QrCode = new window.Html5Qrcode("layout-qr-reader");
           scannerRef.current = html5QrCode;
 
-          // Start environment camera first (prompts permission if needed)
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: { width: 220, height: 220 },
-            },
-            async (decodedText: string) => {
-              audioSynth.playSuccess();
-              await stopScanner();
+          const handleScanSuccess = async (decodedText: string) => {
+            audioSynth.playSuccess();
+            await stopScanner();
 
-              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
 
-              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
-                targetUrl = "/dashboard/mobile-hub";
-              } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
-                targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
-              } else if (decodedText.includes("/dashboard/scan-booking")) {
-                try {
-                  const url = new URL(decodedText);
-                  url.searchParams.set("source", "qr");
-                  targetUrl = url.pathname + url.search;
-                } catch {
-                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-                }
+            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
+              targetUrl = "/dashboard/mobile-hub";
+            } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
+              targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
+            } else if (decodedText.includes("/dashboard/scan-booking")) {
+              try {
+                const url = new URL(decodedText);
+                url.searchParams.set("source", "qr");
+                targetUrl = url.pathname + url.search;
+              } catch {
+                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
               }
-              router.push(targetUrl);
-            },
-            () => {}
-          );
+            }
+            router.push(targetUrl);
+          };
+
+          // Try environment camera first, then fallback to device camera list
+          try {
+            await html5QrCode.start(
+              { facingMode: "environment" },
+              { fps: 10, qrbox: { width: 220, height: 220 } },
+              handleScanSuccess,
+              () => {}
+            );
+          } catch (camErr) {
+            console.warn("FacingMode environment failed, trying device cameras list:", camErr);
+            const devices = await window.Html5Qrcode.getCameras();
+            if (devices && devices.length > 0) {
+              const backCam = devices.find((d: any) =>
+                d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")
+              ) || devices[0];
+              await html5QrCode.start(
+                backCam.id,
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                handleScanSuccess,
+                () => {}
+              );
+            } else {
+              throw camErr;
+            }
+          }
 
           if (!active) {
             void html5QrCode.stop().catch(console.error);
@@ -279,7 +297,7 @@ export function VendorDashboardLayout({
             const devices = await window.Html5Qrcode.getCameras();
             if (active) {
               setCameras(devices);
-              const backCam = devices.find(d => 
+              const backCam = devices.find((d: any) => 
                 d.label.toLowerCase().includes("back") || 
                 d.label.toLowerCase().includes("environment")
               );
@@ -299,7 +317,7 @@ export function VendorDashboardLayout({
         } catch (err) {
           console.error("Layout scanner start error:", err);
           if (active) {
-            setScannerError("Could not access camera. Please check permissions.");
+            setScannerError("Camera permission needed for live scan. You can grant camera permission in phone settings or enter Booking ID manually below.");
           }
         }
       };
@@ -667,8 +685,32 @@ export function VendorDashboardLayout({
               )}
 
               {scannerError && (
-                <div className="absolute inset-0 bg-red-950/90 flex items-center justify-center p-4 text-center z-30">
-                  <p className="text-xs text-red-200 font-semibold">{scannerError}</p>
+                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-3">
+                  <p className="text-xs text-amber-300 font-medium leading-relaxed">
+                    📷 Camera permission needed for live scanning. Check phone browser settings or enter Booking ID below:
+                  </p>
+
+                  <div className="w-full space-y-2 pt-1">
+                    <input
+                      type="text"
+                      placeholder="e.g. NG849102 or Booking ID"
+                      value={manualBookingInput}
+                      onChange={(e) => setManualBookingInput(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-black border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-red-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!manualBookingInput.trim()) return;
+                        audioSynth.playSuccess();
+                        stopScanner();
+                        router.push(`/dashboard/scan-booking?id=${encodeURIComponent(manualBookingInput.trim())}&source=manual`);
+                      }}
+                      className="w-full py-2 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg active:scale-95 transition cursor-pointer"
+                    >
+                      Verify Booking Pass ➔
+                    </button>
+                  </div>
                 </div>
               )}
               {scriptLoaded && !scannerError && (
