@@ -52,7 +52,7 @@ export function AuthPanel() {
       return;
     }
 
-    setStatus(data.devOtp ? `OTP sent. Dev OTP: ${data.devOtp}` : "OTP sent to email.");
+    setStatus("OTP sent to your registered contact.");
   }
 
   async function verifyOtp() {

@@ -27,7 +27,7 @@ type Props = {
 export async function GET(_: Request, { params }: Props) {
   const { jobId } = await params;
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.findUnique({ where: { id: jobId } });
     if (!job) {

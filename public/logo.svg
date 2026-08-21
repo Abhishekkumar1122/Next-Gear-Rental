@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#09090c"/>
+  <circle cx="256" cy="256" r="230" stroke="#ef4444" stroke-width="8" fill="none" opacity="0.4"/>
+  <!-- Metallic Outer Gear -->
+  <path d="M256 96 L276 116 L310 106 L324 134 L358 138 L364 168 L394 184 L392 214 L416 238 L406 268 L420 298 L400 324 L404 356 L378 376 L372 406 L342 416 L328 444 L298 442 L278 464 L248 454 L224 472 L198 452 L172 462 L152 436 L124 438 L112 408 L84 402 L80 370 L54 356 L58 324 L38 300 L50 270 L38 238 L58 214 L52 184 L80 166 L84 136 L112 128 L128 100 L158 104 L180 82 L210 94 Z" fill="none" stroke="#d4d4d8" stroke-width="12" opacity="0.3"/>
+  <!-- Red Car Silhouette -->
+  <path d="M120 290 C120 290 150 284 180 260 C210 236 256 210 330 210 C404 210 448 240 464 275 C478 300 464 320 464 320 L120 290 Z" fill="#18181c" stroke="#dc2626" stroke-dasharray="none" stroke-width="10"/>
+  <path d="M140 275 C200 240 280 230 360 235" stroke="#ef4444" stroke-width="14" stroke-linecap="round"/>
+  <ellipse cx="145" cy="290" rx="30" ry="12" fill="#ffffff" opacity="0.9"/>
+  <!-- Red Gear Arc -->
+  <path d="M180 140 A 180 180 0 0 1 430 270" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+  <!-- Text Brand -->
+  <text x="256" y="420" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="4">
+    NEXT <tspan fill="#dc2626">GEAR</tspan>
+  </text>
+</svg>

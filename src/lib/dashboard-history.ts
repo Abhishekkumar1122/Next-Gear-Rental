@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 
 export type DashboardPaymentItem = {
   id: string;
@@ -66,33 +67,41 @@ export async function getCustomerHistory(userId: string) {
   return payments.map(mapPayment);
 }
 
-export async function getVendorHistory(ownerUserId: string) {
-  if (!process.env.DATABASE_URL) return [];
+const getCachedVendorHistory = unstable_cache(
+  async (ownerUserId: string) => {
+    if (!process.env.DATABASE_URL) return [];
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      booking: {
-        vehicle: {
-          vendor: {
-            ownerUserId,
+    const payments = await prisma.payment.findMany({
+      where: {
+        booking: {
+          vehicle: {
+            vendor: {
+              ownerUserId,
+            },
           },
         },
       },
-    },
-    include: {
-      booking: {
-        include: {
-          user: true,
+      include: {
+        booking: {
+          include: {
+            user: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 20,
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 20,
+    });
 
-  return payments.map(mapPayment);
+    return payments.map(mapPayment);
+  },
+  ["vendor-history-cache"],
+  { revalidate: 60, tags: ["history"] }
+);
+
+export async function getVendorHistory(ownerUserId: string) {
+  return getCachedVendorHistory(ownerUserId);
 }
 
 export async function getAdminHistory(filters?: AdminHistoryFilters) {
@@ -103,23 +112,31 @@ export async function getAdminHistory(filters?: AdminHistoryFilters) {
   const allowedStatuses = new Set<PaymentStatus>(["CREATED", "PAID", "FAILED", "REFUNDED"]);
   const statusFilter = status && allowedStatuses.has(status as PaymentStatus) ? (status as PaymentStatus) : undefined;
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      ...(provider ? { provider } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-    },
-    include: {
-      booking: {
-        include: {
-          user: true,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payments: any[] = [];
+
+  try {
+    payments = await prisma.payment.findMany({
+      where: {
+        ...(provider ? { provider } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+      },
+      include: {
+        booking: {
+          include: {
+            user: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 25,
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 25,
+    });
+  } catch (err) {
+    console.warn("[dashboard-history] DB unreachable, returning empty list:", err);
+    return [];
+  }
 
   return payments.map(mapPayment);
 }

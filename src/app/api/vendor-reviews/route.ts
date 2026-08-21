@@ -1,5 +1,12 @@
-import { vendorReviews } from "@/lib/mock-data";
 import { NextRequest, NextResponse } from "next/server";
+import { VendorReview } from "@/lib/types";
+
+const vendorReviews: VendorReview[] = [
+  { id: "vr1", vendorId: "v1", userId: "u1", userName: "Aarav Sharma", rating: 5, comment: "Metro Wheels provided excellent service. Very professional!", createdAt: "2026-02-16T15:00:00Z" },
+  { id: "vr2", vendorId: "v1", userId: "u2", userName: "Priya Patel", rating: 4, comment: "Good fleet, responsive support team.", createdAt: "2026-02-19T11:30:00Z" },
+  { id: "vr3", vendorId: "v2", userId: "u1", userName: "Aarav Sharma", rating: 4, comment: "Swift Rides is reliable. Fair pricing.", createdAt: "2026-02-20T09:45:00Z" },
+];
+
 
 export async function GET(request: NextRequest) {
   const vendorId = request.nextUrl.searchParams.get("vendorId");

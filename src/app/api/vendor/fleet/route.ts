@@ -19,6 +19,13 @@ const createVendorVehicleSchema = z.object({
   pricePerDayINR: z.number().int().positive(),
   vehicleNumber: z.string().min(4).max(30).optional(),
   imageUrl: z.string().url(),
+  addonWaiverPrice: z.number().int().nonnegative().nullable().optional(),
+  addonRsaPrice: z.number().int().nonnegative().nullable().optional(),
+  addonHelmetPrice: z.number().int().nonnegative().nullable().optional(),
+  price1HrINR: z.number().int().nonnegative().nullable().optional(),
+  price3HrINR: z.number().int().nonnegative().nullable().optional(),
+  price6HrINR: z.number().int().nonnegative().nullable().optional(),
+  price12HrINR: z.number().int().nonnegative().nullable().optional(),
 });
 
 function defaultDates() {
@@ -87,6 +94,13 @@ export async function POST(request: Request) {
         airportPickup: true,
         vendorId: vendor.id,
         cityId: city.id,
+        addonWaiverPrice: payload.addonWaiverPrice,
+        addonRsaPrice: payload.addonRsaPrice,
+        addonHelmetPrice: payload.addonHelmetPrice,
+        price1HrINR: payload.price1HrINR,
+        price3HrINR: payload.price3HrINR,
+        price6HrINR: payload.price6HrINR,
+        price12HrINR: payload.price12HrINR,
       },
       include: { city: true },
     });
@@ -135,6 +149,13 @@ export async function POST(request: Request) {
     vehicleNumber: payload.vehicleNumber?.trim() || undefined,
     airportPickup: true,
     imageUrls: [payload.imageUrl],
+    addonWaiverPrice: payload.addonWaiverPrice,
+    addonRsaPrice: payload.addonRsaPrice,
+    addonHelmetPrice: payload.addonHelmetPrice,
+    price1HrINR: payload.price1HrINR,
+    price3HrINR: payload.price3HrINR,
+    price6HrINR: payload.price6HrINR,
+    price12HrINR: payload.price12HrINR,
   };
 
   vehicles.unshift(created);

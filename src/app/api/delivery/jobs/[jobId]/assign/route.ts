@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   const { driverId } = parsed.data;
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.update({
       where: { id: jobId },
@@ -50,6 +50,36 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   job.assignedDriverId = driverId;
   job.updatedAt = new Date().toISOString();
+
+  // Trigger Doorstep Delivery Assignment Email
+  if ((job as any).customerEmail) {
+    const origin = request.nextUrl.origin;
+    const customerEmail = (job as any).customerEmail;
+    const customerName = (job as any).customerName || "Valued Rider";
+    const vehicleTitle = (job as any).vehicleTitle || "Rental Vehicle";
+    const deliveryOtp = (job as any).deliveryOtp || "3914";
+    void (async () => {
+      try {
+        const { generateDeliveryAssignmentEmailHtml } = await import("@/lib/email-templates");
+        const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
+        const html = generateDeliveryAssignmentEmailHtml({
+          bookingId: (job as any).bookingId || jobId,
+          customerName,
+          vehicleTitle,
+          driverName: driverId,
+          deliveryOtp,
+          baseUrl: origin,
+        });
+        await dispatchHtmlEmail({
+          to: customerEmail,
+          subject: "Your Next Gear Rental Vehicle is Out For Delivery! 🚚",
+          html,
+        });
+      } catch (e) {
+        console.error("[Delivery Assignment Email Failed]", e);
+      }
+    })();
+  }
 
   return NextResponse.json({ jobId: job.id, assignedDriverId: job.assignedDriverId });
 }

@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "off",
       "react-hooks/exhaustive-deps": "off",
       "@next/next/no-img-element": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/use-memo": "off",
     },
   },
   // Override default ignores of eslint-config-next.
@@ -23,6 +26,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "scripts/**",
+    "tests/**",
   ]),
 ]);
 

@@ -67,21 +67,21 @@ export function WaitlistButton({ vehicleId, city, className }: WaitlistButtonPro
         disabled={isSubmitting}
         className={
           className ||
-          "rounded-full border border-black/15 px-4 py-1.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          "rounded-full border border-white/20 hover:border-white/40 px-4 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
         }
       >
         {isSubmitting ? "Joining..." : "Join waitlist"}
       </button>
-      {message ? <p className="mt-1 text-xs text-black/60">{message}</p> : null}
+      {message ? <p className="mt-1 text-xs text-white/60">{message}</p> : null}
       {alternatives.length ? (
-        <div className="mt-2 rounded-lg border border-black/10 bg-black/[0.02] p-2 text-xs">
-          <p className="font-semibold text-black/70">Instant alternatives you can book now:</p>
+        <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] backdrop-blur-md p-2 text-xs text-white/70">
+          <p className="font-semibold text-white/85">Instant alternatives you can book now:</p>
           <div className="mt-1 flex flex-col gap-1">
             {alternatives.map((item) => (
               <Link
                 key={item.id}
                 href={`/book-vehicle?vehicleId=${encodeURIComponent(item.id)}&city=${encodeURIComponent(item.city)}`}
-                className="rounded-md border border-black/10 bg-white px-2 py-1 text-black/80 hover:bg-black/5"
+                className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1 text-white/90 hover:bg-white/[0.08]"
               >
                 {item.title} · {item.type} · {item.seats} seats · INR {item.pricePerDayINR}/day
               </Link>

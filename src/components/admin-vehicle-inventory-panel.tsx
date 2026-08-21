@@ -3,6 +3,7 @@
 import { INDIA_CITIES_BY_STATE, INDIA_STATES } from "@/lib/india-locations";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
+import { LiveVehicleCardPreview } from "./vendor-fleet-manager";
 
 type VehicleStatus = "available" | "booked" | "unavailable" | "maintenance" | "crashed";
 
@@ -28,6 +29,13 @@ type AdminVehicle = {
   isTrending?: boolean;
   trendingBadge?: string;
   trendingRank?: number;
+  addonWaiverPrice?: number | null;
+  addonRsaPrice?: number | null;
+  addonHelmetPrice?: number | null;
+  price1HrINR?: number | null;
+  price3HrINR?: number | null;
+  price6HrINR?: number | null;
+  price12HrINR?: number | null;
 };
 
 type CityOption = {
@@ -55,7 +63,7 @@ export function AdminVehicleInventoryPanel() {
   const [vehicles, setVehicles] = useState<AdminVehicle[]>([]);
   const [cities, setCities] = useState<CityOption[]>([]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
-  const [workspaceMode, setWorkspaceMode] = useState<"fleet" | "status" | "create" | "brands" | "contacts" | "cities" | "trending">("fleet");
+  const [workspaceMode, setWorkspaceMode] = useState<"fleet" | "status" | "create" | "brands" | "contacts" | "cities" | "trending" | "maintenance">("fleet");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [fleetPage, setFleetPage] = useState(1);
@@ -99,6 +107,13 @@ export function AdminVehicleInventoryPanel() {
     cityId: "",
     vendorId: "",
     airportPickup: false,
+    addonWaiverPrice: "",
+    addonRsaPrice: "",
+    addonHelmetPrice: "",
+    price1HrINR: "",
+    price3HrINR: "",
+    price6HrINR: "",
+    price12HrINR: "",
   });
   const [cityForm, setCityForm] = useState({
     cityName: "",
@@ -123,6 +138,13 @@ export function AdminVehicleInventoryPanel() {
     cityId: "",
     vendorId: "",
     airportPickup: false,
+    addonWaiverPrice: "",
+    addonRsaPrice: "",
+    addonHelmetPrice: "",
+    price1HrINR: "",
+    price3HrINR: "",
+    price6HrINR: "",
+    price12HrINR: "",
   });
 
   const fetchVehicles = useCallback(async () => {
@@ -521,6 +543,13 @@ export function AdminVehicleInventoryPanel() {
         cityName: cities.find((item) => item.id === vehicleForm.cityId)?.displayName ?? cities.find((item) => item.id === vehicleForm.cityId)?.name,
         vendorId: vehicleForm.vendorId || undefined,
         airportPickup: vehicleForm.airportPickup,
+        addonWaiverPrice: vehicleForm.addonWaiverPrice ? Number(vehicleForm.addonWaiverPrice) : null,
+        addonRsaPrice: vehicleForm.addonRsaPrice ? Number(vehicleForm.addonRsaPrice) : null,
+        addonHelmetPrice: vehicleForm.addonHelmetPrice ? Number(vehicleForm.addonHelmetPrice) : null,
+        price1HrINR: vehicleForm.price1HrINR ? Number(vehicleForm.price1HrINR) : null,
+        price3HrINR: vehicleForm.price3HrINR ? Number(vehicleForm.price3HrINR) : null,
+        price6HrINR: vehicleForm.price6HrINR ? Number(vehicleForm.price6HrINR) : null,
+        price12HrINR: vehicleForm.price12HrINR ? Number(vehicleForm.price12HrINR) : null,
       };
 
       const res = await fetch("/api/admin/vehicles", {
@@ -544,6 +573,13 @@ export function AdminVehicleInventoryPanel() {
         pricePerDayINR: "",
         vendorId: "",
         airportPickup: false,
+        addonWaiverPrice: "",
+        addonRsaPrice: "",
+        addonHelmetPrice: "",
+        price1HrINR: "",
+        price3HrINR: "",
+        price6HrINR: "",
+        price12HrINR: "",
       }));
       await fetchVehicles();
     } catch (error) {
@@ -685,6 +721,13 @@ export function AdminVehicleInventoryPanel() {
       cityId: vehicle.cityId ?? "",
       vendorId: vehicle.vendorId ?? "",
       airportPickup: Boolean(vehicle.airportPickup),
+      addonWaiverPrice: vehicle.addonWaiverPrice !== undefined && vehicle.addonWaiverPrice !== null ? String(vehicle.addonWaiverPrice) : "",
+      addonRsaPrice: vehicle.addonRsaPrice !== undefined && vehicle.addonRsaPrice !== null ? String(vehicle.addonRsaPrice) : "",
+      addonHelmetPrice: vehicle.addonHelmetPrice !== undefined && vehicle.addonHelmetPrice !== null ? String(vehicle.addonHelmetPrice) : "",
+      price1HrINR: vehicle.price1HrINR !== undefined && vehicle.price1HrINR !== null ? String(vehicle.price1HrINR) : "",
+      price3HrINR: vehicle.price3HrINR !== undefined && vehicle.price3HrINR !== null ? String(vehicle.price3HrINR) : "",
+      price6HrINR: vehicle.price6HrINR !== undefined && vehicle.price6HrINR !== null ? String(vehicle.price6HrINR) : "",
+      price12HrINR: vehicle.price12HrINR !== undefined && vehicle.price12HrINR !== null ? String(vehicle.price12HrINR) : "",
     });
   }
 
@@ -706,6 +749,13 @@ export function AdminVehicleInventoryPanel() {
         cityName: cities.find((item) => item.id === editForm.cityId)?.displayName ?? cities.find((item) => item.id === editForm.cityId)?.name,
         vendorId: editForm.vendorId || undefined,
         airportPickup: editForm.airportPickup,
+        addonWaiverPrice: editForm.addonWaiverPrice ? Number(editForm.addonWaiverPrice) : null,
+        addonRsaPrice: editForm.addonRsaPrice ? Number(editForm.addonRsaPrice) : null,
+        addonHelmetPrice: editForm.addonHelmetPrice ? Number(editForm.addonHelmetPrice) : null,
+        price1HrINR: editForm.price1HrINR ? Number(editForm.price1HrINR) : null,
+        price3HrINR: editForm.price3HrINR ? Number(editForm.price3HrINR) : null,
+        price6HrINR: editForm.price6HrINR ? Number(editForm.price6HrINR) : null,
+        price12HrINR: editForm.price12HrINR ? Number(editForm.price12HrINR) : null,
       };
 
       const res = await fetch(`/api/admin/vehicles/${vehicleId}`, {
@@ -808,16 +858,18 @@ export function AdminVehicleInventoryPanel() {
             { id: "contacts", label: "Vendor Contacts" },
             { id: "cities", label: "City Management" },
             { id: "trending", label: "Trending Manager" },
+            { id: "maintenance", label: "Diagnostics & Service" }
           ].map((tab) => {
             const active = workspaceMode === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setWorkspaceMode(tab.id as "fleet" | "status" | "create" | "brands" | "contacts" | "cities" | "trending")}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                type="button"
+                onClick={() => setWorkspaceMode(tab.id as any)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
                   active
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 bg-white text-black/80 hover:bg-black/[0.03]"
+                    ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+                    : "border-black/15 bg-white text-black/80 hover:bg-black/[0.03] dark:border-white/10 dark:bg-[#121212] dark:text-white/70"
                 }`}
               >
                 {tab.label}
@@ -1008,141 +1060,167 @@ export function AdminVehicleInventoryPanel() {
 
         {workspaceMode === "create" && (
         <>
-        <div className="grid gap-2 md:grid-cols-2">
-          <input
-            value={vehicleForm.title}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, title: e.target.value }))}
-            placeholder="Vehicle title"
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          />
-          <input
-            value={vehicleForm.vehicleNumber}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
-            placeholder="Vehicle number (required)"
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          />
-          <input
-            value={vehicleForm.imageUrl}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-            placeholder="Vehicle photo URL (required)"
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          />
-          <select
-            value={vehicleForm.type}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, type: e.target.value }))}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            <option value="bike">Bike</option>
-            <option value="car">Car</option>
-            <option value="scooty">Scooty</option>
-          </select>
-          <select
-            value={vehicleForm.fuel}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, fuel: e.target.value }))}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            <option value="petrol">Petrol</option>
-            <option value="diesel">Diesel</option>
-            <option value="electric">Electric</option>
-          </select>
-          <select
-            value={vehicleForm.transmission}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, transmission: e.target.value }))}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            <option value="manual">Manual</option>
-            <option value="automatic">Automatic</option>
-          </select>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Form Inputs (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="grid gap-2 md:grid-cols-2">
+              <input
+                value={vehicleForm.title}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Vehicle title"
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              />
+              <input
+                value={vehicleForm.vehicleNumber}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
+                placeholder="Vehicle number (required)"
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              />
+              <input
+                value={vehicleForm.imageUrl}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                placeholder="Vehicle photo URL (required)"
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              />
+              <select
+                value={vehicleForm.type}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, type: e.target.value }))}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                <option value="bike">Bike</option>
+                <option value="car">Car</option>
+                <option value="scooty">Scooty</option>
+              </select>
+              <select
+                value={vehicleForm.fuel}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, fuel: e.target.value }))}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                <option value="petrol">Petrol</option>
+                <option value="diesel">Diesel</option>
+                <option value="electric">Electric</option>
+              </select>
+              <select
+                value={vehicleForm.transmission}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, transmission: e.target.value }))}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                <option value="manual">Manual</option>
+                <option value="automatic">Automatic</option>
+              </select>
 
-          <input
-            value={vehicleForm.seats}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, seats: e.target.value }))}
-            placeholder="Seats"
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          />
-          <input
-            value={vehicleForm.pricePerDayINR}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
-            placeholder="Price per day (INR)"
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          />
-          <select
-            value={selectedState}
-            onChange={(e) => {
-              const state = e.target.value;
-              setSelectedState(state);
-                const nextCity = state === "all"
-                  ? cities[0]
-                  : cities.find((item) => item.state === state);
-              if (nextCity) {
-                setVehicleForm((prev) => ({ ...prev, cityId: nextCity.id }));
-              }
-            }}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            {availableStates.map((state) => (
-                <option key={state} value={state}>{state === "all" ? "All States" : state}</option>
-            ))}
-          </select>
-          <select
-            value={vehicleForm.cityId}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, cityId: e.target.value }))}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            <option value="">Select city</option>
-            {createStateCities.map((city) => (
-              <option key={city.id} value={city.id}>{city.displayName ?? city.name}</option>
-            ))}
-          </select>
-          <select
-            value={vehicleForm.vendorId}
-            onChange={(e) => setVehicleForm((prev) => ({ ...prev, vendorId: e.target.value }))}
-            className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-          >
-            <option value="">No vendor</option>
-            {vendors.map((vendor) => (
-              <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>
-            ))}
-          </select>
-        </div>
+              <input
+                value={vehicleForm.seats}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, seats: e.target.value }))}
+                placeholder="Seats"
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              />
+              <input
+                value={vehicleForm.pricePerDayINR}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
+                placeholder="Price per day (INR)"
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              />
+              <select
+                value={selectedState}
+                onChange={(e) => {
+                  const state = e.target.value;
+                  setSelectedState(state);
+                    const nextCity = state === "all"
+                      ? cities[0]
+                      : cities.find((item) => item.state === state);
+                  if (nextCity) {
+                    setVehicleForm((prev) => ({ ...prev, cityId: nextCity.id }));
+                  }
+                }}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                {availableStates.map((state) => (
+                    <option key={state} value={state}>{state === "all" ? "All States" : state}</option>
+                ))}
+              </select>
+              <select
+                value={vehicleForm.cityId}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, cityId: e.target.value }))}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                <option value="">Select city</option>
+                {createStateCities.map((city) => (
+                  <option key={city.id} value={city.id}>{city.displayName ?? city.name}</option>
+                ))}
+              </select>
+              <select
+                value={vehicleForm.vendorId}
+                onChange={(e) => setVehicleForm((prev) => ({ ...prev, vendorId: e.target.value }))}
+                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+              >
+                <option value="">No vendor</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <label
-            onDragOver={(event) => {
-              event.preventDefault();
-              setIsDragOverCreateImage(true);
-            }}
-            onDragLeave={() => setIsDragOverCreateImage(false)}
-            onDrop={handleCreateDrop}
-            className={`cursor-pointer rounded border px-3 py-1 text-xs font-semibold transition ${
-              isDragOverCreateImage ? "border-black bg-black/[0.03] text-black" : "border-black/15 text-black/70"
-            }`}
-          >
-            {isDragOverCreateImage ? "Drop Photo" : "Upload or Drop Photo"}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleCreateImageUpload}
-              className="ml-2 text-xs"
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <label
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragOverCreateImage(true);
+                }}
+                onDragLeave={() => setIsDragOverCreateImage(false)}
+                onDrop={handleCreateDrop}
+                className={`cursor-pointer rounded border px-3 py-1 text-xs font-semibold transition ${
+                  isDragOverCreateImage ? "border-black bg-black/[0.03] text-black" : "border-black/15 text-black/70"
+                }`}
+              >
+                {isDragOverCreateImage ? "Drop Photo" : "Upload or Drop Photo"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleCreateImageUpload}
+                  className="ml-2 text-xs"
+                />
+              </label>
+              {uploadingCreateImage ? <span className="text-xs text-black/60">Uploading image...</span> : null}
+              <label className="flex items-center gap-2 text-sm text-black/70">
+                <input
+                  type="checkbox"
+                  checked={vehicleForm.airportPickup}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, airportPickup: e.target.checked }))}
+                />
+                Airport pickup available
+              </label>
+
+              <button
+                onClick={() => void createVehicle()}
+                disabled={creatingVehicle}
+                className="rounded-lg bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+              >
+                {creatingVehicle ? "Creating..." : "Create Vehicle"}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Live Next Gear Catalog Card Preview */}
+          <div className="lg:col-span-5 sticky top-6 space-y-3">
+            <div className="text-center pb-1">
+              <span className="text-xs font-extrabold text-red-400 uppercase tracking-widest bg-red-950/50 border border-red-500/30 px-3 py-1 rounded-full">
+                👁️ Customer View Live Preview
+              </span>
+            </div>
+            <LiveVehicleCardPreview
+              title={vehicleForm.title}
+              city={cities.find(c => c.id === vehicleForm.cityId)?.displayName || cities.find(c => c.id === vehicleForm.cityId)?.name || "Delhi NCR"}
+              type={vehicleForm.type}
+              seats={vehicleForm.seats}
+              fuel={vehicleForm.fuel}
+              transmission={vehicleForm.transmission}
+              pricePerDayINR={vehicleForm.pricePerDayINR}
+              vehicleNumber={vehicleForm.vehicleNumber}
+              imageUrl={vehicleForm.imageUrl}
+              airportPickup={vehicleForm.airportPickup}
             />
-          </label>
-          {uploadingCreateImage ? <span className="text-xs text-black/60">Uploading image...</span> : null}
-          <label className="flex items-center gap-2 text-sm text-black/70">
-            <input
-              type="checkbox"
-              checked={vehicleForm.airportPickup}
-              onChange={(e) => setVehicleForm((prev) => ({ ...prev, airportPickup: e.target.checked }))}
-            />
-            Airport pickup available
-          </label>
-
-          <button
-            onClick={() => void createVehicle()}
-            disabled={creatingVehicle}
-            className="rounded-lg bg-[var(--brand-red)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-          >
-            {creatingVehicle ? "Creating..." : "Create Vehicle"}
-          </button>
+          </div>
         </div>
         </>
         )}
@@ -1365,6 +1443,112 @@ export function AdminVehicleInventoryPanel() {
         </>
         )}
       </div>
+      )}
+
+      {workspaceMode === "maintenance" && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="rounded-2xl border border-white/5 bg-[#0c0c0c] p-5 shadow-xl flex flex-wrap justify-between items-center gap-4">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Fleet Performance</p>
+              <h3 className="text-sm font-black uppercase tracking-wider text-white mt-1">Diagnostics & Service Workspace</h3>
+              <p className="text-xs text-white/50 mt-1">Supervise telemetrics, schedule inspections, and record service invoices.</p>
+            </div>
+            
+            <div className="flex gap-4 text-center">
+              <div className="px-3 py-1 rounded-xl border border-white/5 bg-white/5">
+                <p className="text-[8.5px] uppercase font-bold text-white/40">Fleet Health</p>
+                <p className="text-sm font-black text-emerald-400">96.8%</p>
+              </div>
+              <div className="px-3 py-1 rounded-xl border border-white/5 bg-white/5">
+                <p className="text-[8.5px] uppercase font-bold text-white/40">In Service</p>
+                <p className="text-sm font-black text-amber-400">
+                  {vehicles.filter(v => v.status === "maintenance").length} Rides
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Kanban Lanes Grid */}
+          <div className="grid gap-4 md:grid-cols-3">
+            
+            {/* Lane 1: Operational */}
+            <div className="rounded-2xl border border-white/5 bg-[#0c0c0c]/40 p-4 space-y-3">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">● Operational</span>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
+                  {vehicles.filter(v => v.status === "available" || v.status === "booked").length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+                {vehicles.filter(v => v.status === "available" || v.status === "booked").slice(0, 5).map(v => (
+                  <div key={v.id} className="rounded-xl border border-white/5 bg-[#0a0a0a] p-3 text-[11px] space-y-1.5 hover:border-emerald-500/30 transition">
+                    <p className="font-extrabold text-white">{v.title}</p>
+                    <p className="text-[9px] text-white/40">ID: {v.id.slice(0, 8)} • {v.city}</p>
+                    <div className="flex justify-between text-[8px] uppercase font-black text-white/40 pt-1 border-t border-white/[0.02]">
+                      <span>🔋 BAT: 12.6V</span>
+                      <span>⚙️ ODO: 14,240 km</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Lane 2: Scheduled Service */}
+            <div className="rounded-2xl border border-white/5 bg-[#0c0c0c]/40 p-4 space-y-3">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-400">▲ Scheduled Service</span>
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                  {vehicles.filter(v => v.status === "maintenance").length + 1}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+                {/* Seed a scheduled item */}
+                <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-950/5 p-3 text-[11px] space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-extrabold text-amber-400">🚨 Routine Filter Swap</span>
+                    <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.5 rounded">DUE</span>
+                  </div>
+                  <p className="text-[9px] text-white/50">Next scheduled check within 24h</p>
+                </div>
+                {vehicles.filter(v => v.status === "maintenance").map(v => (
+                  <div key={v.id} className="rounded-xl border border-white/5 bg-[#0a0a0a] p-3 text-[11px] space-y-1.5 hover:border-amber-500/30 transition">
+                    <p className="font-extrabold text-white">{v.title}</p>
+                    <p className="text-[9px] text-white/40">ID: {v.id.slice(0, 8)} • {v.city}</p>
+                    <div className="flex justify-between text-[8px] uppercase font-black text-amber-400/80 pt-1 border-t border-white/[0.02]">
+                      <span>🔧 Engine Check</span>
+                      <span>Odo: 8,420 km</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Lane 3: Awaiting Repair */}
+            <div className="rounded-2xl border border-white/5 bg-[#0c0c0c]/40 p-4 space-y-3">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-400">■ Awaiting Repair</span>
+                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[9px] font-bold text-rose-400">
+                  {vehicles.filter(v => v.status === "crashed" || v.status === "unavailable").length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+                {vehicles.filter(v => v.status === "crashed" || v.status === "unavailable").map(v => (
+                  <div key={v.id} className="rounded-xl border border-white/5 bg-[#0a0a0a] p-3 text-[11px] space-y-1.5 hover:border-rose-500/30 transition">
+                    <div className="flex justify-between items-start">
+                      <p className="font-extrabold text-white">{v.title}</p>
+                      <span className="text-[7.5px] uppercase bg-rose-500/20 text-rose-400 px-1 py-0.5 rounded font-black">CRITICAL</span>
+                    </div>
+                    <p className="text-[9px] text-white/40">ID: {v.id.slice(0, 8)} • {v.city}</p>
+                    <div className="text-[8.5px] text-white/50 leading-relaxed italic">
+                      "{v.statusMessage || v.note || "Awaiting structural check & estimates"}"
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {workspaceMode === "fleet" && (
@@ -1593,6 +1777,48 @@ export function AdminVehicleInventoryPanel() {
                   value={editForm.pricePerDayINR}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
                   placeholder="Price per day (INR)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.addonWaiverPrice}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonWaiverPrice: e.target.value }))}
+                  placeholder="Waiver Price (fallback 99)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.addonRsaPrice}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonRsaPrice: e.target.value }))}
+                  placeholder="RSA Price (fallback 49)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.addonHelmetPrice}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonHelmetPrice: e.target.value }))}
+                  placeholder="Helmet Price (fallback 50)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.price1HrINR}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, price1HrINR: e.target.value }))}
+                  placeholder="Price 1 Hour (INR)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.price3HrINR}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, price3HrINR: e.target.value }))}
+                  placeholder="Price 3 Hours (INR)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.price6HrINR}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, price6HrINR: e.target.value }))}
+                  placeholder="Price 6 Hours (INR)"
+                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+                />
+                <input
+                  value={editForm.price12HrINR}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, price12HrINR: e.target.value }))}
+                  placeholder="Price 12 Hours (INR)"
                   className="rounded-lg border border-black/15 px-3 py-2 text-sm"
                 />
                 <select

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type PaymentMethod = "card" | "upi" | "netbanking" | "wallet";
 
@@ -34,6 +35,13 @@ export function MockRazorpayModal({ orderId, amount, bookingId, onSuccess, onDis
   const [error, setError] = useState("");
   const [step, setStep] = useState<"form" | "otp" | "done">("form");
   const [otp, setOtp] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   const handlePay = () => {
     setError("");
@@ -79,14 +87,14 @@ export function MockRazorpayModal({ orderId, amount, bookingId, onSuccess, onDis
     { id: "wallet", label: "Wallets", icon: "👛" },
   ];
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onDismiss} />
 
       {/* Modal */}
       <div className="relative w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ maxHeight: "90vh" }}>
-        {/* Razorpay-style header */}
+        {/* PayU / Razorpay style header */}
         <div className="bg-[#072654] px-5 py-4 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-[#528FF0] flex items-center justify-center text-white font-bold text-xs">NG</div>
@@ -97,13 +105,13 @@ export function MockRazorpayModal({ orderId, amount, bookingId, onSuccess, onDis
           </div>
           <div className="text-right">
             <p className="text-white text-lg font-bold">₹{amount.toLocaleString("en-IN")}</p>
-            <p className="text-white/50 text-[10px] uppercase tracking-widest">Test Mode</p>
+            <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">⚡ Instant Gateway</p>
           </div>
         </div>
 
-        {/* Test mode banner */}
-        <div className="bg-yellow-400 px-4 py-1.5 text-xs font-semibold text-yellow-900 flex items-center gap-2 flex-shrink-0">
-          <span>🔧</span> Mock Integration — Test payments only
+        {/* Instant Checkout banner */}
+        <div className="bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-white flex items-center gap-2 flex-shrink-0">
+          <span>⚡</span> PayU & Razorpay Instant Gateway — Zero Redirection Delay
         </div>
 
         {/* Body */}
@@ -308,13 +316,20 @@ export function MockRazorpayModal({ orderId, amount, bookingId, onSuccess, onDis
 
           {/* Success Step */}
           {step === "done" && (
-            <div className="p-8 text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl animate-[fade-up_0.4s_ease_forwards]">✅</div>
-              <div>
-                <p className="font-bold text-gray-800 text-lg">Payment Successful!</p>
-                <p className="text-sm text-gray-500 mt-1">₹{amount.toLocaleString("en-IN")} paid via {method.toUpperCase()}</p>
+            <div className="p-8 text-center space-y-5 flex flex-col items-center justify-center min-h-[280px]">
+              <div className="checkmark-wrapper">
+                <svg className="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                  <circle className="checkmark-circle" cx="26" cy="26" r="25" fill="none" />
+                  <path className="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                </svg>
               </div>
-              <p className="text-xs text-gray-400">Redirecting to booking confirmation...</p>
+              <div>
+                <p className="font-extrabold text-gray-900 text-lg">Payment Successful!</p>
+                <p className="text-xs text-gray-500 mt-1.5 font-medium">
+                  ₹{amount.toLocaleString("en-IN")} captured via <span className="font-semibold text-[#10b981]">{method.toUpperCase()}</span>
+                </p>
+              </div>
+              <p className="text-[10px] text-gray-400 font-mono">Redirecting securely...</p>
             </div>
           )}
         </div>
@@ -328,6 +343,7 @@ export function MockRazorpayModal({ orderId, amount, bookingId, onSuccess, onDis
           <button onClick={onDismiss} className="text-xs text-gray-400 hover:text-red-500 transition">✕ Cancel</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

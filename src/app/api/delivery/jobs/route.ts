@@ -45,18 +45,56 @@ export async function GET(request: NextRequest) {
   const bookingId = request.nextUrl.searchParams.get("bookingId") ?? undefined;
   const statusParam = request.nextUrl.searchParams.get("status") ?? undefined;
 
-  if (false && hasDatabase) {
-    // Prisma code disabled - configure DATABASE_URL to enable
+  if (hasDatabase) {
     const prismaStatus = (statusParam != null)
       ? (statusParam!.toUpperCase() as "SCHEDULED" | "EN_ROUTE" | "ARRIVED" | "COMPLETED" | "CANCELLED")
       : undefined;
-    const jobs = await (prisma as any).deliveryJob.findMany({
+
+    let jobs = await (prisma as any).deliveryJob.findMany({
       where: {
         bookingId,
         status: prismaStatus,
       },
       orderBy: { createdAt: "desc" },
     });
+
+    if (jobs.length === 0 && bookingId) {
+      // Auto-create a delivery job for this booking so the user can test the live tracking!
+      const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+      if (booking) {
+        const { otp, salt, hash } = generateOtp();
+        const startLat = 28.5562; // IGI Airport Delhi
+        const startLng = 77.1000;
+        const endLat = 28.6139; // Connaught Place Delhi
+        const endLng = 77.2090;
+
+        const newJob = await (prisma as any).deliveryJob.create({
+          data: {
+            bookingId,
+            type: "DELIVERY",
+            status: "SCHEDULED",
+            startLat,
+            startLng,
+            endLat,
+            endLng,
+            notes: "Automated test delivery job",
+            otpHash: hash,
+            otpSalt: salt,
+          },
+        });
+
+        await (prisma as any).deliveryEvent.create({
+          data: {
+            jobId: newJob.id,
+            status: "SCHEDULED",
+            message: "Job created automatically for tracking demo",
+            createdBy: "system",
+          },
+        });
+
+        jobs = [newJob];
+      }
+    }
 
     return NextResponse.json({
       jobs: jobs.map((job: any) => ({
@@ -83,7 +121,7 @@ export async function GET(request: NextRequest) {
 
   const filtered = deliveryJobsStore.filter((job) => {
     if (bookingId && job.bookingId !== bookingId) return false;
-    if (status && job.status !== status) return false;
+    if (statusParam && job.status.toLowerCase() !== statusParam.toLowerCase()) return false;
     return true;
   });
 

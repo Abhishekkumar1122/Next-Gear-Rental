@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 export type VendorKycDocumentType =
   | "aadhaar"
   | "pan"
+  | "business-proof"
   | "driving-license"
   | "vehicle-rc"
   | "insurance"
   | "bank-proof"
   | "other";
+
+export type VendorKycReviewStatus = "pending" | "verified" | "rejected" | "needs-reupload";
 
 export type VendorKycDocument = {
   id: string;
@@ -18,6 +21,9 @@ export type VendorKycDocument = {
   mimeType: string;
   sizeBytes: number;
   uploadedAt: string;
+  reviewStatus: VendorKycReviewStatus;
+  reviewNote?: string;
+  reviewedAt?: string;
 };
 
 type VendorKycDocumentRow = {
@@ -29,6 +35,9 @@ type VendorKycDocumentRow = {
   mime_type: string;
   size_bytes: number;
   uploaded_at: Date;
+  review_status?: VendorKycReviewStatus | null;
+  review_note?: string | null;
+  reviewed_at?: Date | null;
 };
 
 const inMemoryVendorKycDocs = new Map<string, VendorKycDocument[]>();
@@ -44,6 +53,9 @@ function toVendorKycDocument(row: VendorKycDocumentRow): VendorKycDocument {
     mimeType: row.mime_type,
     sizeBytes: Number(row.size_bytes),
     uploadedAt: new Date(row.uploaded_at).toISOString(),
+    reviewStatus: row.review_status ?? "pending",
+    reviewNote: row.review_note || undefined,
+    reviewedAt: row.reviewed_at ? new Date(row.reviewed_at).toISOString() : undefined,
   };
 }
 
@@ -59,9 +71,16 @@ async function ensureTable() {
       file_url TEXT NOT NULL,
       mime_type TEXT NOT NULL,
       size_bytes INTEGER NOT NULL,
-      uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+      uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      review_note TEXT,
+      reviewed_at TIMESTAMP
     )
   `);
+
+  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_note TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP`);
 
   ensuredTable = true;
 }
@@ -77,7 +96,7 @@ export async function listVendorKycDocuments(vendorId: string): Promise<VendorKy
 
   const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
     `
-      SELECT id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at
+      SELECT id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at
       FROM "VendorKycDocument"
       WHERE vendor_id = $1
       ORDER BY uploaded_at DESC
@@ -106,6 +125,7 @@ export async function addVendorKycDocument(input: {
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
       uploadedAt: new Date().toISOString(),
+      reviewStatus: "pending",
     };
 
     const list = inMemoryVendorKycDocs.get(input.vendorId) ?? [];
@@ -119,9 +139,9 @@ export async function addVendorKycDocument(input: {
   const id = `vdoc_${crypto.randomUUID()}`;
   const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
     `
-      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-      RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at
+      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending')
+      RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at
     `,
     id,
     input.vendorId,
@@ -133,6 +153,43 @@ export async function addVendorKycDocument(input: {
   );
 
   return toVendorKycDocument(rows[0]);
+}
+
+export async function reviewVendorKycDocument(input: {
+  vendorId: string;
+  documentId: string;
+  reviewStatus: VendorKycReviewStatus;
+  reviewNote?: string;
+}): Promise<VendorKycDocument | null> {
+  if (!process.env.DATABASE_URL) {
+    const list = inMemoryVendorKycDocs.get(input.vendorId) ?? [];
+    const doc = list.find((item) => item.id === input.documentId);
+    if (!doc) return null;
+
+    doc.reviewStatus = input.reviewStatus;
+    doc.reviewNote = input.reviewNote?.trim() || undefined;
+    doc.reviewedAt = new Date().toISOString();
+    return doc;
+  }
+
+  await ensureTable();
+
+  const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
+    `
+      UPDATE "VendorKycDocument"
+      SET review_status = $3,
+          review_note = $4,
+          reviewed_at = NOW()
+      WHERE id = $1 AND vendor_id = $2
+      RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at
+    `,
+    input.documentId,
+    input.vendorId,
+    input.reviewStatus,
+    input.reviewNote?.trim() || null
+  );
+
+  return rows.length ? toVendorKycDocument(rows[0]) : null;
 }
 
 export async function deleteVendorKycDocument(vendorId: string, documentId: string): Promise<boolean> {

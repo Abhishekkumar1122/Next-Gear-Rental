@@ -194,7 +194,7 @@ export default function TermsPrivacyPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-semibold text-blue-900 mb-2">Grievance Process</h3>
             <ul className="space-y-2 text-sm text-blue-800 list-disc list-inside">
-              <li><strong>Contact:</strong> grievance@nextgear.in or +91-XXXXXXXXXX</li>
+              <li><strong>Contact:</strong> support@next-gear.app or +91-9523765172</li>
               <li><strong>Response Time:</strong> Within 48 hours (e-commerce rules)</li>
               <li><strong>Resolution:</strong> Within 30 days of complaint</li>
               <li><strong>Escalation:</strong> District Consumer Commission (free filing, no fees)</li>

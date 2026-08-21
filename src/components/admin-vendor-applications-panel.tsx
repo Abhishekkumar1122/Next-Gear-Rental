@@ -40,15 +40,19 @@ type VendorApplication = {
 
 type VendorKycDocument = {
   id: string;
+  vendorId: string;
   documentType: string;
   fileName: string;
   fileUrl: string;
   sizeBytes: number;
   uploadedAt: string;
+  reviewStatus: "pending" | "verified" | "rejected" | "needs-reupload";
+  reviewNote?: string;
+  reviewedAt?: string;
 };
 
 const statuses: Array<{ id: VendorApplicationStatus | "all"; label: string }> = [
-  { id: "all", label: "All" },
+  { id: "all", label: "All Application Statuses" },
   { id: "new", label: "New" },
   { id: "contacted", label: "Contacted" },
   { id: "kyc-in-progress", label: "KYC In Progress" },
@@ -56,6 +60,15 @@ const statuses: Array<{ id: VendorApplicationStatus | "all"; label: string }> = 
   { id: "credentials-generated", label: "Credentials Generated" },
   { id: "rejected", label: "Rejected" },
 ];
+
+const STATUS_BADGES: Record<VendorApplicationStatus, string> = {
+  new: "bg-red-950 text-red-400 border border-red-800/30",
+  contacted: "bg-slate-950 text-slate-400 border border-slate-800/30",
+  "kyc-in-progress": "bg-amber-950 text-amber-400 border border-amber-800/30",
+  "kyc-complete": "bg-cyan-950 text-cyan-400 border border-cyan-800/30",
+  "credentials-generated": "bg-emerald-950 text-emerald-400 border border-emerald-800/30",
+  rejected: "bg-red-950 text-red-500 border border-red-800/20",
+};
 
 export function AdminVendorApplicationsPanel() {
   const router = useRouter();
@@ -67,8 +80,11 @@ export function AdminVendorApplicationsPanel() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [commissionDrafts, setCommissionDrafts] = useState<Record<string, number>>({});
   const [documentsByApplication, setDocumentsByApplication] = useState<Record<string, VendorKycDocument[]>>({});
   const [loadingDocumentsId, setLoadingDocumentsId] = useState<string | null>(null);
+  const [reviewingDocumentId, setReviewingDocumentId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const fetchApplications = useCallback(async () => {
     setLoading(true);
@@ -87,7 +103,7 @@ export function AdminVendorApplicationsPanel() {
       if (res.status === 401 || res.status === 403) {
         setApplications([]);
         setAuthRequired(true);
-        setMessage("Admin session required. Please sign in again to access vendor applications.");
+        setMessage("Admin session required. Please sign in again.");
         const next = encodeURIComponent("/dashboard/admin?section=vendor-applications");
         setTimeout(() => {
           router.push(`/login?next=${next}`);
@@ -98,54 +114,52 @@ export function AdminVendorApplicationsPanel() {
         throw new Error(data.error ?? "Failed to load vendor applications");
       }
 
-      const items = data.applications ?? [];
-      setApplications(items);
-      setNoteDrafts((prev) => {
-        const next = { ...prev };
-        for (const item of items) {
-          if (typeof next[item.id] === "undefined") {
-            next[item.id] = item.adminNotes || "";
-          }
-        }
-        return next;
-      });
+      setApplications(data.applications ?? []);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load vendor applications");
     } finally {
       setLoading(false);
     }
-  }, [activeStatus, search]);
+  }, [activeStatus, router, search]);
 
   useEffect(() => {
     void fetchApplications();
   }, [fetchApplications]);
 
-  const summary = useMemo(() => {
+  const counts = useMemo(() => {
     return {
       total: applications.length,
-      new: applications.filter((item) => item.status === "new").length,
-      kycComplete: applications.filter((item) => item.status === "kyc-complete").length,
-      credentialed: applications.filter((item) => item.status === "credentials-generated").length,
+      new: applications.filter((a) => a.status === "new").length,
+      contacted: applications.filter((a) => a.status === "contacted").length,
+      kycInProgress: applications.filter((a) => a.status === "kyc-in-progress").length,
+      kycComplete: applications.filter((a) => a.status === "kyc-complete").length,
+      credentialsGenerated: applications.filter((a) => a.status === "credentials-generated").length,
+      rejected: applications.filter((a) => a.status === "rejected").length,
     };
   }, [applications]);
 
-  async function updateApplication(applicationId: string, patch: { status?: VendorApplicationStatus; adminNotes?: string }) {
-    setUpdatingId(applicationId);
+  async function updateApplication(id: string, payload: Partial<VendorApplication>) {
+    setUpdatingId(id);
     setMessage("");
 
     try {
       const res = await fetch("/api/admin/vendor-applications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", id: applicationId, ...patch }),
+        body: JSON.stringify({ id, ...payload }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        handleUnauthorized();
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to update application");
       }
 
-      setApplications((prev) => prev.map((item) => (item.id === applicationId ? data.application : item)));
-      setMessage("Vendor application updated.");
+      setApplications((prev) => prev.map((item) => (item.id === id ? data.application : item)));
+      setMessage("Vendor application status updated successfully.");
+      setTimeout(() => setMessage(""), 2500);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to update application");
     } finally {
@@ -153,23 +167,85 @@ export function AdminVendorApplicationsPanel() {
     }
   }
 
-  async function generateCredentials(applicationId: string) {
-    setUpdatingId(applicationId);
+  function handleUnauthorized() {
+    setAuthRequired(true);
+    setMessage("Admin session required. Redirecting to login...");
+    const next = encodeURIComponent("/dashboard/admin?section=vendor-applications");
+    setTimeout(() => {
+      router.push(`/login?next=${next}`);
+    }, 250);
+  }
+
+  async function loadKycDocuments(applicationId: string, vendorId: string) {
+    if (!vendorId) return;
+    setLoadingDocumentsId(applicationId);
+    try {
+      const res = await fetch(`/api/admin/vendor-documents?vendorId=${vendorId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocumentsByApplication((prev) => ({ ...prev, [applicationId]: data.documents ?? [] }));
+      }
+    } catch (error) {
+      console.error("Failed to load documents:", error);
+    } finally {
+      setLoadingDocumentsId(null);
+    }
+  }
+
+  async function reviewDocument(applicationId: string, doc: VendorKycDocument, reviewStatus: VendorKycDocument["reviewStatus"]) {
+    setReviewingDocumentId(doc.id);
+    try {
+      const res = await fetch("/api/admin/vendor-documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id, reviewStatus }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDocumentsByApplication((prev) => ({
+          ...prev,
+          [applicationId]: prev[applicationId].map((d) => (d.id === doc.id ? data.document : d)),
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to review document:", error);
+    } finally {
+      setReviewingDocumentId(null);
+    }
+  }
+
+  async function updateChecklist(id: string, checklistPatch: Partial<VendorKycChecklist>) {
+    const app = applications.find((a) => a.id === id);
+    if (!app) return;
+
+    const mergedChecklist = { ...app.kycChecklist, ...checklistPatch };
+    await updateApplication(id, { kycChecklist: mergedChecklist });
+  }
+
+  async function generateCredentials(id: string) {
+    setUpdatingId(id);
     setMessage("");
+
+    const commissionRate = commissionDrafts[id] ?? 15;
 
     try {
       const res = await fetch("/api/admin/vendor-applications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate-credentials", id: applicationId }),
+        body: JSON.stringify({ action: "generate-credentials", id, commissionRate }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        handleUnauthorized();
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to generate credentials");
       }
 
-      setApplications((prev) => prev.map((item) => (item.id === applicationId ? data.application : item)));
-      setMessage("Vendor login ID and temporary password generated.");
+      setApplications((prev) => prev.map((item) => (item.id === id ? data.application : item)));
+      setMessage("Onboarding credentials generated successfully.");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to generate credentials");
     } finally {
@@ -177,305 +253,357 @@ export function AdminVendorApplicationsPanel() {
     }
   }
 
-  async function updateChecklist(applicationId: string, checklistPatch: Partial<VendorKycChecklist>) {
-    setUpdatingId(applicationId);
-    setMessage("");
-
-    try {
-      const res = await fetch("/api/admin/vendor-applications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update-kyc-checklist",
-          id: applicationId,
-          checklist: checklistPatch,
-          adminNotes: noteDrafts[applicationId] ?? "",
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to update KYC checklist");
-      }
-
-      setApplications((prev) => prev.map((item) => (item.id === applicationId ? data.application : item)));
-      setMessage("KYC checklist updated. Onboarding automation applied.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to update KYC checklist");
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  async function loadDocuments(applicationId: string, vendorId?: string) {
-    if (!vendorId) {
-      setMessage("Generate vendor credentials first so documents can be linked to a vendor account.");
-      return;
-    }
-
-    setLoadingDocumentsId(applicationId);
-    setMessage("");
-
-    try {
-      const res = await fetch(`/api/admin/vendor-documents?vendorId=${encodeURIComponent(vendorId)}`, {
-        cache: "no-store",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401 || res.status === 403) {
-        setApplications([]);
-        setAuthRequired(true);
-        setMessage("Admin session required. Please sign in again to access vendor applications.");
-        const next = encodeURIComponent("/dashboard/admin?section=vendor-applications");
-        setTimeout(() => {
-          router.push(`/login?next=${next}`);
-        }, 250);
-        return;
-      }
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to load vendor documents");
-      }
-
-      setDocumentsByApplication((prev) => ({
-        ...prev,
-        [applicationId]: data.documents ?? [],
-      }));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to load vendor documents");
-    } finally {
-      setLoadingDocumentsId(null);
-    }
-  }
-
-  async function approveAfterDocumentReview(item: VendorApplication) {
-    const docs = documentsByApplication[item.id] ?? [];
-    if (docs.length === 0) {
-      setMessage("Please load and review at least one uploaded document before approving KYC.");
-      return;
-    }
-
-    await updateChecklist(item.id, {
-      identityVerified: true,
-      businessProofVerified: true,
-      bankVerified: true,
-      agreementAccepted: true,
-    });
-  }
-
   return (
-    <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total" value={summary.total} />
-        <StatCard label="New" value={summary.new} />
-        <StatCard label="KYC Complete" value={summary.kycComplete} />
-        <StatCard label="Credentials Issued" value={summary.credentialed} />
+    <div className="space-y-5 text-white">
+      {/* Overview Row */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-6 text-center">
+        <StatTile label="Total Applications" value={counts.total} />
+        <StatTile label="New Registrants" value={counts.new} />
+        <StatTile label="Contacted" value={counts.contacted} />
+        <StatTile label="KYC Active" value={counts.kycInProgress} />
+        <StatTile label="KYC Verifications" value={counts.kycComplete} />
+        <StatTile label="Rejected" value={counts.rejected} />
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto]">
+      {/* Filter Row */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_210px_auto] text-xs">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by business, contact, phone, city"
-          className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+          placeholder="Search by business name, city, contact person, or telephone..."
+          className="rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-white focus:outline-none focus:border-[var(--brand-red)]"
         />
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {statuses.map((item) => {
-            const active = activeStatus === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveStatus(item.id)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  active
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 bg-white text-black/80 hover:bg-black/[0.03]"
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+        <select
+          value={activeStatus}
+          onChange={(e) => setActiveStatus(e.target.value as any)}
+          className="rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-white focus:outline-none focus:border-[var(--brand-red)]"
+        >
+          {statuses.map((opt) => (
+            <option key={opt.id} value={opt.id} className="bg-[#121212]">
+              {opt.label}
+            </option>
+          ))}
+        </select>
         <button
           onClick={() => void fetchApplications()}
-          className="w-full rounded-lg border border-black/15 px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] lg:w-auto"
+          className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2.5 font-bold uppercase tracking-wider text-white transition cursor-pointer"
         >
           Refresh
         </button>
       </div>
 
-      {message && <p className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/70">{message}</p>}
+      {message && (
+        <div className="rounded-xl border border-red-500/20 bg-red-950/25 px-4 py-2.5 text-xs text-red-400">
+          {message}
+        </div>
+      )}
 
+      {/* Applications list */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-24 animate-pulse rounded-lg bg-black/[0.05]" />
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-16 animate-pulse rounded-2xl bg-white/5 border border-white/5" />
           ))}
         </div>
       ) : authRequired ? (
-        <p className="rounded-lg border border-black/10 px-3 py-2 text-sm text-black/70">
-          Admin authentication is required to view vendor applications. Re-login as admin and refresh.
-        </p>
+        <div className="rounded-2xl border border-red-500/20 bg-red-950/10 p-6 text-center text-xs text-red-400">
+          Admin authorization required.
+        </div>
       ) : applications.length === 0 ? (
-        <p className="rounded-lg border border-black/10 px-3 py-2 text-sm text-black/60">No vendor applications found.</p>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.01] p-6 text-center text-xs text-white/50">
+          No vendor applications found matching criteria.
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3.5">
           {applications.map((item) => (
-            <div key={item.id} className="rounded-lg border border-black/10 p-3 text-sm">
-              <div className="flex flex-wrap items-start justify-between gap-2">
+            <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 hover:border-white/20 transition duration-300">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/5 pb-3">
                 <div>
-                  <p className="font-semibold">{item.businessName}</p>
-
-              <div className="mt-2 rounded-lg border border-black/10 p-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-black/60">Uploaded KYC Documents</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => void loadDocuments(item.id, item.vendorId)}
-                      disabled={loadingDocumentsId === item.id}
-                      className="rounded border border-black/15 px-3 py-1 text-xs font-semibold text-black/70 transition hover:bg-black/[0.03] disabled:opacity-60"
-                    >
-                      {loadingDocumentsId === item.id ? "Loading..." : "Load Documents"}
-                    </button>
-                    <button
-                      onClick={() => void approveAfterDocumentReview(item)}
-                      disabled={updatingId === item.id || item.status === "credentials-generated"}
-                      className="rounded border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-100 disabled:opacity-60"
-                    >
-                      Approve KYC (After Review)
-                    </button>
-                  </div>
+                  <p className="font-extrabold text-white text-sm">{item.businessName}</p>
+                  <p className="text-xs text-white/60 mt-0.5">
+                    {item.contactName} · <span className="text-white/40">{item.phone}</span> · <span className="text-white font-bold">{item.city}</span>
+                  </p>
                 </div>
-
-                {(documentsByApplication[item.id] ?? []).length === 0 ? (
-                  <p className="mt-2 text-xs text-black/60">No documents loaded yet.</p>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    {(documentsByApplication[item.id] ?? []).map((doc) => (
-                      <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-black/10 px-2 py-1 text-xs">
-                        <p className="text-black/75">{doc.documentType} · {doc.fileName} · {(doc.sizeBytes / 1024).toFixed(1)} KB</p>
-                        <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="rounded border border-black/15 px-2 py-0.5 font-semibold text-black/70 hover:bg-black/[0.03]">
-                          View
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-                  <p className="break-words text-black/60">{item.contactName} · {item.phone} · {item.city}</p>
-                  <p className="text-xs text-black/50">Fleet: {item.fleetSize} · Applied: {new Date(item.createdAt).toLocaleString()}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase border ${STATUS_BADGES[item.status]}`}>
+                    {item.status}
+                  </span>
                 </div>
-                <span className="rounded-full border border-black/15 px-2.5 py-0.5 text-xs font-semibold uppercase text-black/70">
-                  {item.status}
-                </span>
               </div>
 
-              {item.kycApprovedAt ? (
-                <p className="mt-1 text-xs font-semibold text-green-700">
-                  KYC approved at: {new Date(item.kycApprovedAt).toLocaleString()}
+              {item.kycApprovedAt && (
+                <p className="mt-2 text-xs font-bold text-emerald-400">
+                  ✓ KYC Approved At: {new Date(item.kycApprovedAt).toLocaleString()}
                 </p>
-              ) : null}
+              )}
 
-              <div className="mt-2 grid gap-2 xl:grid-cols-[220px_1fr_auto]">
-                <select
-                  value={item.status}
-                  onChange={(e) => void updateApplication(item.id, { status: e.target.value as VendorApplicationStatus })}
-                  disabled={updatingId === item.id}
-                  className="rounded border border-black/15 px-2 py-1 text-xs"
-                >
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="kyc-in-progress">KYC In Progress</option>
-                  <option value="kyc-complete">KYC Complete</option>
-                  <option value="credentials-generated">Credentials Generated</option>
-                  <option value="rejected">Rejected</option>
-                </select>
+              <div className="mt-3.5 grid gap-2.5 md:grid-cols-[180px_1fr_auto] text-xs">
+                <div className="relative">
+                  <button
+                    onClick={() => setOpenDropdownId(openDropdownId === item.id ? null : item.id)}
+                    disabled={updatingId === item.id}
+                    className="w-full text-left rounded-xl border border-white/5 bg-[#121212] px-3.5 py-2 text-white focus:outline-none focus:border-[var(--brand-red)] flex justify-between items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="capitalize">{item.status.replace(/-/g, " ")}</span>
+                    <span className="text-[9px] text-white/35">▼</span>
+                  </button>
+                  {openDropdownId === item.id && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setOpenDropdownId(null)} />
+                      <div className="absolute left-0 right-0 mt-1.5 rounded-xl border border-white/5 bg-[#121212] p-1.5 shadow-2xl z-40 max-h-60 overflow-y-auto no-scrollbar space-y-0.5">
+                        {[
+                          { id: "new", label: "New" },
+                          { id: "contacted", label: "Contacted" },
+                          { id: "kyc-in-progress", label: "KYC In Progress" },
+                          { id: "kyc-complete", label: "KYC Complete" },
+                          { id: "credentials-generated", label: "Credentials Generated" },
+                          { id: "rejected", label: "Rejected" },
+                        ].map((opt) => (
+                          <div
+                            key={opt.id}
+                            onClick={() => {
+                              void updateApplication(item.id, { status: opt.id as any });
+                              setOpenDropdownId(null);
+                            }}
+                            className={`rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wider transition cursor-pointer select-none ${
+                              item.status === opt.id
+                                ? "bg-[var(--brand-red)] text-white"
+                                : "text-white/60 hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            {opt.label}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <input
-                  value={noteDrafts[item.id] ?? ""}
+                  value={noteDrafts[item.id] ?? item.adminNotes ?? ""}
                   onChange={(e) => setNoteDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                  placeholder="Admin note (KYC docs checked, call done, etc.)"
-                  className="rounded border border-black/15 px-2 py-1 text-xs"
+                  placeholder="Review findings notes (checked docs, call verified, etc.)"
+                  className="rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2 text-white focus:outline-none focus:border-[var(--brand-red)]"
                 />
 
                 <button
                   onClick={() => void updateApplication(item.id, { adminNotes: noteDrafts[item.id] ?? "" })}
                   disabled={updatingId === item.id}
-                  className="w-full rounded border border-black/15 px-3 py-1 text-xs font-semibold text-black/70 transition hover:bg-black/[0.03] disabled:opacity-50 xl:w-auto"
+                  className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 font-bold uppercase tracking-wider text-white transition cursor-pointer text-xs"
                 >
                   Save Note
                 </button>
               </div>
 
-              <div className="mt-2 rounded-lg border border-black/10 bg-black/[0.02] p-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-black/60">KYC Checklist Workflow</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 text-xs text-black/75">
+              {/* KYC Checkbox list */}
+              <div className="mt-4 rounded-xl border border-white/5 bg-white/[0.01] p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-white/50">KYC Verify Checklists</p>
+                  {item.vendorId && (
+                    <button
+                      onClick={() => void loadKycDocuments(item.id, item.vendorId!)}
+                      disabled={loadingDocumentsId === item.id}
+                      className="text-[9px] uppercase font-black text-cyan-400 hover:underline transition cursor-pointer"
+                    >
+                      {loadingDocumentsId === item.id ? "Loading..." : "📁 Audit Uploaded Documents"}
+                    </button>
+                  )}
+                </div>
+
+                {documentsByApplication[item.id] && (
+                  <div className="space-y-2 border-b border-white/5 pb-3">
+                    {documentsByApplication[item.id].length === 0 ? (
+                      <p className="text-[10px] text-white/40">No KYC document files uploaded by vendor yet.</p>
+                    ) : (
+                      documentsByApplication[item.id].map((doc) => (
+                        <div key={doc.id} className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div>
+                            <p className="font-extrabold uppercase text-[10px] text-white">{doc.documentType.replace("_", " ")}</p>
+                            <a href={doc.fileUrl} target="_blank" className="text-[9px] text-cyan-400 hover:underline">
+                              View File: {doc.fileName} ({Math.round(doc.sizeBytes / 1024)} KB)
+                            </a>
+                          </div>
+                          <div className="flex gap-1.5 text-[9px] font-black uppercase tracking-wider">
+                            <span className={`px-2 py-0.5 rounded-full border ${
+                              doc.reviewStatus === "verified"
+                                ? "bg-emerald-950 text-emerald-400 border border-emerald-900/30"
+                                : doc.reviewStatus === "rejected"
+                                ? "bg-red-950 text-red-400 border border-red-900/30"
+                                : "bg-slate-950 text-slate-400 border border-slate-800/30"
+                            }`}>
+                              {doc.reviewStatus}
+                            </span>
+                            <button
+                              onClick={() => void reviewDocument(item.id, doc, "verified")}
+                              disabled={reviewingDocumentId === doc.id}
+                              className="rounded px-2 py-0.5 text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 hover:bg-emerald-950/40 transition cursor-pointer"
+                            >
+                              Verify
+                            </button>
+                            <button
+                              onClick={() => void reviewDocument(item.id, doc, "rejected")}
+                              disabled={reviewingDocumentId === doc.id}
+                              className="rounded px-2 py-0.5 text-red-400 bg-red-950/20 border border-red-900/30 hover:bg-red-950/40 transition cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-2 text-xs text-white/80">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={item.kycChecklist.identityVerified}
                       disabled={updatingId === item.id || item.status === "rejected"}
-                      onChange={(e) =>
-                        void updateChecklist(item.id, { identityVerified: e.target.checked })
-                      }
+                      onChange={(e) => void updateChecklist(item.id, { identityVerified: e.target.checked })}
+                      className="accent-[var(--brand-red)]"
                     />
-                    Identity document verified
+                    <span>Identity verified (Aadhaar / Passport)</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-black/75">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={item.kycChecklist.businessProofVerified}
                       disabled={updatingId === item.id || item.status === "rejected"}
-                      onChange={(e) =>
-                        void updateChecklist(item.id, { businessProofVerified: e.target.checked })
-                      }
+                      onChange={(e) => void updateChecklist(item.id, { businessProofVerified: e.target.checked })}
+                      className="accent-[var(--brand-red)]"
                     />
-                    Business proof verified
+                    <span>Business proof verified (GSTIN / Trade)</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-black/75">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={item.kycChecklist.bankVerified}
                       disabled={updatingId === item.id || item.status === "rejected"}
-                      onChange={(e) =>
-                        void updateChecklist(item.id, { bankVerified: e.target.checked })
-                      }
+                      onChange={(e) => void updateChecklist(item.id, { bankVerified: e.target.checked })}
+                      className="accent-[var(--brand-red)]"
                     />
-                    Bank details verified
+                    <span>Bank account verified (Passbook / Cancelled check)</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-black/75">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={item.kycChecklist.agreementAccepted}
                       disabled={updatingId === item.id || item.status === "rejected"}
-                      onChange={(e) =>
-                        void updateChecklist(item.id, { agreementAccepted: e.target.checked })
-                      }
+                      onChange={(e) => void updateChecklist(item.id, { agreementAccepted: e.target.checked })}
+                      className="accent-[var(--brand-red)]"
                     />
-                    Agreement accepted
+                    <span>Partner terms & agreement accepted</span>
                   </label>
                 </div>
-                <p className="mt-2 text-xs text-black/60">
-                  Automation: When all checklist items are complete, vendor credentials are generated automatically.
-                </p>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => void generateCredentials(item.id)}
-                  disabled={updatingId === item.id || (item.status !== "kyc-complete" && item.status !== "credentials-generated")}
-                  className="rounded border border-green-200 px-3 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-50"
-                >
-                  {item.status === "credentials-generated" ? "Re-show Credentials" : "Generate Login ID + Password"}
-                </button>
+              {/* Login details generation & Email Dispatch */}
+              <div className="mt-4 pt-3.5 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Commission Rate (%) Custom Control Bar */}
+                  <div className="flex flex-wrap items-center gap-3 bg-gradient-to-r from-emerald-950/40 via-black to-emerald-950/20 border border-emerald-500/40 rounded-2xl p-2.5 shadow-lg shadow-emerald-950/40">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">💼</span>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">Commission Share</span>
+                        <span className="text-[9px] text-white/50 font-mono">Platform payout split %</span>
+                      </div>
+                    </div>
+
+                    {/* Stepper Control: [-] 15% [+] */}
+                    <div className="flex items-center gap-1 bg-black/70 border border-emerald-500/40 rounded-xl p-1 shadow-inner">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const curr = commissionDrafts[item.id] ?? 15;
+                          setCommissionDrafts((prev) => ({ ...prev, [item.id]: Math.max(0, curr - 1) }));
+                        }}
+                        className="h-7 w-7 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 font-black text-sm flex items-center justify-center transition active:scale-95 cursor-pointer select-none"
+                      >
+                        -
+                      </button>
+
+                      <div className="px-1.5 text-center flex items-center justify-center min-w-[50px]">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={commissionDrafts[item.id] ?? 15}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                            setCommissionDrafts((prev) => ({ ...prev, [item.id]: val }));
+                          }}
+                          className="w-9 bg-transparent text-center text-sm font-black text-emerald-400 focus:outline-none font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <span className="text-xs font-black text-emerald-400">%</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const curr = commissionDrafts[item.id] ?? 15;
+                          setCommissionDrafts((prev) => ({ ...prev, [item.id]: Math.min(100, curr + 1) }));
+                        }}
+                        className="h-7 w-7 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 font-black text-sm flex items-center justify-center transition active:scale-95 cursor-pointer select-none"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Quick Preset Chips */}
+                    <div className="flex items-center gap-1">
+                      {[10, 15, 18, 20, 25].map((rate) => {
+                        const isSelected = (commissionDrafts[item.id] ?? 15) === rate;
+                        return (
+                          <button
+                            key={rate}
+                            type="button"
+                            onClick={() => setCommissionDrafts((prev) => ({ ...prev, [item.id]: rate }))}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition active:scale-95 cursor-pointer ${
+                              isSelected
+                                ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/30 border border-emerald-400 font-extrabold"
+                                : "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10"
+                            }`}
+                          >
+                            {rate}%
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => void generateCredentials(item.id)}
+                    disabled={updatingId === item.id || item.status === "rejected"}
+                    className="rounded-full border border-emerald-500/40 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-4.5 py-2.5 text-xs uppercase tracking-wider transition active:scale-95 disabled:opacity-40 cursor-pointer shadow-lg shadow-emerald-600/30 flex items-center gap-2"
+                  >
+                    <span>⚡</span>
+                    <span>{item.status === "credentials-generated" ? "✅ Credentials & Email Sent (Re-send Email)" : "Approve & Send ID Password Email 📧"}</span>
+                  </button>
+                </div>
+
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                  Submitted: {new Date(item.createdAt).toLocaleString()}
+                </span>
               </div>
 
               {item.loginId && item.tempPassword && (
-                <div className="mt-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-                  <p className="break-all"><span className="font-semibold">Login ID:</span> {item.loginId}</p>
-                  <p className="break-all"><span className="font-semibold">Temporary Password:</span> {item.tempPassword}</p>
-                  {item.onboardingAutomatedAt && (
-                    <p><span className="font-semibold">Automated At:</span> {new Date(item.onboardingAutomatedAt).toLocaleString()}</p>
-                  )}
-                  <p className="mt-1 text-green-700/80">Share securely and ask vendor to reset password after first login.</p>
+                <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-4 text-xs text-emerald-400 space-y-2 shadow-lg shadow-emerald-950/50">
+                  <div className="flex items-center justify-between">
+                    <p className="font-extrabold uppercase text-[11px] text-white flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Vendor Account Activated & Email Credentials Dispatched! 📧
+                    </p>
+                    <span className="text-[9px] bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-extrabold px-2 py-0.5 rounded-full">
+                      AUTOMATED EMAIL & WHATSAPP SENT
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-500/20">
+                    <p className="break-all font-mono bg-black/40 p-2 rounded-lg"><span className="text-white/60">LOGIN EMAIL ID:</span> <strong className="text-white">{item.loginId}</strong></p>
+                    <p className="break-all font-mono bg-black/40 p-2 rounded-lg"><span className="text-white/60">TEMP PASSWORD:</span> <strong className="text-emerald-400 font-bold">{item.tempPassword}</strong></p>
+                  </div>
+                  <p className="text-[10px] text-white/60 leading-relaxed pt-1">The approval email and WhatsApp notification containing these login credentials and portal access link have been automatically dispatched to the vendor contact.</p>
                 </div>
               )}
             </div>
@@ -486,11 +614,11 @@ export function AdminVendorApplicationsPanel() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2">
-      <p className="text-xs uppercase tracking-wide text-black/60">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center hover:border-red-500/20 transition">
+      <p className="text-[9px] uppercase font-bold tracking-wider text-white/40">{label}</p>
+      <p className="mt-1 text-xl font-black text-white">{value}</p>
     </div>
   );
 }

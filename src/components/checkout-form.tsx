@@ -2,70 +2,9 @@
 
 import { useState } from "react";
 import { MockRazorpayModal } from "@/components/mock-razorpay-modal";
+import { PaymentGatewaySelector, PaymentProvider } from "@/components/payment-gateway-selector";
 
-// Payment Gateway Selector Component
-function PaymentGatewaySelector({ selectedProvider, onSelect }: { selectedProvider: PaymentProvider; onSelect: (provider: PaymentProvider) => void }) {
-  const providers: { id: PaymentProvider; name: string; description: string; icon: string }[] = [
-    {
-      id: "razorpay",
-      name: "Razorpay",
-      description: "Best for India. UPI, Cards, Wallets",
-      icon: "🏦",
-    },
-    {
-      id: "stripe",
-      name: "Stripe",
-      description: "Best for International. Cards & Apple Pay",
-      icon: "💳",
-    },
-    {
-      id: "cashfree",
-      name: "Cashfree",
-      description: "India payments. Cards, UPI, Wallets",
-      icon: "💰",
-    },
-    {
-      id: "paypal",
-      name: "PayPal",
-      description: "Global payments. Multiple countries",
-      icon: "🅿️",
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <p className="text-sm font-semibold text-black/60">Select Payment Method</p>
-      <div className="grid gap-3 md:grid-cols-3">
-        {providers.map((provider) => (
-          <button
-            key={provider.id}
-            onClick={() => onSelect(provider.id)}
-            className={`rounded-lg border-2 p-4 transition text-left ${
-              selectedProvider === provider.id
-                ? "border-[var(--brand-red)] bg-red-50"
-                : "border-black/10 bg-white hover:border-black/15"
-            }`}
-          >
-            <div className="text-2xl">{provider.icon}</div>
-            <p className="mt-2 font-semibold text-sm">{provider.name}</p>
-            <p className="mt-1 text-xs text-black/60">{provider.description}</p>
-            {process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID && provider.id === "razorpay" && (
-              <p className="mt-2 text-xs text-green-700">✓ Connected</p>
-            )}
-            {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY && provider.id === "stripe" && (
-              <p className="mt-2 text-xs text-green-700">✓ Connected</p>
-            )}
-            {process.env.NEXT_PUBLIC_CASHFREE_APP_ID && provider.id === "cashfree" && (
-              <p className="mt-2 text-xs text-green-700">✓ Connected</p>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-type PaymentProvider = "razorpay" | "stripe" | "paypal" | "cashfree";
+import { calculateBookingAmount, formatBookingId } from "@/lib/pricing-tiers";
 
 interface CheckoutFormProps {
   bookingId: string;
@@ -75,7 +14,7 @@ interface CheckoutFormProps {
 }
 
 export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: CheckoutFormProps) {
-  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider>("razorpay");
+  const [selectedProvider, setSelectedProvider] = useState<PaymentProvider>("payu");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -85,6 +24,8 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
     setLoading(true);
     setStatus("processing");
 
+    const bookingAmt = calculateBookingAmount(amountINR);
+
     try {
       // Step 1: Create checkout order
       const checkoutResponse = await fetch("/api/payments/checkout", {
@@ -92,7 +33,7 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: selectedProvider,
-          amountINR,
+          amountINR: bookingAmt,
           currency: "INR",
           bookingId,
         }),
@@ -103,6 +44,11 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
       }
 
       const checkoutData = await checkoutResponse.json();
+
+      if (selectedProvider === "payu") {
+        handlePayUPayment(checkoutData);
+        return;
+      }
 
       if (checkoutData.mode === "mock" && selectedProvider !== "razorpay") {
         // Mock auto-success for non-Razorpay providers
@@ -136,6 +82,27 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
     }
   };
 
+  const handlePayUPayment = (checkoutData: any) => {
+    if (!checkoutData.actionUrl || !checkoutData.payuParams) {
+      throw new Error("PayU checkout initialization failed");
+    }
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = checkoutData.actionUrl;
+    form.style.display = "none";
+
+    Object.entries(checkoutData.payuParams).forEach(([k, v]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = k;
+      input.value = String(v);
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+  };
+
   const handleRazorpayPayment = (checkoutData: any) => {
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -146,9 +113,8 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
         process.env.NEXT_PUBLIC_RAZORPAY_LOGO_URL?.trim() ||
         `${window.location.origin}/Logo1.png?v=1`;
 
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        order_id: checkoutData.order.id,
+      const options: any = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || checkoutData.keyId,
         amount: amountINR * 100,
         currency: "INR",
         name: "Next Gear Rentals",
@@ -161,6 +127,7 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 provider: "razorpay",
+                orderId: `standard_rzp_${bookingId}`,
                 razorpayPaymentId: response.razorpay_payment_id,
                 razorpayOrderId: response.razorpay_order_id,
                 razorpaySignature: response.razorpay_signature,
@@ -192,6 +159,10 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
           color: "#e63946",
         },
       };
+
+      if (checkoutData.order?.id) {
+        options.order_id = checkoutData.order.id;
+      }
 
       const razorpayCheckout = new (window as any).Razorpay(options);
       razorpayCheckout.open();
@@ -289,12 +260,35 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
     onSuccess?.({ provider: "razorpay", mode: "mock", status: "PAID", ...paymentData });
   };
 
+  if (status === "success") {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 space-y-5 rounded-2xl border border-emerald-500/20 bg-emerald-950/10 text-center animate-[fade-up_0.6s_ease_forwards] text-white">
+        <div className="checkmark-wrapper">
+          <svg className="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle className="checkmark-circle" cx="26" cy="26" r="25" fill="none" />
+            <path className="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-emerald-400">Payment Successful</h3>
+          <p className="text-sm text-white/70 mt-1.5">{message || "Your booking has been successfully confirmed."}</p>
+        </div>
+        <div className="text-[10px] text-white/40 font-mono">
+          REF_ID: {formatBookingId(bookingId)}
+        </div>
+      </div>
+    );
+  }
+
+  const bookingAmt = calculateBookingAmount(amountINR);
+  const balanceAmt = Math.max(0, amountINR - bookingAmt);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-white">
       {mockRazorpayData && (
         <MockRazorpayModal
           orderId={mockRazorpayData.orderId}
-          amount={amountINR}
+          amount={bookingAmt}
           bookingId={bookingId}
           onSuccess={handleMockRazorpaySuccess}
           onDismiss={() => {
@@ -306,20 +300,30 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
       )}
       <PaymentGatewaySelector selectedProvider={selectedProvider} onSelect={setSelectedProvider} />
 
-      <div className="rounded-lg border border-black/10 p-4 bg-black/[0.02]">
-        <p className="text-sm text-black/70">Amount</p>
-        <p className="mt-1 text-3xl font-bold">₹{amountINR.toLocaleString("en-IN")}</p>
-        <p className="mt-1 text-xs text-black/60">Provider: {selectedProvider.toUpperCase()}</p>
+      <div className="rounded-2xl border border-white/10 p-5 bg-white/[0.02] space-y-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-white/40">Booking Fee (Pay Now)</p>
+          <p className="mt-1 text-3xl font-extrabold text-green-400">₹{bookingAmt.toLocaleString("en-IN")}</p>
+        </div>
+        <div className="flex justify-between text-xs text-white/60 border-t border-white/5 pt-2">
+          <span>Remaining Balance (Due at Pickup)</span>
+          <span className="font-bold text-amber-400">₹{balanceAmt.toLocaleString("en-IN")}</span>
+        </div>
+        <div className="flex justify-between text-xs text-white/40">
+          <span>Total Rental Price</span>
+          <span>₹{amountINR.toLocaleString("en-IN")}</span>
+        </div>
+        <p className="text-xs text-white/50 pt-1 border-t border-white/5">
+          Payment Route: <span className="font-semibold text-[var(--brand-red-soft)]">{selectedProvider.toUpperCase()} SECURE GATEWAY</span>
+        </p>
       </div>
 
       {message && (
         <div
-          className={`rounded-lg border p-3 text-sm ${
-            status === "success"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : status === "error"
-              ? "border-red-200 bg-red-50 text-red-800"
-              : "border-blue-200 bg-blue-50 text-blue-800"
+          className={`rounded-xl border p-4 text-sm ${
+            status === "error"
+              ? "border-red-950/40 bg-red-950/20 text-red-400"
+              : "border-blue-950/40 bg-blue-950/20 text-blue-400"
           }`}
         >
           {message}
@@ -328,23 +332,23 @@ export function CheckoutForm({ bookingId, amountINR, onSuccess, onError }: Check
 
       <button
         onClick={handlePayment}
-        disabled={loading || status === "success"}
-        className={`w-full rounded-lg px-4 py-3 font-semibold text-white transition ${
-          loading || status === "success"
-            ? "bg-black/40 cursor-not-allowed"
-            : "bg-[var(--brand-red)] hover:-translate-y-0.5"
+        disabled={loading}
+        className={`w-full rounded-xl px-4 py-3.5 font-bold text-white transition-all duration-300 shadow-lg cursor-pointer ${
+          loading
+            ? "bg-white/10 text-white/30 cursor-not-allowed border border-white/5"
+            : "bg-[var(--brand-red)] hover:bg-red-600 shadow-red-600/10 hover:shadow-red-600/30 hover:-translate-y-0.5"
         }`}
       >
-        {loading ? "Processing..." : status === "success" ? "Payment Complete" : `Pay ₹${amountINR.toLocaleString("en-IN")} with ${selectedProvider}`}
+        {loading ? "Initializing Transaction..." : `Pay Booking Fee of ₹${bookingAmt.toLocaleString("en-IN")} with ${selectedProvider.toUpperCase()}`}
       </button>
 
-      <div className="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
-        <p className="font-semibold">Test Mode Credentials</p>
-        <ul className="mt-2 space-y-1 list-disc list-inside">
-          <li>Razorpay: Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET</li>
-          <li>Stripe: Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET</li>
-          <li>Cashfree: Set CASHFREE_APP_ID and CASHFREE_APP_SECRET</li>
-          <li>PayPal: Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET</li>
+      <div className="px-4 py-3 rounded-xl bg-yellow-950/10 border border-yellow-700/25 text-[11px] text-yellow-200/70">
+        <p className="font-bold flex items-center gap-1.5 text-yellow-300">
+          <span>🔧</span> Sandbox Credentials Notice
+        </p>
+        <ul className="mt-2 space-y-1 list-disc list-inside text-white/60">
+          <li>Razorpay: MOCK verification is enabled by default.</li>
+          <li>Stripe & others: Simulated capture handles confirmation automatically.</li>
         </ul>
       </div>
     </div>

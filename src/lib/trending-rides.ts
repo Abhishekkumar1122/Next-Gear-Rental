@@ -7,33 +7,37 @@ export type TrendingRideConfig = {
 };
 
 const runtimeTrendingStore = new Map<string, TrendingRideConfig>();
-let ensuredTable = false;
+const globalForTrending = globalThis as unknown as { ensuredTable?: boolean };
 
 async function ensureTable() {
-  if (ensuredTable || !process.env.DATABASE_URL) return;
+  if (globalForTrending.ensuredTable || !process.env.DATABASE_URL) return;
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "HomeTrendingRide" (
-      id TEXT PRIMARY KEY,
-      vehicle_id TEXT UNIQUE NOT NULL,
-      badge TEXT NOT NULL DEFAULT 'Trending',
-      rank INTEGER NOT NULL DEFAULT 99,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "HomeTrendingRide" (
+        id TEXT PRIMARY KEY,
+        vehicle_id TEXT UNIQUE NOT NULL,
+        badge TEXT NOT NULL DEFAULT 'Trending',
+        rank INTEGER NOT NULL DEFAULT 99,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await prisma.$executeRawUnsafe(
-    `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS badge TEXT NOT NULL DEFAULT 'Trending'`
-  );
-  await prisma.$executeRawUnsafe(
-    `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS rank INTEGER NOT NULL DEFAULT 99`
-  );
-  await prisma.$executeRawUnsafe(
-    `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`
-  );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS badge TEXT NOT NULL DEFAULT 'Trending'`
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS rank INTEGER NOT NULL DEFAULT 99`
+    );
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "HomeTrendingRide" ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`
+    );
 
-  ensuredTable = true;
+    globalForTrending.ensuredTable = true;
+  } catch (err) {
+    console.error("Failed to ensure HomeTrendingRide table:", err);
+  }
 }
 
 export async function getTrendingRideMap() {

@@ -24,7 +24,7 @@ export type WaitlistNotification = {
   vehicleId: string;
   userEmail: string;
   channel: AlertChannel;
-  provider: "mock" | "twilio";
+  provider: "mock" | "twilio" | "whatsapp_cloud";
   deliveryStatus: "sent" | "failed";
   deliveryError?: string;
   message: string;

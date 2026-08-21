@@ -39,5 +39,32 @@ export async function POST(request: NextRequest) {
   ticketReplies.push(reply);
   ticket.updatedAt = new Date().toISOString();
 
+  // If Admin or Vendor replied, notify customer via Email
+  if ((userRole === "admin" || userRole === "vendor") && (ticket as any).userEmail) {
+    const origin = request.nextUrl.origin;
+    const customerEmail = (ticket as any).userEmail;
+    void (async () => {
+      try {
+        const { generateSupportTicketEmailHtml } = await import("@/lib/email-templates");
+        const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
+        const html = generateSupportTicketEmailHtml({
+          ticketId,
+          subject: ticket.subject,
+          category: ticket.category || "General Support",
+          message: `Update from Support Team (${userName}):\n\n${message}`,
+          customerName: ticket.userName || "Valued Customer",
+          baseUrl: origin,
+        });
+        await dispatchHtmlEmail({
+          to: customerEmail,
+          subject: `Support Reply Re: ${ticket.subject} [Ticket #${ticketId}]`,
+          html,
+        });
+      } catch (e) {
+        console.error("[Support Ticket Reply Email Error]", e);
+      }
+    })();
+  }
+
   return NextResponse.json({ reply }, { status: 201 });
 }

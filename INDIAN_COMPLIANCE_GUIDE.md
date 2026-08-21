@@ -59,7 +59,7 @@
 - [x] Terms & Conditions page with CPA 2019 references
 - [x] Refund & Cancellation Policy with statutory language
 - [x] Privacy Policy with data-related disclosures
-- [ ] Grievance Redressal Officer formal designation (email: grievance@nextgear.in)
+- [ ] Grievance Redressal Officer formal designation (email: support@next-gear.app)
 - [ ] Customer complaint form with auto-acknowledgment
 - [ ] 30-day dispute resolution process
 - [ ] Link to National Consumer Helpline 1800-11-4000
@@ -178,7 +178,7 @@
 - [x] AES-256 encryption for sensitive data
 - [x] TLS 1.2+ for all API communications
 - [x] Privacy Policy with IT Act 2000 references
-- [x] Data Protection Officer (DPO) contact: dpo@nextgear.in
+- [x] Data Protection Officer (DPO) contact: admin@next-gear.app
 - [ ] Incident Response Plan with 72-hour notification SOP
 - [x] 2FA implementation for high-value transactions
 - [ ] Regular penetration testing (external security firm, quarterly)
@@ -332,7 +332,7 @@ Total: ₹2,950 (displayed at checkout)
 - Pricing (Clear breakdown of base + GST + insurance)
 - Return/Refund Policy (Cancellation Policy page)
 - Terms of Use (Terms & Conditions page)
-- Grievance Redressal Officer (Contact: grievance@nextgear.in)
+- Grievance Redressal Officer (Contact: support@next-gear.app)
 - Links to Consumer Commission websites
 
 #### B. Grievance Redressal (Section 6)
@@ -554,4 +554,4 @@ This document certifies that Next Gear Rentals has reviewed its operations again
 
 **Important Note:** This guide should be reviewed quarterly or whenever legal frameworks change. Any updates to Indian laws or regulatory guidelines require immediate review and implementation within 30 days of notification.
 
-For questions about compliance, contact: compliance@nextgear.in
+For questions about compliance, contact: admin@next-gear.app

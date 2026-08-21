@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   const { code } = parsed.data;
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.findUnique({ where: { id: jobId } });
     if (!job || !job.otpHash || !job.otpSalt) {

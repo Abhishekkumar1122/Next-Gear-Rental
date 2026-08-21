@@ -69,6 +69,10 @@ export async function PATCH(request: Request) {
   }
 
   const payload = await request.json().catch(() => ({}));
+  if (payload && payload.id && !payload.action) {
+    payload.action = "generate-credentials";
+  }
+
   const parsed = updateSchema.safeParse(payload);
 
   if (!parsed.success) {
@@ -111,4 +115,8 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({ application: updated });
+}
+
+export async function POST(request: Request) {
+  return PATCH(request);
 }

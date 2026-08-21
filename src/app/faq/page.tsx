@@ -67,7 +67,7 @@ const faqs: FAQ[] = [
     id: '8',
     icon: <Phone className="w-6 h-6" />,
     question: "How do I contact customer support?",
-    answer: "Our support team is available 24/7 through multiple channels: in-app chat with instant response, phone support at +91-9876-543-210, email at support@nextgear.in, or WhatsApp support. Live agents are typically available within 2 minutes.",
+    answer: "Our support team is available 24/7 through multiple channels: in-app chat with instant response, phone support at +91-95237-65172, email at support@next-gear.app, or WhatsApp support. Live agents are typically available within 2 minutes.",
     category: "Support"
   },
 ];
@@ -84,11 +84,13 @@ export default function FaqPage() {
 
   return (
     <div className="min-h-screen bg-[var(--brand-ink)] text-white">
-      <div className="relative overflow-hidden">
+      <div className="sticky top-0 z-50">
+        <SiteHeader variant="dark" showBadges />
+      </div>
+
+      <div className="relative overflow-hidden -mt-12 pt-12">
         <div className="absolute -right-24 top-20 h-64 w-64 rounded-full bg-[var(--brand-red)]/20 blur-3xl" aria-hidden="true" />
         <div className="absolute -left-20 bottom-0 h-56 w-56 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
-        
-        <SiteHeader variant="dark" showBadges />
 
         <div className="mx-auto w-full max-w-6xl px-6 pb-12 pt-10 md:pb-16 md:pt-14">
           <div className="relative z-10">
@@ -187,8 +189,8 @@ export default function FaqPage() {
               <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.12] to-white/[0.04] p-4 transition-all duration-300 hover:border-[var(--brand-red)]/60 hover:bg-gradient-to-br hover:from-white/[0.15] hover:to-[var(--brand-red)]/[0.08] hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-1">
                 <Mail className="w-6 h-6 text-[var(--brand-red)] mx-auto mb-3" />
                 <h4 className="font-semibold text-white mb-1">Email Support</h4>
-                <a href="mailto:support@nextgear.in" className="text-sm text-[var(--brand-red)]/90 hover:text-[var(--brand-red)] transition-colors">
-                  support@nextgear.in
+                <a href="mailto:support@next-gear.app" className="text-sm text-[var(--brand-red)]/90 hover:text-[var(--brand-red)] transition-colors">
+                  support@next-gear.app
                 </a>
               </div>
               <div className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.12] to-white/[0.04] p-4 transition-all duration-300 hover:border-[var(--brand-red)]/60 hover:bg-gradient-to-br hover:from-white/[0.15] hover:to-[var(--brand-red)]/[0.08] hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-1">

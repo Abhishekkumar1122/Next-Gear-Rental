@@ -75,7 +75,7 @@ npm run prisma:seed
 
 Test credentials:
 - Test accounts are available upon request
-- Contact: support@nextgear.in
+- Contact: support@next-gear.app
 
 ## Logo Setup
 

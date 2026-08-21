@@ -45,17 +45,24 @@ export async function getWebhookAuditLogs(filters?: Filters) {
     ...(statusFilter ? { status: statusFilter } : {}),
   };
 
-  const [totalItems, logs] = await Promise.all([
-    prisma.webhookEventLog.count({ where }),
-    prisma.webhookEventLog.findMany({
-      where,
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: pageSize,
-      skip,
-    }),
-  ]);
+  let totalItems = 0;
+  let logs: Awaited<ReturnType<typeof prisma.webhookEventLog.findMany>> = [];
+  try {
+    [totalItems, logs] = await Promise.all([
+      prisma.webhookEventLog.count({ where }),
+      prisma.webhookEventLog.findMany({
+        where,
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: pageSize,
+        skip,
+      }),
+    ]);
+  } catch (err) {
+    console.warn("[webhook-admin] DB unreachable, returning empty list:", err);
+    return { items: [], totalItems: 0, totalPages: 0, page, pageSize };
+  }
 
   const totalPages = Math.ceil(totalItems / pageSize);
 

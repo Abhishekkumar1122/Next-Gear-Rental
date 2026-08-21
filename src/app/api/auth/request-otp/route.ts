@@ -79,22 +79,41 @@ export async function POST(request: Request) {
   if (apiKey && email) {
     const resend = new Resend(apiKey);
     try {
+      const { generateOtpEmailHtml } = await import("@/lib/email-templates");
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? "noreply@nextgear.example",
+        from: process.env.RESEND_FROM_EMAIL ?? "Next Gear <noreply@next-gear.app>",
         to: email,
-        subject: "Your Next Gear OTP",
-        html: `<p>Your OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+        subject: `🔑 ${otp} is your NEXT GEAR verification code`,
+        html: generateOtpEmailHtml({ otp, userName: email.split("@")[0] }),
       });
     } catch {
       return NextResponse.json({ error: "Unable to send OTP email" }, { status: 500 });
     }
-  } else if (phone) {
-    // For mobile, you would typically send SMS here
-    console.log(`SMS OTP sent to ${phone}: ${otp}`);
+  }
+
+  let whatsappSent = false;
+  let whatsappError: string | undefined;
+  let whatsappProvider: string | undefined;
+
+  if (phone) {
+    const { sendWhatsAppOtp } = await import("@/lib/whatsapp-service");
+    const waResult = await sendWhatsAppOtp({
+      phone,
+      otp,
+      purpose: "login",
+    });
+    whatsappSent = waResult.ok;
+    whatsappError = waResult.error;
+    whatsappProvider = waResult.provider;
   }
 
   return NextResponse.json({
-    message: `OTP sent to your ${email ? "email" : "mobile"}`,
+    message: whatsappSent
+      ? `OTP sent to your mobile number (+91 ${phone.slice(-10)})!`
+      : `OTP sent to +91 ${phone?.slice(-10) || email}!`,
+    whatsappSent,
+    whatsappProvider,
+    whatsappError,
     devOtp: process.env.NODE_ENV === "production" ? undefined : otp,
   });
 }

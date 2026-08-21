@@ -144,6 +144,14 @@ model Vehicle {
   operationalStatus VehicleAvailabilityStatus @default(AVAILABLE)
   cityId         String
   vendorId       String?
+  addonWaiverPrice  Int?
+  addonRsaPrice     Int?
+  addonHelmetPrice  Int?
+  price1HrINR       Int?
+  price3HrINR       Int?
+  price6HrINR       Int?
+  price12HrINR      Int?
+  weekendSurgeActive Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   city           City      @relation(fields: [cityId], references: [id], onDelete: Restrict)
@@ -165,6 +173,15 @@ model Booking {
   currency       String        @default("INR")
   timezone       String        @default("Asia/Kolkata")
   status         BookingStatus @default(CONFIRMED)
+  handoverStatus String        @default("PENDING") // PENDING, RELEASED, RETURNED
+  startOdometer  Float?
+  endOdometer    Float?
+  startFuel      String?
+  endFuel        String?
+  startPhotos    String[]      @default([])
+  endPhotos      String[]      @default([])
+  extraChargesPaid Boolean     @default(false)
+  extraChargesAmount Float     @default(0.0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)

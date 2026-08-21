@@ -1,6 +1,7 @@
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { runtimeUsers } from "@/lib/runtime-store";
+import { sendVendorApprovalEmailAndWhatsApp } from "@/lib/vendor-email-service";
 
 export type VendorApplicationStatus =
   | "new"
@@ -144,7 +145,17 @@ function buildLoginId(input: { businessName: string; phone: string }) {
     .slice(0, 18) || "vendor";
 
   const last4 = input.phone.slice(-4);
-  return `${slug}-${last4}@vendors.nextgear.in`;
+  return `${slug}-${last4}@vendors.next-gear.app`;
+}
+
+function generateApplicationId(businessName: string, phone: string): string {
+  const cleanName = businessName.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  
+  const namePart = cleanName.slice(0, 4).padEnd(4, "X");
+  const phonePart = cleanPhone.slice(-4).padStart(4, "0");
+  
+  return `${namePart}${phonePart}`;
 }
 
 function buildTempPassword() {
@@ -162,10 +173,12 @@ function isChecklistComplete(checklist: VendorKycChecklist) {
 }
 
 export async function createVendorApplication(input: VendorApplicationCreateInput): Promise<VendorApplication> {
+  const id = generateApplicationId(input.businessName, input.phone);
+
   if (!process.env.DATABASE_URL) {
     const now = new Date().toISOString();
     const record: VendorApplication = {
-      id: `va_${crypto.randomUUID()}`,
+      id,
       businessName: input.businessName,
       contactName: input.contactName,
       phone: input.phone,
@@ -187,8 +200,6 @@ export async function createVendorApplication(input: VendorApplicationCreateInpu
   }
 
   await ensureTable();
-
-  const id = `va_${crypto.randomUUID()}`;
   const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
     `
       INSERT INTO "VendorApplication" (id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, created_at, updated_at)
@@ -489,5 +500,42 @@ export async function generateVendorCredentials(applicationId: string): Promise<
     vendor.id
   );
 
+  void sendVendorApprovalEmailAndWhatsApp({
+    businessName: application.business_name,
+    contactName: application.contact_name,
+    email: loginId,
+    phone: application.phone,
+    tempPassword,
+    commissionRate: 15,
+  });
+
   return toVendorApplication(updatedRows[0]);
+}
+
+export async function getVendorApplicationByIdAndPhone(
+  id: string,
+  phone: string
+): Promise<VendorApplication | null> {
+  if (!process.env.DATABASE_URL) {
+    const found = runtimeVendorApplications.find(
+      (item) => item.id.toLowerCase() === id.toLowerCase() && item.phone === phone
+    );
+    return found || null;
+  }
+
+  await ensureTable();
+
+  const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
+    `
+      SELECT id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      FROM "VendorApplication"
+      WHERE LOWER(id) = LOWER($1) AND phone = $2
+      LIMIT 1
+    `,
+    id,
+    phone
+  );
+
+  if (!rows.length) return null;
+  return toVendorApplication(rows[0]);
 }

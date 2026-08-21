@@ -226,7 +226,7 @@ Visit `http://localhost:3000` 🎉
 ### 6️⃣ Test Login (Development)
 ```
 Test credentials available upon request.
-Contact: support@nextgear.in
+Contact: support@next-gear.app
 ```
 
 ---
@@ -603,7 +603,7 @@ POST   /api/returns/[bookingId]/settle  - Settle return
 ### Test Credentials
 ```
 Test credentials are available upon request from the development team.
-Contact: support@nextgear.in
+Contact: support@next-gear.app
 ```
 
 ### Test Scenarios
@@ -841,7 +841,7 @@ Proprietary - All rights reserved © 2024 Next Gear Rentals
 ## 📞 Support
 
 For issues, suggestions, or support:
-- 📧 Email: support@nextgear.in
+- 📧 Email: support@next-gear.app
 - 🐛 GitHub Issues: [Report Issues](https://github.com/Abhishekkumar1122/Next-Gear-Rental/issues)
 - 💬 Discord: [Community Server]
 

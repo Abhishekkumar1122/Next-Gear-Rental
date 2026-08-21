@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/page-shell";
 import { getCityLandingBySlug, getCityLandingItems, getPriorityCitySeoContent } from "@/lib/city-seo";
+import { DestinationWeatherWidget } from "@/components/destination-weather-widget";
 
 type Props = {
   params: Promise<{ citySlug: string }>;
@@ -63,7 +64,8 @@ export default async function CityLandingPage({ params }: Props) {
       : getCityLandingItems().filter((item) => item.slug !== city.slug).slice(0, 8);
 
   const location = `${city.cityName}, ${city.stateName}`;
-  const cityPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextgearrentals.in"}/cities/${city.slug}`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://next-gear.app";
+  const cityPageUrl = `${baseUrl}/cities/${city.slug}`;
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -77,8 +79,8 @@ export default async function CityLandingPage({ params }: Props) {
       {
         "@type": "BreadcrumbList",
         itemListElement: [
-          { "@type": "ListItem", position: 1, name: "Home", item: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextgearrentals.in"}/` },
-          { "@type": "ListItem", position: 2, name: "Cities", item: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextgearrentals.in"}/cities` },
+          { "@type": "ListItem", position: 1, name: "Home", item: `${baseUrl}/` },
+          { "@type": "ListItem", position: 2, name: "Cities", item: `${baseUrl}/cities` },
           { "@type": "ListItem", position: 3, name: location, item: cityPageUrl },
         ],
       },
@@ -112,43 +114,49 @@ export default async function CityLandingPage({ params }: Props) {
     <PageShell
       title={`Bike & Car Rental in ${location}`}
       subtitle={`Airport-ready fleet in ${location} with quick verification, transparent pricing, and same-day pickup options.`}
+      variant="dark"
     >
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-        <p className="text-xs uppercase tracking-[0.3em] text-black/50">City guide</p>
-        <h2 className="mt-1 text-xl font-semibold">Why rent in {location}?</h2>
-        <p className="mt-2 text-sm text-black/70">
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/50">City guide</p>
+        <h2 className="mt-1 text-xl font-semibold text-white">Why rent in {location}?</h2>
+        <p className="mt-2 text-sm text-white/70">
           Get bikes and cars near {city.airport}. Choose hourly or daily rentals with digital KYC, real-time availability,
           and transparent pricing.
         </p>
         {priorityContent ? (
-          <p className="mt-3 rounded-xl border border-black/10 bg-black/[0.02] px-3 py-2 text-sm text-black/75">
+          <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/75">
             {priorityContent.intro}
           </p>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             href={`/book-vehicle?city=${encodeURIComponent(city.cityName)}`}
-            className="rounded-full bg-[var(--brand-red)] px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/25"
+            className="rounded-full bg-[var(--brand-red)] px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-red-600/30 hover:bg-red-600 hover:shadow-red-600/40 hover:-translate-y-0.5 transition"
           >
             Book in {city.cityName}
           </Link>
           <Link
             href={`/vehicles?city=${encodeURIComponent(city.cityName)}`}
-            className="rounded-full border border-black/15 px-5 py-2 text-sm font-semibold"
+            className="rounded-full border border-white/20 hover:border-white/40 hover:bg-white/5 px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
           >
             View vehicles
           </Link>
         </div>
       </section>
 
+      {/* Destination Weather & Riding Advisory Section */}
+      <section className="mt-6">
+        <DestinationWeatherWidget city={city.cityName} />
+      </section>
+
       {priorityContent ? (
-        <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold">Top service areas in {city.cityName}</h3>
+        <section className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white">
+          <h3 className="text-lg font-semibold text-white">Top service areas in {city.cityName}</h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {priorityContent.serviceAreas.map((area) => (
-              <p key={area} className="rounded-xl border border-black/10 px-3 py-2 text-sm text-black/75">
+              <p key={area} className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white/75">
                 {area}
               </p>
             ))}
@@ -156,38 +164,38 @@ export default async function CityLandingPage({ params }: Props) {
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold">FAQs for {location} rentals</h3>
-        <div className="mt-3 space-y-3 text-sm text-black/75">
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white">
+        <h3 className="text-lg font-semibold text-white">FAQs for {location} rentals</h3>
+        <div className="mt-3 space-y-3 text-sm text-white/75">
           {(priorityContent?.faq?.length
             ? priorityContent.faq
             : [
                 {
                   question: `Can I book airport pickup in ${city.cityName}?`,
-                  answer: `Yes. Airport and nearby pickup hubs are available in ${city.cityName} for selected vehicles.`,
+                  answer: `Yes. Next Gear supports airport and nearby pickup hubs in ${city.cityName} for selected vehicles.`,
                 },
                 {
                   question: `Do you support daily and hourly booking plans in ${city.cityName}?`,
-                  answer: `Yes. You can select hourly, daily, and extended plans based on your trip duration.`,
+                  answer: `Yes. You can choose hourly, daily, and extended plans based on your trip duration.`,
                 },
               ]
           ).map((item) => (
-            <div key={item.question} className="rounded-xl border border-black/10 p-3">
-              <p className="font-medium text-black">{item.question}</p>
-              <p className="mt-1">{item.answer}</p>
+            <div key={item.question} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <p className="font-medium text-white">{item.question}</p>
+              <p className="mt-1 text-white/70">{item.answer}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold">Explore more cities in and around {city.stateName}</h3>
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white">
+        <h3 className="text-lg font-semibold text-white">Explore more cities in and around {city.stateName}</h3>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {fallbackRelated.map((item) => (
             <Link
               key={item.slug}
               href={`/cities/${item.slug}`}
-              className="rounded-xl border border-black/10 px-3 py-2 text-sm transition hover:bg-black/5"
+              className="rounded-xl border border-white/15 px-3 py-2 text-sm text-white transition hover:bg-white/5 hover:border-white/30"
             >
               Bike rental in {item.cityName}, {item.stateName}
             </Link>

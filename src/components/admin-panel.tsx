@@ -1,4 +1,6 @@
-import { cityConfigs, vendors, vehicles } from "@/lib/mock-data";
+import { cityConfigs } from "@/lib/india-locations";
+const vehicles: any[] = [];
+const vendors: any[] = [];
 
 const adminCapabilities = [
   "Manage users",

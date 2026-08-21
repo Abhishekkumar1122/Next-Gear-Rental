@@ -60,6 +60,25 @@ export async function POST() {
 
   for (const booking of candidates) {
     if (booking.startDate === targetDate) {
+      try {
+        const { generateTripReminderEmailHtml } = await import("@/lib/email-templates");
+        const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
+        const html = generateTripReminderEmailHtml({
+          bookingId: booking.bookingId,
+          customerName: "Rider",
+          vehicleTitle: "Your Rental Vehicle",
+          cityName: booking.city,
+          startDate: booking.startDate,
+        });
+        void dispatchHtmlEmail({
+          to: booking.userEmail,
+          subject: `Reminder: Your Next Gear Ride Starts Tomorrow! (${targetDate})`,
+          html,
+        });
+      } catch (err) {
+        console.error("[Trip Reminder Email Failed]", err);
+      }
+
       const result = await sendBookingAlert({
         bookingId: booking.bookingId,
         userEmail: booking.userEmail,

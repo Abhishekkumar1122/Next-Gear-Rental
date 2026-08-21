@@ -1,5 +1,5 @@
-import { INDIA_CITIES_BY_STATE } from "@/lib/india-locations";
-import { cityConfigs } from "@/lib/mock-data";
+import { INDIA_CITIES_BY_STATE, cityConfigs } from "@/lib/india-locations";
+
 
 export type CityLandingItem = {
   cityName: string;

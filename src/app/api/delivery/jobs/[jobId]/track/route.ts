@@ -27,7 +27,7 @@ type Props = {
 export async function GET(_: Request, { params }: Props) {
   const { jobId } = await params;
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.findUnique({ where: { id: jobId } });
     if (!job) {
@@ -41,6 +41,8 @@ export async function GET(_: Request, { params }: Props) {
       liveLat: job.liveLat ?? undefined,
       liveLng: job.liveLng ?? undefined,
       lastLocationAt: job.lastLocationAt?.toISOString(),
+      startLat: job.startLat ?? undefined,
+      startLng: job.startLng ?? undefined,
       endLat: job.endLat ?? undefined,
       endLng: job.endLng ?? undefined,
     });
@@ -58,6 +60,8 @@ export async function GET(_: Request, { params }: Props) {
     liveLat: job.liveLat,
     liveLng: job.liveLng,
     lastLocationAt: job.lastLocationAt,
+    startLat: job.startLat,
+    startLng: job.startLng,
     endLat: job.endLat,
     endLng: job.endLng,
   });

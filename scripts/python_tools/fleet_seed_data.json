@@ -1,0 +1,62 @@
+[
+  {
+    "title": "Mahindra Thar 4x4 Hardtop",
+    "category": "CAR",
+    "hourlyRate": 249,
+    "dailyRate": 3499,
+    "transmission": "Automatic",
+    "fuelType": "Diesel",
+    "seats": 4,
+    "popularIn": [
+      "Goa",
+      "Manali",
+      "Leh Ladakh",
+      "Chandigarh"
+    ]
+  },
+  {
+    "title": "Hyundai Creta SX (O)",
+    "category": "CAR",
+    "hourlyRate": 189,
+    "dailyRate": 2799,
+    "transmission": "Automatic",
+    "fuelType": "Petrol",
+    "seats": 5,
+    "popularIn": [
+      "Bengaluru",
+      "Mumbai",
+      "Delhi NCR",
+      "Hyderabad"
+    ]
+  },
+  {
+    "title": "Royal Enfield Himalayan 450",
+    "category": "BIKE",
+    "hourlyRate": 119,
+    "dailyRate": 1599,
+    "transmission": "Manual",
+    "fuelType": "Petrol",
+    "seats": 2,
+    "popularIn": [
+      "Manali",
+      "Rishikesh",
+      "Leh Ladakh",
+      "Dehradun"
+    ]
+  },
+  {
+    "title": "Honda Activa 6G Premium",
+    "category": "SCOOTY",
+    "hourlyRate": 49,
+    "dailyRate": 499,
+    "transmission": "Automatic",
+    "fuelType": "Petrol",
+    "seats": 2,
+    "popularIn": [
+      "Goa",
+      "Pondicherry",
+      "Jaipur",
+      "Udaipur"
+    ]
+  }
+]

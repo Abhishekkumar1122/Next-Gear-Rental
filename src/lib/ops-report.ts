@@ -23,42 +23,36 @@ export async function getOpsMetricsReport(options?: { trendHours?: string | numb
 
   const since = new Date(Date.now() - trendHours * 60 * 60 * 1000);
 
-  const [webhookLogs, retryJobs, webhookLogs24h, retryJobs24h] = await Promise.all([
-    prisma.webhookEventLog.groupBy({
-      by: ["status"],
-      _count: {
-        _all: true,
-      },
-    }),
-    prisma.webhookRetryJob.groupBy({
-      by: ["status"],
-      _count: {
-        _all: true,
-      },
-    }),
-    prisma.webhookEventLog.groupBy({
-      by: ["status"],
-      where: {
-        createdAt: {
-          gte: since,
-        },
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-    prisma.webhookRetryJob.groupBy({
-      by: ["status"],
-      where: {
-        createdAt: {
-          gte: since,
-        },
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-  ]);
+  let webhookLogs: { status: string; _count: { _all: number } }[] = [];
+  let retryJobs: { status: string; _count: { _all: number } }[] = [];
+  let webhookLogs24h: { status: string; _count: { _all: number } }[] = [];
+  let retryJobs24h: { status: string; _count: { _all: number } }[] = [];
+
+  try {
+    [webhookLogs, retryJobs, webhookLogs24h, retryJobs24h] = await Promise.all([
+      prisma.webhookEventLog.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+      prisma.webhookRetryJob.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+      prisma.webhookEventLog.groupBy({
+        by: ["status"],
+        where: { createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      prisma.webhookRetryJob.groupBy({
+        by: ["status"],
+        where: { createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+    ]);
+  } catch (err) {
+    console.warn("[ops-report] DB unreachable, returning partial metrics:", err);
+    return { appMetrics, databaseMetrics: null, trends: null };
+  }
 
   const totalWebhookEvents24h = webhookLogs24h.reduce((sum, item) => sum + item._count._all, 0);
   const totalRetryJobs24h = retryJobs24h.reduce((sum, item) => sum + item._count._all, 0);

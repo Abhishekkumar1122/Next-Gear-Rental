@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: Props) {
   const { lat, lng, recordedAt, driverId } = parsed.data;
   const stamp = recordedAt ? new Date(recordedAt) : new Date();
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.update({
       where: { id: jobId },

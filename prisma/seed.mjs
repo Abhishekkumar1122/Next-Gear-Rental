@@ -4,9 +4,9 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminEmail = "admin@nextgear.in";
-  const vendorEmail = "vendor@nextgear.in";
-  const customerEmail = "customer@nextgear.in";
+  const adminEmail = "admin@next-gear.app";
+  const vendorEmail = "partners@next-gear.app";
+  const customerEmail = "customer@next-gear.app";
 
   const [delhi, mumbai, bengaluru] = await Promise.all([
     prisma.city.upsert({ where: { name: "Delhi" }, update: { airportName: "Indira Gandhi International Airport", isActive: true }, create: { name: "Delhi", airportName: "Indira Gandhi International Airport", isActive: true } }),

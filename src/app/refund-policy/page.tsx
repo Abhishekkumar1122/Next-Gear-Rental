@@ -181,7 +181,7 @@ export default function RefundPolicyPage() {
           <div>
             <h3 className="font-semibold text-black mb-2">Grievance Process (CPA 2019)</h3>
             <ul className="space-y-2 text-sm text-black/70 list-disc list-inside">
-              <li>Contact: <strong>grievance@nextgear.in</strong></li>
+              <li>Contact: <strong>payments@next-gear.app</strong></li>
               <li>Complaint window: <strong>2 years</strong> from transaction</li>
               <li>Response time: <strong>5-7 business days</strong></li>
               <li>Escalation: District Consumer Commission (free filing)</li>
@@ -197,7 +197,7 @@ export default function RefundPolicyPage() {
         
         <div className="space-y-4">
           <ul className="space-y-3 text-sm text-black/70">
-            <li><strong className="text-black">Email:</strong> support@nextgear.in</li>
+            <li><strong className="text-black">Email:</strong> support@next-gear.app</li>
             <li><strong className="text-black">Phone:</strong> 1800-NEXTGEAR</li>
             <li><strong className="text-black">Chat:</strong> Available 9 AM - 11 PM</li>
             <li><strong className="text-black">Response:</strong> Within 24 hours</li>

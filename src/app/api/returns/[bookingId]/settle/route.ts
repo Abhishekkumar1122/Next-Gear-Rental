@@ -14,6 +14,8 @@ export async function POST(
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
+        user: true,
+        vehicle: true,
         damageCharges: { where: { isApproved: true } },
         rentalSettlement: true,
       },
@@ -72,6 +74,33 @@ export async function POST(
       where: { id: bookingId },
       data: { status: "COMPLETED" },
     });
+
+    // Dispatch Post-Trip Feedback & Rating Email
+    if (booking.user?.email) {
+      const origin = request.nextUrl.origin;
+      const userEmail = booking.user.email;
+      const userName = booking.user.name || "Rider";
+      void (async () => {
+        try {
+          const { generateTripFeedbackEmailHtml } = await import("@/lib/email-templates");
+          const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
+          const feedbackHtml = generateTripFeedbackEmailHtml({
+            bookingId: booking.id,
+            customerName: userName,
+            vehicleTitle: booking.vehicle?.title || "Your Rental Vehicle",
+            referralCode: "FRIEND15",
+            baseUrl: origin,
+          });
+          await dispatchHtmlEmail({
+            to: userEmail,
+            subject: "How Was Your Ride with Next Gear? Rate Your Trip ⭐",
+            html: feedbackHtml,
+          });
+        } catch (e) {
+          console.error("[Trip Feedback Email Error]", e);
+        }
+      })();
+    }
 
     // Update return request status
     await prisma.returnRequest.updateMany({

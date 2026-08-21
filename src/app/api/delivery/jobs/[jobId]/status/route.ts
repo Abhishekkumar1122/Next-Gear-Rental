@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   const { status, message, createdBy } = parsed.data;
   const statusEnum = status.toUpperCase() as "SCHEDULED" | "EN_ROUTE" | "ARRIVED" | "COMPLETED" | "CANCELLED";
 
-  if (false && hasDatabase) {
+  if (hasDatabase) {
     // Prisma code disabled - configure DATABASE_URL to enable
     const job = await (prisma as any).deliveryJob.update({
       where: { id: jobId },

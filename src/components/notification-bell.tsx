@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 
 interface Notification {
@@ -25,7 +25,42 @@ interface Notification {
 
 interface NotificationBellProps {
   userId: string;
-  role: 'VENDOR' | 'ADMIN';
+  role: 'VENDOR' | 'ADMIN' | 'CUSTOMER';
+}
+
+// Heavy digital alarm (Detuned sawtooth/square wave)
+function playHeavyAlarm(ctx: AudioContext, time: number, duration: number) {
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc1.type = 'sawtooth';
+  osc2.type = 'square';
+
+  osc1.frequency.setValueAtTime(440, time);
+  osc2.frequency.setValueAtTime(446, time); // Detuned for chorus effect
+
+  // Rapid pitch sweep
+  osc1.frequency.linearRampToValueAtTime(880, time + duration * 0.5);
+  osc1.frequency.linearRampToValueAtTime(440, time + duration);
+  
+  osc2.frequency.linearRampToValueAtTime(886, time + duration * 0.5);
+  osc2.frequency.linearRampToValueAtTime(446, time + duration);
+
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(0.4, time + 0.05);
+  gain.gain.linearRampToValueAtTime(0.4, time + duration - 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+  osc1.connect(gain);
+  osc2.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc1.start(time);
+  osc2.start(time);
+
+  osc1.stop(time + duration);
+  osc2.stop(time + duration);
 }
 
 export default function NotificationBell({ userId, role }: NotificationBellProps) {
@@ -33,6 +68,24 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const isFirstFetch = useRef(true);
+
+  // Play active notification sound (Heavy Alert)
+  const playActiveSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      // Play heavy pager alarm 5 times
+      for (let i = 0; i < 5; i++) {
+        playHeavyAlarm(ctx, ctx.currentTime + i * 0.7, 0.45);
+      }
+    } catch (e) {
+      console.warn('Web Audio API error:', e);
+    }
+  };
 
   // Fetch notifications on mount and set up polling
   useEffect(() => {
@@ -42,7 +95,7 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
     const fetchNotifications = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const response = await fetch(`/api/notifications?userId=${userId}&limit=10`, {
           signal: controller.signal,
@@ -52,26 +105,33 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
         if (response.ok) {
           const data = await response.json();
-          setNotifications(data.notifications || []);
+          const newNotifications: Notification[] = data.notifications || [];
+          
+          setNotifications((prev) => {
+            if (!isFirstFetch.current && newNotifications.length > 0) {
+              const latestNotif = newNotifications[0];
+              // If the latest notification is unread and was not in our previous list, play the chime
+              if (!latestNotif.isRead) {
+                const isNew = !prev.some((n) => n.id === latestNotif.id);
+                if (isNew) {
+                  playActiveSound();
+                }
+              }
+            }
+            isFirstFetch.current = false;
+            return newNotifications;
+          });
+
           setUnreadCount(data.unreadCount || 0);
-          retryCount = 0; // Reset retry count on success
+          retryCount = 0;
         } else if (response.status === 400 || response.status === 401) {
-          // Client error - don't retry
-          console.warn(`Notification API returned ${response.status}`);
           setIsLoading(false);
         } else if (response.status >= 500 && retryCount < maxRetries) {
-          // Server error - retry
           retryCount++;
-          console.warn(`Notification API error (${response.status}), retry ${retryCount}/${maxRetries}`);
           setTimeout(fetchNotifications, 2000 * retryCount);
         }
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.warn('Notification fetch timeout');
-        } else {
-          console.warn('Failed to fetch notifications:', error);
-        }
-        // Don't spam logs, just continue
+        // Silent error
       } finally {
         setIsLoading(false);
       }
@@ -79,8 +139,6 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
     if (userId) {
       fetchNotifications();
-
-      // Poll for new notifications every 10 seconds (only if we have userId)
       const interval = setInterval(fetchNotifications, 10000);
       return () => clearInterval(interval);
     }
@@ -88,49 +146,35 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: 'PATCH',
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
       if (response.ok) {
-        // Update local state
         setNotifications(
           notifications.map((n) =>
             n.id === notificationId ? { ...n, isRead: true } : n
           )
         );
         setUnreadCount(Math.max(0, unreadCount - 1));
-      } else {
-        console.warn(`Failed to mark notification as read: ${response.status}`);
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.warn('Mark as read request timeout');
-      } else {
-        console.warn('Failed to mark notification as read:', error);
-      }
-      // Continue silently - don't block UI
+      console.warn('Failed to mark notification as read:', error);
     }
   };
 
   const getNotificationColor = (type: string) => {
     switch (type) {
       case 'booking':
-        return 'bg-blue-50 border-blue-200';
+        return 'border-blue-500 bg-blue-950/20 hover:bg-blue-950/40';
       case 'payment':
-        return 'bg-green-50 border-green-200';
+        return 'border-green-500 bg-green-950/20 hover:bg-green-950/40';
       case 'return':
-        return 'bg-yellow-50 border-yellow-200';
+        return 'border-amber-500 bg-amber-950/20 hover:bg-amber-950/40';
       case 'damage':
-        return 'bg-red-50 border-red-200';
+        return 'border-red-500 bg-red-950/20 hover:bg-red-950/40';
       default:
-        return 'bg-gray-50 border-gray-200';
+        return 'border-white/10 bg-white/5 hover:bg-white/10';
     }
   };
 
@@ -152,9 +196,10 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
   return (
     <div className="relative">
       {/* Bell Icon Button */}
+      {/* Bell Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+        className="relative p-2 text-white/75 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
         aria-label="Notifications"
       >
         <svg
@@ -173,7 +218,7 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
         {/* Unread Badge */}
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1 -translate-y-1 bg-red-500 rounded-full">
+          <span className="absolute top-1 right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1 -translate-y-1 bg-red-500 rounded-full animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -181,24 +226,33 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
       {/* Notifications Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
+        <div className="absolute right-0 mt-2 w-80 bg-[var(--brand-ink)] rounded-2xl shadow-2xl border border-white/10 z-50 max-h-[500px] overflow-y-auto text-white">
           {/* Header */}
-          <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 border-b">
-            <h3 className="text-lg font-semibold">
-              {role === 'VENDOR' ? 'Booking Notifications' : 'Admin Notifications'}
-            </h3>
-            {unreadCount > 0 && (
-              <p className="text-sm text-blue-100 mt-1">{unreadCount} unread</p>
-            )}
+          <div className="sticky top-0 bg-[var(--brand-ink)] text-white p-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-extrabold tracking-wider uppercase text-white/95">
+                {role === 'VENDOR' ? 'Operations Alerts' : role === 'CUSTOMER' ? 'Customer Alerts' : 'Admin Terminal'}
+              </h3>
+              {unreadCount > 0 && (
+                <p className="text-[11px] text-emerald-400 font-bold mt-0.5">{unreadCount} new alerts</p>
+              )}
+            </div>
+            <button 
+              onClick={playActiveSound}
+              className="px-2.5 py-1 text-[10px] font-bold bg-white/10 hover:bg-white/20 rounded-full border border-white/20 transition cursor-pointer flex items-center gap-1"
+              title="Test notification ringtone"
+            >
+              <span>🔊</span> Test Alarm
+            </button>
           </div>
 
           {/* Notifications List */}
           {isLoading ? (
-            <div className="p-4 text-center text-gray-500">Loading...</div>
+            <div className="p-8 text-center text-xs text-white/50">Loading alerts...</div>
           ) : notifications.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-white/50">
               <svg
-                className="w-12 h-12 mx-auto mb-3 text-gray-300"
+                className="w-12 h-12 mx-auto mb-3 text-white/20"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -213,13 +267,13 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
               <p>No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-white/5">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={`p-4 border-l-4 ${getNotificationColor(
                     notification.type
-                  )} cursor-pointer hover:opacity-80 transition ${
+                  )} cursor-pointer hover:bg-white/5 transition ${
                     !notification.isRead ? 'bg-opacity-100 font-semibold' : 'opacity-75'
                   }`}
                   onClick={() => !notification.isRead && markAsRead(notification.id)}
@@ -230,22 +284,22 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
                         <span className="text-xl">
                           {getNotificationIcon(notification.type)}
                         </span>
-                        <h4 className="font-semibold text-gray-900">
+                        <h4 className="font-semibold text-white">
                           {notification.title}
                         </h4>
                       </div>
 
                       {/* Vehicle Info */}
                       {notification.booking && (
-                        <div className="mt-2 text-sm text-gray-700">
+                        <div className="mt-2 text-sm text-white/90">
                           <p className="font-medium">
                             {notification.booking.vehicle.make}{' '}
                             {notification.booking.vehicle.model}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-white/50 mt-1">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-white/50 mt-1">
                             📍 {notification.booking.cityName} | ₹
                             {notification.booking.totalAmountINR?.toLocaleString('en-IN')}
                           </p>
@@ -253,7 +307,7 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
                       )}
 
                       {/* Timestamp */}
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-white/50 mt-2">
                         {new Date(notification.createdAt).toLocaleDateString(
                           'en-IN',
                           {
@@ -278,9 +332,11 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
                       href={
                         role === 'VENDOR'
                           ? `/dashboard/vendor?bookingId=${notification.booking.id}`
-                          : `/dashboard/admin?bookingId=${notification.booking.id}`
+                          : role === 'CUSTOMER'
+                          ? `/dashboard/customer?bookingId=${notification.booking.id}`
+                          : `/dashboard/admin?section=bookings&search=${notification.booking.id}`
                       }
-                      className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      className="mt-2 inline-block text-sm text-[var(--brand-red)] hover:text-red-400 font-medium"
                       onClick={(e) => e.stopPropagation()}
                     >
                       View Booking →
@@ -293,14 +349,16 @@ export default function NotificationBell({ userId, role }: NotificationBellProps
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="border-t p-3 bg-gray-50 text-center">
+            <div className="border-t border-white/10 p-3 bg-white/[0.02] text-center">
               <Link
                 href={
                   role === 'VENDOR'
                     ? '/dashboard/vendor?tab=notifications'
+                    : role === 'CUSTOMER'
+                    ? '/dashboard/customer?tab=notifications'
                     : '/dashboard/admin?tab=notifications'
                 }
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="text-sm text-[var(--brand-red)] hover:text-red-400 font-medium"
               >
                 View All Notifications
               </Link>

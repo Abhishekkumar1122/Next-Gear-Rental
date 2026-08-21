@@ -17,11 +17,17 @@ type ContactRequest = {
 };
 
 const statusOptions: Array<{ id: ContactRequestStatus | "all"; label: string }> = [
-  { id: "all", label: "All" },
+  { id: "all", label: "All Statuses" },
   { id: "new", label: "New" },
   { id: "in-progress", label: "In Progress" },
   { id: "resolved", label: "Resolved" },
 ];
+
+const STATUS_BADGES: Record<ContactRequestStatus, string> = {
+  new: "bg-red-950 text-red-400 border border-red-800/30",
+  "in-progress": "bg-amber-950 text-amber-400 border border-amber-800/30",
+  resolved: "bg-emerald-950 text-emerald-400 border border-emerald-800/30",
+};
 
 export function AdminContactRequestsPanel() {
   const router = useRouter();
@@ -105,7 +111,8 @@ export function AdminContactRequestsPanel() {
       }
 
       setRequests((prev) => prev.map((item) => (item.id === id ? data.request : item)));
-      setMessage("Status updated.");
+      setMessage("Status updated successfully.");
+      setTimeout(() => setMessage(""), 2000);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to update status");
     } finally {
@@ -114,80 +121,83 @@ export function AdminContactRequestsPanel() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total" value={counts.total} />
-        <StatCard label="New" value={counts.new} />
-        <StatCard label="In Progress" value={counts.inProgress} />
-        <StatCard label="Resolved" value={counts.resolved} />
+    <div className="space-y-5 text-white">
+      {/* Metrics Row */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 text-center">
+        <StatTile label="Total Requests" value={counts.total} />
+        <StatTile label="New Inquiries" value={counts.new} />
+        <StatTile label="In Progress" value={counts.inProgress} />
+        <StatTile label="Resolved" value={counts.resolved} />
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto]">
+      {/* Filter Options */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_180px_auto] text-xs">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, email, phone, message"
-          className="rounded-lg border border-black/15 px-3 py-2 text-sm"
+          placeholder="Search by name, email, phone, or message keywords..."
+          className="rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-white focus:outline-none focus:border-[var(--brand-red)]"
         />
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {statusOptions.map((item) => {
-            const active = activeStatus === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveStatus(item.id)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  active
-                    ? "border-black bg-black text-white"
-                    : "border-black/15 bg-white text-black/80 hover:bg-black/[0.03]"
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+        <select
+          value={activeStatus}
+          onChange={(e) => setActiveStatus(e.target.value as any)}
+          className="rounded-xl border border-white/10 bg-[#121212] px-3.5 py-2.5 text-white focus:outline-none focus:border-[var(--brand-red)]"
+        >
+          {statusOptions.map((opt) => (
+            <option key={opt.id} value={opt.id} className="bg-[#121212]">
+              {opt.label}
+            </option>
+          ))}
+        </select>
         <button
           onClick={() => void fetchRequests()}
-          className="w-full rounded-lg border border-black/15 px-4 py-2 text-sm font-semibold transition hover:bg-black/[0.03] lg:w-auto"
+          className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2.5 font-bold uppercase tracking-wider text-white transition cursor-pointer"
         >
           Refresh
         </button>
       </div>
 
-      {message && <p className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/70">{message}</p>}
+      {message && (
+        <div className="rounded-xl border border-red-500/20 bg-red-950/25 px-4 py-2.5 text-xs text-red-400">
+          {message}
+        </div>
+      )}
 
+      {/* Inquiries Ledger */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-20 animate-pulse rounded-lg bg-black/[0.05]" />
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-16 animate-pulse rounded-2xl bg-white/5 border border-white/5" />
           ))}
         </div>
       ) : authRequired ? (
-        <p className="rounded-lg border border-black/10 px-3 py-2 text-sm text-black/70">
-          Admin authentication is required to view contact requests.
-        </p>
+        <div className="rounded-2xl border border-red-500/20 bg-red-950/10 p-6 text-center text-xs text-red-400">
+          Admin authorization required.
+        </div>
       ) : requests.length === 0 ? (
-        <p className="rounded-lg border border-black/10 px-3 py-2 text-sm text-black/60">No contact requests found.</p>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.01] p-6 text-center text-xs text-white/50">
+          No contact requests found matching criteria.
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3.5">
           {requests.map((request) => (
-            <div key={request.id} className="rounded-lg border border-black/10 p-3 text-sm">
-              <div className="flex flex-wrap items-start justify-between gap-2">
+            <div key={request.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 hover:border-white/20 transition duration-300">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/5 pb-3">
                 <div>
-                  <p className="font-semibold">{request.fullName}</p>
-                  <p className="break-all text-black/60">{request.email} · {request.phone}</p>
-                  <p className="mt-1 text-xs text-black/50">{new Date(request.createdAt).toLocaleString()}</p>
+                  <p className="font-extrabold text-white text-sm">{request.fullName}</p>
+                  <p className="text-xs text-white/60 mt-0.5">
+                    {request.email} · <span className="text-white/40">{request.phone}</span>
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-black/15 px-2.5 py-0.5 text-xs font-semibold uppercase text-black/70">
+                <div className="flex items-center gap-3">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black uppercase border ${STATUS_BADGES[request.status]}`}>
                     {request.status}
                   </span>
                   <select
                     value={request.status}
                     onChange={(e) => void updateStatus(request.id, e.target.value as ContactRequestStatus)}
                     disabled={updatingId === request.id}
-                    className="rounded border border-black/15 px-2 py-1 text-xs"
+                    className="rounded-lg border border-white/10 bg-[#121212] px-2.5 py-1 text-[10px] uppercase font-bold text-white focus:outline-none focus:border-[var(--brand-red)]"
                   >
                     <option value="new">New</option>
                     <option value="in-progress">In Progress</option>
@@ -196,9 +206,13 @@ export function AdminContactRequestsPanel() {
                 </div>
               </div>
 
-              <p className="mt-2 rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-sm text-black/80">
+              <div className="mt-3.5 rounded-xl border border-white/5 bg-white/[0.01] p-3.5 text-xs text-white/80 leading-relaxed">
                 {request.message}
-              </p>
+              </div>
+
+              <div className="mt-3.5 flex justify-end text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                Submitted: {new Date(request.createdAt).toLocaleString()}
+              </div>
             </div>
           ))}
         </div>
@@ -207,11 +221,11 @@ export function AdminContactRequestsPanel() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2">
-      <p className="text-xs uppercase tracking-wide text-black/60">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center hover:border-red-500/20 transition">
+      <p className="text-[9px] uppercase font-bold tracking-wider text-white/40">{label}</p>
+      <p className="mt-1 text-xl font-black text-white">{value}</p>
     </div>
   );
 }

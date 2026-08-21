@@ -3,12 +3,17 @@ import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import Stripe from "stripe";
 import { z } from "zod";
+import { getPayUConfig, generatePayUHash } from "@/lib/payu";
 
 const checkoutSchema = z.object({
-  provider: z.enum(["razorpay", "stripe", "paypal", "cashfree"]),
+  provider: z.enum(["payu", "razorpay", "stripe", "paypal", "cashfree"]),
   amountINR: z.number().int().positive(),
   currency: z.enum(["INR", "USD", "AED"]).default("INR"),
   bookingId: z.string().min(1),
+  customerName: z.string().optional(),
+  customerEmail: z.string().optional(),
+  customerPhone: z.string().optional(),
+  productInfo: z.string().optional(),
 });
 
 function getProviderErrorDetails(error: unknown) {
@@ -52,6 +57,76 @@ export async function POST(request: Request) {
 
   const { provider, amountINR, currency, bookingId } = parsed.data;
   const hasDatabase = Boolean(process.env.DATABASE_URL);
+
+  if (provider === "payu") {
+    const { key, salt, mode, endpointUrl } = getPayUConfig();
+    const txnid = `NG_PAYU_${bookingId.replace(/[^a-zA-Z0-9]/g, "")}_${Date.now()}`;
+    const reqHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const reqProto = request.headers.get("x-forwarded-proto") || (reqHost?.includes("localhost") || reqHost?.includes("127.0.0.1") ? "http" : "https");
+    const baseUrl = reqHost ? `${reqProto}://${reqHost}` : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+    const surl = `${baseUrl}/api/payments/payu/response`;
+    const furl = `${baseUrl}/api/payments/payu/response`;
+
+    const firstname = (parsed.data.customerName || "Rider").replace(/[^a-zA-Z0-9 ]/g, "").trim() || "Rider";
+    const email = parsed.data.customerEmail || "customer@next-gear.app";
+    const phone = (parsed.data.customerPhone || "9999999999").replace(/\D/g, "").slice(-10) || "9999999999";
+    const productinfo = (parsed.data.productInfo || `Booking ${bookingId}`).slice(0, 100);
+
+    if (hasDatabase) {
+      void prisma.payment.create({
+        data: {
+          bookingId,
+          provider,
+          amountINR,
+          currency,
+          status: "CREATED",
+          providerPaymentId: txnid,
+          metadataJson: JSON.stringify({
+            provider: "payu",
+            mode,
+            txnid,
+            amountINR,
+            surl,
+            furl,
+          }),
+        },
+      }).catch(console.error);
+    }
+
+    const hash = generatePayUHash({
+      txnid,
+      amount: amountINR,
+      productinfo,
+      firstname,
+      email,
+      phone,
+      surl,
+      furl,
+      udf1: bookingId,
+      udf2: "nextgear_web",
+    });
+
+    return NextResponse.json({
+      provider: "payu",
+      mode,
+      actionUrl: endpointUrl,
+      payuParams: {
+        key,
+        txnid,
+        amount: Number(amountINR).toFixed(2),
+        productinfo,
+        firstname,
+        email,
+        phone,
+        surl,
+        furl,
+        hash,
+        udf1: bookingId,
+        udf2: "nextgear_web",
+        service_provider: "payu_paisa",
+      },
+    });
+  }
 
   let paymentRecordId: string | null = null;
 
@@ -122,6 +197,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ provider, mode: "live", order });
     } catch (error) {
       const details = getProviderErrorDetails(error);
+
+      // If it's a test environment key, fallback to standard checkout (no order ID required on frontend)
+      if (process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {
+        if (paymentRecordId) {
+          await prisma.payment.update({
+            where: { id: paymentRecordId || "" },
+            data: {
+              providerPaymentId: `standard_rzp_${bookingId}`,
+              metadataJson: JSON.stringify({ provider, mode: "live-standard", details }),
+            },
+          });
+        }
+        return NextResponse.json({
+          provider,
+          mode: "live-standard",
+          keyId: process.env.RAZORPAY_KEY_ID,
+          message: "Razorpay order creation failed, falling back to standard checkout.",
+        });
+      }
 
       if (paymentRecordId) {
         await prisma.payment.update({

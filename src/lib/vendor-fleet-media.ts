@@ -107,6 +107,20 @@ export async function setImageUrlsForVehicle(vehicleId: string, imageUrls: strin
   return normalized;
 }
 
+export function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase().trim();
+  return (
+    lower.endsWith(".mp4") ||
+    lower.endsWith(".webm") ||
+    lower.endsWith(".mov") ||
+    lower.includes("/video/upload/") ||
+    lower.includes("youtube.com/watch") ||
+    lower.includes("youtu.be/") ||
+    lower.includes("vimeo.com/")
+  );
+}
+
 export async function clearMediaForVehicle(vehicleId: string) {
   if (!process.env.DATABASE_URL) {
     inMemoryMedia.delete(vehicleId);

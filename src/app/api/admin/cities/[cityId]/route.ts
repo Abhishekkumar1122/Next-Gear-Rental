@@ -1,6 +1,6 @@
 import { assertAdminMutationRequest } from "@/lib/admin-security";
 import { formatCityWithState, splitCityAndState } from "@/lib/india-locations";
-import { cityConfigs } from "@/lib/mock-data";
+
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -30,54 +30,30 @@ export async function PATCH(request: Request, { params }: Props) {
   const payload = parsed.data;
   const cityDisplayName = formatCityWithState(payload.cityName, payload.stateName);
 
-  if (process.env.DATABASE_URL) {
-    const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
-    if (!existing) {
-      return NextResponse.json({ error: "City not found" }, { status: 404 });
-    }
-
-    const updated = await prisma.city.update({
-      where: { id: cityId },
-      data: {
-        name: cityDisplayName,
-        airportName: payload.airportName?.trim() || null,
-        isActive: true,
-      },
-      select: { id: true, name: true, airportName: true },
-    });
-
-    const normalized = splitCityAndState(updated.name);
-    return NextResponse.json({
-      message: "City updated",
-      city: {
-        id: updated.id,
-        name: normalized.city || updated.name,
-        state: normalized.state,
-        displayName: normalized.state ? `${normalized.city}, ${normalized.state}` : updated.name,
-        airportName: updated.airportName || undefined,
-      },
-    });
-  }
-
-  const idx = cityConfigs.findIndex((item) => item.name === cityId);
-  if (idx === -1) {
+  const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
+  if (!existing) {
     return NextResponse.json({ error: "City not found" }, { status: 404 });
   }
 
-  cityConfigs[idx] = {
-    ...cityConfigs[idx],
-    name: cityDisplayName,
-    airport: payload.airportName?.trim() || `${payload.cityName.trim()} Airport`,
-  };
+  const updated = await prisma.city.update({
+    where: { id: cityId },
+    data: {
+      name: cityDisplayName,
+      airportName: payload.airportName?.trim() || null,
+      isActive: true,
+    },
+    select: { id: true, name: true, airportName: true },
+  });
 
+  const normalized = splitCityAndState(updated.name);
   return NextResponse.json({
     message: "City updated",
     city: {
-      id: cityDisplayName,
-      name: payload.cityName.trim(),
-      state: payload.stateName.trim(),
-      displayName: cityDisplayName,
-      airportName: cityConfigs[idx].airport,
+      id: updated.id,
+      name: normalized.city || updated.name,
+      state: normalized.state,
+      displayName: normalized.state ? `${normalized.city}, ${normalized.state}` : updated.name,
+      airportName: updated.airportName || undefined,
     },
   });
 }
@@ -90,26 +66,16 @@ export async function DELETE(request: Request, { params }: Props) {
 
   const { cityId } = await params;
 
-  if (process.env.DATABASE_URL) {
-    const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
-    if (!existing) {
-      return NextResponse.json({ error: "City not found" }, { status: 404 });
-    }
-
-    const linkedVehicles = await prisma.vehicle.count({ where: { cityId } });
-    if (linkedVehicles > 0) {
-      return NextResponse.json({ error: "Cannot delete city linked to vehicles" }, { status: 409 });
-    }
-
-    await prisma.city.delete({ where: { id: cityId } });
-    return NextResponse.json({ message: "City deleted", cityId });
-  }
-
-  const idx = cityConfigs.findIndex((item) => item.name === cityId);
-  if (idx === -1) {
+  const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
+  if (!existing) {
     return NextResponse.json({ error: "City not found" }, { status: 404 });
   }
 
-  cityConfigs.splice(idx, 1);
+  const linkedVehicles = await prisma.vehicle.count({ where: { cityId } });
+  if (linkedVehicles > 0) {
+    return NextResponse.json({ error: "Cannot delete city linked to vehicles" }, { status: 409 });
+  }
+
+  await prisma.city.delete({ where: { id: cityId } });
   return NextResponse.json({ message: "City deleted", cityId });
 }

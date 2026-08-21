@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 const ALLOWED_DOC_TYPES = new Set<VendorKycDocumentType>([
   "aadhaar",
   "pan",
+  "business-proof",
   "driving-license",
   "vehicle-rc",
   "insurance",

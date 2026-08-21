@@ -38,12 +38,20 @@ export function ReturnTrackingPanel({
   async function fetchReturnStatus() {
     try {
       const response = await fetch(`/api/returns/${bookingId}/status`);
-      if (!response.ok) throw new Error("Failed to fetch status");
+      if (response.status === 404) {
+        setReturnStatus(null);
+        setError("");
+        return;
+      }
+      if (!response.ok) {
+        setError("Failed to load return status");
+        return;
+      }
       
       const data = await response.json();
       setReturnStatus(data);
+      setError("");
     } catch (err) {
-      console.error(err);
       setError("Failed to load return status");
     } finally {
       setLoading(false);
@@ -97,13 +105,16 @@ export function ReturnTrackingPanel({
   }
 
   if (!returnStatus) {
-    return (
-      <div className="rounded-2xl border border-black/10 bg-gray-50 p-4 md:p-6">
-        <p className="text-sm text-black/60 text-center">
-          {error || "No active return found"}
-        </p>
-      </div>
-    );
+    if (error) {
+      return (
+        <div className="rounded-2xl border border-black/10 bg-gray-50 p-4 md:p-6">
+          <p className="text-sm text-red-500 text-center font-medium">
+            {error}
+          </p>
+        </div>
+      );
+    }
+    return null;
   }
 
   const stages = [
@@ -243,7 +254,7 @@ export function ReturnTrackingPanel({
         {/* Help Text */}
         <div className="mt-6 rounded-lg bg-black/5 border border-black/10 p-3">
           <p className="text-xs text-black/70">
-            📞 Need help? Contact our support team at support@nextgear.in
+            📞 Need help? Contact our support team at support@next-gear.app
           </p>
         </div>
       </div>

@@ -15,12 +15,21 @@ const getCustomerBookings = unstable_cache(
     }
     const bookings = await prisma.booking.findMany({
       where: { userId },
-      include: { user: true, vehicle: true },
+      include: {
+        user: true,
+        vehicle: {
+          include: {
+            vendor: true,
+          }
+        }
+      },
       orderBy: { createdAt: "desc" },
     });
     return bookings.map(b => ({
       id: b.id,
       vehicleId: b.vehicleId,
+      vehicleTitle: b.vehicle?.title || "Vehicle",
+      vehicleFuel: b.vehicle?.fuel || "petrol",
       userName: b.user.name || b.user.email,
       userEmail: b.user.email,
       city: b.cityName,
@@ -30,6 +39,8 @@ const getCustomerBookings = unstable_cache(
       currency: b.currency,
       status: b.status.toLowerCase() as "confirmed" | "cancelled" | "completed",
       createdAt: b.createdAt.toISOString(),
+      vendorName: b.vehicle?.vendor?.businessName || null,
+      vendorPhone: b.vehicle?.vendor?.contactPhone || null,
     }));
   },
   ["customer-bookings"],
@@ -40,19 +51,22 @@ export default async function CustomerDashboardPage() {
   const user = await getServerSessionUser();
   if (!user) redirect("/login?next=%2Fdashboard%2Fcustomer");
 
-  // Fetch initial data on server to avoid client-side loading states
-  const bookings = await getCustomerBookings(user.id);
+  const [dbUser, bookings] = await Promise.all([
+    process.env.DATABASE_URL
+      ? prisma.user.findUnique({
+          where: { id: user.id },
+          select: { name: true },
+        })
+      : Promise.resolve(null),
+    getCustomerBookings(user.id),
+  ]);
 
   return (
-    <div className="min-h-screen bg-[var(--brand-cream)] text-black">
-      <SiteHeader variant="light" />
-      <main className="mx-auto max-w-5xl p-6 md:p-10">
-        <CustomerDashboardClient 
-          email={user.email} 
-          name={user.email.split("@")[0]} 
-          initialBookings={bookings}
-        />
-      </main>
-    </div>
+    <CustomerDashboardClient 
+      userId={user.id}
+      email={user.email} 
+      name={dbUser?.name || user.email.split("@")[0]} 
+      initialBookings={bookings}
+    />
   );
 }

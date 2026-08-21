@@ -31,11 +31,21 @@ export type Vehicle = {
   availabilityMessage?: string;
   bookedUntil?: string;
   adminNote?: string;
+  addonWaiverPrice?: number | null;
+  addonRsaPrice?: number | null;
+  addonHelmetPrice?: number | null;
+  price1HrINR?: number | null;
+  price3HrINR?: number | null;
+  price6HrINR?: number | null;
+  price12HrINR?: number | null;
+  operationalStatus?: "AVAILABLE" | "UNAVAILABLE" | "MAINTENANCE";
+  weekendSurgeActive?: boolean;
 };
 
 export type BookingStatus = "confirmed" | "cancelled" | "completed";
 
-export type BookingAddOnId = "helmet" | "child-seat" | "insurance";
+export type BookingAddOnId = "helmet" | "child-seat" | "insurance" | "waiver" | "rsa" | "jacket" | "gloves" | "guards" | "mount" | "saddlebags" | "cam-mount" | "tent" | "sleeping-bag" | "camp-set" | "carrier" | "cooler" | string;
+
 
 export type BookingAddOn = {
   id: BookingAddOnId;
@@ -67,6 +77,16 @@ export type Booking = {
   status: BookingStatus;
   createdAt: string;
   timezone: string;
+  quantity?: number;
+  handoverStatus?: string;
+  startOdometer?: number | null;
+  endOdometer?: number | null;
+  startFuel?: string | null;
+  endFuel?: string | null;
+  startPhotos?: string[];
+  endPhotos?: string[];
+  extraChargesPaid?: boolean;
+  extraChargesAmount?: number;
 };
 
 export type DeliveryJobType = "delivery" | "pickup";

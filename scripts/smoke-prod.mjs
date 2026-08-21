@@ -17,7 +17,7 @@ async function main() {
   const login = await fetch(`${base}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "vendor@nextgear.in", password: "Password@123" }),
+    body: JSON.stringify({ email: "partners@next-gear.app", password: "Password@123" }),
   });
 
   const setCookie = login.headers.getSetCookie?.() ?? [];

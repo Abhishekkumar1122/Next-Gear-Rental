@@ -20,6 +20,13 @@ const updateVehicleSchema = z.object({
   cityId: z.string().optional(),
   cityName: z.string().optional(),
   vendorId: z.string().optional(),
+  addonWaiverPrice: z.number().int().nonnegative().nullable().optional(),
+  addonRsaPrice: z.number().int().nonnegative().nullable().optional(),
+  addonHelmetPrice: z.number().int().nonnegative().nullable().optional(),
+  price1HrINR: z.number().int().nonnegative().nullable().optional(),
+  price3HrINR: z.number().int().nonnegative().nullable().optional(),
+  price6HrINR: z.number().int().nonnegative().nullable().optional(),
+  price12HrINR: z.number().int().nonnegative().nullable().optional(),
 });
 
 type Props = {
@@ -74,6 +81,13 @@ export async function PATCH(request: Request, { params }: Props) {
         airportPickup: payload.airportPickup,
         cityId: payload.cityId,
         vendorId: payload.vendorId || null,
+        addonWaiverPrice: payload.addonWaiverPrice,
+        addonRsaPrice: payload.addonRsaPrice,
+        addonHelmetPrice: payload.addonHelmetPrice,
+        price1HrINR: payload.price1HrINR,
+        price3HrINR: payload.price3HrINR,
+        price6HrINR: payload.price6HrINR,
+        price12HrINR: payload.price12HrINR,
       },
       select: { id: true, title: true },
     });
@@ -115,6 +129,13 @@ export async function PATCH(request: Request, { params }: Props) {
     airportPickup: payload.airportPickup,
     city,
     vendorId: payload.vendorId || undefined,
+    addonWaiverPrice: payload.addonWaiverPrice,
+    addonRsaPrice: payload.addonRsaPrice,
+    addonHelmetPrice: payload.addonHelmetPrice,
+    price1HrINR: payload.price1HrINR,
+    price3HrINR: payload.price3HrINR,
+    price6HrINR: payload.price6HrINR,
+    price12HrINR: payload.price12HrINR,
   };
 
   await setVehicleNumberForVehicle(vehicleId, payload.vehicleNumber);

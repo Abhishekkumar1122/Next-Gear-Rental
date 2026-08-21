@@ -42,6 +42,8 @@ export async function POST(request: Request) {
     const hasDatabase = Boolean(process.env.DATABASE_URL);
     let user: { id: string; email: string | null; role: string } | null = null;
 
+    let isNewUser = false;
+
     if (hasDatabase) {
       user = await prisma.user.findUnique({
         where: { email: googleUser.email },
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
           },
           select: { id: true, email: true, role: true },
         });
+        isNewUser = true;
       }
     } else {
       const found = runtimeUsers.find((u) => u.email.toLowerCase() === googleUser.email.toLowerCase());
@@ -83,6 +86,19 @@ export async function POST(request: Request) {
           email: newUser.email,
           role: newUser.role,
         };
+        isNewUser = true;
+      }
+    }
+
+    if (isNewUser && googleUser.email) {
+      try {
+        const { generateWelcomeEmailHtml } = await import("@/lib/email-templates");
+        const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
+        const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://next-gear.app";
+        const welcomeHtml = generateWelcomeEmailHtml({ userName: googleUser.name, couponCode: "WELCOME10", baseUrl: origin });
+        await dispatchHtmlEmail({ to: googleUser.email, subject: "Welcome to Next Gear Rentals! Claim Your First Ride Offer 🎁", html: welcomeHtml });
+      } catch (e) {
+        console.error("[Google OAuth Welcome Email Error]", e);
       }
     }
 

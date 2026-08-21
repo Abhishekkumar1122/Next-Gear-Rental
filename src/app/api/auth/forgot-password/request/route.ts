@@ -47,21 +47,32 @@ export async function POST(request: Request) {
   if (apiKey && email) {
     const resend = new Resend(apiKey);
     try {
+      const { generateForgotPasswordEmailHtml } = await import("@/lib/email-templates");
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? "noreply@nextgear.example",
+        from: process.env.RESEND_FROM_EMAIL ?? "Next Gear <noreply@next-gear.app>",
         to: email,
-        subject: "Next Gear password reset OTP",
-        html: `<p>Your Next Gear password reset OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+        subject: `🔐 ${otp} - NEXT GEAR Password Reset Code`,
+        html: generateForgotPasswordEmailHtml({ otp, userName: email.split("@")[0] }),
       });
     } catch {
       return NextResponse.json({ error: "Unable to send reset OTP email" }, { status: 500 });
     }
-  } else if (phone) {
-    console.log(`Password reset OTP sent to ${phone}: ${otp}`);
+  }
+
+  let whatsappSent = false;
+  if (phone) {
+    const { sendWhatsAppOtp } = await import("@/lib/whatsapp-service");
+    const waResult = await sendWhatsAppOtp({
+      phone,
+      otp,
+      purpose: "password_reset",
+    });
+    whatsappSent = waResult.ok;
   }
 
   return NextResponse.json({
-    message: `Reset OTP sent to your ${email ? "email" : "phone"}.`,
+    message: `Reset OTP sent to your ${email ? "email" : "WhatsApp / phone"}.`,
+    whatsappSent,
     devOtp: process.env.NODE_ENV === "production" ? undefined : otp,
   });
 }

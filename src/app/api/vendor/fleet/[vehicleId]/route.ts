@@ -16,10 +16,35 @@ const updateVendorVehicleSchema = z
     availableDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     vehicleNumber: z.union([z.string().min(4).max(30), z.literal("")]).optional(),
     imageUrl: z.union([z.string().url(), z.literal("")]).optional(),
+    addonWaiverPrice: z.number().int().nonnegative().nullable().optional(),
+    addonRsaPrice: z.number().int().nonnegative().nullable().optional(),
+    addonHelmetPrice: z.number().int().nonnegative().nullable().optional(),
+    price1HrINR: z.number().int().nonnegative().nullable().optional(),
+    price3HrINR: z.number().int().nonnegative().nullable().optional(),
+    price6HrINR: z.number().int().nonnegative().nullable().optional(),
+    price12HrINR: z.number().int().nonnegative().nullable().optional(),
+    operationalStatus: z.enum(["AVAILABLE", "UNAVAILABLE", "MAINTENANCE"]).optional(),
+    weekendSurgeActive: z.boolean().optional(),
   })
-  .refine((payload) => payload.pricePerDayINR !== undefined || payload.availableDates !== undefined || payload.imageUrl !== undefined || payload.vehicleNumber !== undefined, {
-    message: "At least one field is required",
-  });
+  .refine(
+    (payload) =>
+      payload.pricePerDayINR !== undefined ||
+      payload.availableDates !== undefined ||
+      payload.imageUrl !== undefined ||
+      payload.vehicleNumber !== undefined ||
+      payload.addonWaiverPrice !== undefined ||
+      payload.addonRsaPrice !== undefined ||
+      payload.addonHelmetPrice !== undefined ||
+      payload.price1HrINR !== undefined ||
+      payload.price3HrINR !== undefined ||
+      payload.price6HrINR !== undefined ||
+      payload.price12HrINR !== undefined ||
+      payload.operationalStatus !== undefined ||
+      payload.weekendSurgeActive !== undefined,
+    {
+      message: "At least one field is required",
+    }
+  );
 
 type Props = {
   params: Promise<{ vehicleId: string }>;
@@ -58,14 +83,25 @@ export async function PATCH(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
     }
 
-    const updated =
-      payload.pricePerDayINR !== undefined
-        ? await prisma.vehicle.update({
-            where: { id: vehicleId },
-            data: { pricePerDayINR: payload.pricePerDayINR },
-            include: { city: true },
-          })
-        : existing;
+    const updateData: Record<string, any> = {};
+    if (payload.pricePerDayINR !== undefined) updateData.pricePerDayINR = payload.pricePerDayINR;
+    if (payload.addonWaiverPrice !== undefined) updateData.addonWaiverPrice = payload.addonWaiverPrice;
+    if (payload.addonRsaPrice !== undefined) updateData.addonRsaPrice = payload.addonRsaPrice;
+    if (payload.addonHelmetPrice !== undefined) updateData.addonHelmetPrice = payload.addonHelmetPrice;
+    if (payload.price1HrINR !== undefined) updateData.price1HrINR = payload.price1HrINR;
+    if (payload.price3HrINR !== undefined) updateData.price3HrINR = payload.price3HrINR;
+    if (payload.price6HrINR !== undefined) updateData.price6HrINR = payload.price6HrINR;
+    if (payload.price12HrINR !== undefined) updateData.price12HrINR = payload.price12HrINR;
+    if (payload.operationalStatus !== undefined) updateData.operationalStatus = payload.operationalStatus;
+    if (payload.weekendSurgeActive !== undefined) updateData.weekendSurgeActive = payload.weekendSurgeActive;
+
+    const updated = Object.keys(updateData).length > 0
+      ? await prisma.vehicle.update({
+          where: { id: vehicleId },
+          data: updateData,
+          include: { city: true },
+        })
+      : existing;
 
     if (payload.availableDates) {
       await setAvailabilityDatesForVehicle(vehicleId, payload.availableDates);
@@ -105,7 +141,16 @@ export async function PATCH(request: Request, { params }: Props) {
         vendorId: updated.vendorId ?? undefined,
         vehicleNumber: vehicleNumberMap.get(updated.id),
         airportPickup: updated.airportPickup,
+        addonWaiverPrice: updated.addonWaiverPrice,
+        addonRsaPrice: updated.addonRsaPrice,
+        addonHelmetPrice: updated.addonHelmetPrice,
+        price1HrINR: updated.price1HrINR,
+        price3HrINR: updated.price3HrINR,
+        price6HrINR: updated.price6HrINR,
+        price12HrINR: updated.price12HrINR,
         imageUrls: imageMap.get(updated.id) ?? [],
+        operationalStatus: updated.operationalStatus,
+        weekendSurgeActive: updated.weekendSurgeActive,
       },
     });
   }
@@ -117,6 +162,33 @@ export async function PATCH(request: Request, { params }: Props) {
 
   if (payload.pricePerDayINR !== undefined) {
     vehicles[index].pricePerDayINR = payload.pricePerDayINR;
+  }
+  if (payload.addonWaiverPrice !== undefined) {
+    vehicles[index].addonWaiverPrice = payload.addonWaiverPrice;
+  }
+  if (payload.addonRsaPrice !== undefined) {
+    vehicles[index].addonRsaPrice = payload.addonRsaPrice;
+  }
+  if (payload.addonHelmetPrice !== undefined) {
+    vehicles[index].addonHelmetPrice = payload.addonHelmetPrice;
+  }
+  if (payload.price1HrINR !== undefined) {
+    vehicles[index].price1HrINR = payload.price1HrINR;
+  }
+  if (payload.price3HrINR !== undefined) {
+    vehicles[index].price3HrINR = payload.price3HrINR;
+  }
+  if (payload.price6HrINR !== undefined) {
+    vehicles[index].price6HrINR = payload.price6HrINR;
+  }
+  if (payload.price12HrINR !== undefined) {
+    vehicles[index].price12HrINR = payload.price12HrINR;
+  }
+  if (payload.operationalStatus !== undefined) {
+    vehicles[index].operationalStatus = payload.operationalStatus;
+  }
+  if (payload.weekendSurgeActive !== undefined) {
+    vehicles[index].weekendSurgeActive = payload.weekendSurgeActive;
   }
 
   if (payload.availableDates) {

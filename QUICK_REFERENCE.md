@@ -71,7 +71,7 @@ npm start            # Production server
 
 ```
 Test credentials available upon request.
-Contact: support@nextgear.in
+Contact: support@next-gear.app
 ```
 
 ---

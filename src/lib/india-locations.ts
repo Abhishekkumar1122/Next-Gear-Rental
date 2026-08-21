@@ -39,3 +39,35 @@ export function splitCityAndState(cityValue: string) {
     state: INDIA_CITY_STATE_MAP[value] ?? "",
   };
 }
+
+export type CityConfig = {
+  name: string;
+  airport: string;
+};
+
+export const cityConfigs: CityConfig[] = Object.entries(INDIA_CITIES_BY_STATE).flatMap(
+  ([state, cities]) => cities.map((city) => ({
+    name: `${city}, ${state}`,
+    airport: `${city} Airport`,
+  }))
+);
+
+export type AirportHubConfig = {
+  id: string;
+  name: string;
+  code: string;
+  cityName: string;
+  badge: string;
+};
+
+export const MAJOR_AIRPORT_HUBS: AirportHubConfig[] = [
+  { id: "goa-dabolim", name: "Goa Dabolim Airport (GOI)", code: "GOI", cityName: "Goa, Goa", badge: "Goa Airport" },
+  { id: "goa-mopa", name: "Manohar Airport (Mopa - GOX)", code: "GOX", cityName: "Goa, Goa", badge: "North Goa" },
+  { id: "delhi-t3", name: "Delhi IGI Airport (T3 / T2)", code: "DEL", cityName: "Delhi NCR, Delhi", badge: "24x7 Airport Hub" },
+  { id: "bangalore-t1", name: "Kempegowda Airport (BLR)", code: "BLR", cityName: "Bengaluru, Karnataka", badge: "Express Hub" },
+  { id: "mumbai-t2", name: "Mumbai Airport (BOM T2)", code: "BOM", cityName: "Mumbai, Maharashtra", badge: "Terminal 2" },
+  { id: "pune-hub", name: "Pune Airport (PNQ)", code: "PNQ", cityName: "Pune, Maharashtra", badge: "Viman Nagar" },
+  { id: "jaipur-hub", name: "Jaipur Airport (JAI)", code: "JAI", cityName: "Jaipur, Rajasthan", badge: "Pink City" },
+  { id: "chandigarh-hub", name: "Chandigarh Airport (IXC)", code: "IXC", cityName: "Chandigarh, Punjab", badge: "Hill Gateway" },
+  { id: "hyderabad-hub", name: "Hyderabad Airport (HYD)", code: "HYD", cityName: "Hyderabad, Telangana", badge: "Shamshabad" },
+];

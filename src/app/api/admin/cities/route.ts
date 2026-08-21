@@ -1,6 +1,6 @@
 import { assertAdminMutationRequest, assertAdminSession } from "@/lib/admin-security";
-import { INDIA_STATES, formatCityWithState, splitCityAndState } from "@/lib/india-locations";
-import { cityConfigs } from "@/lib/mock-data";
+import { INDIA_STATES, formatCityWithState, splitCityAndState, cityConfigs } from "@/lib/india-locations";
+
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
