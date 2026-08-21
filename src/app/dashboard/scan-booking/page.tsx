@@ -937,16 +937,6 @@ function ScanBookingContent() {
                       }
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idx = uploadedPhotos.length;
-                      const slots = ["Front View", "Rear View", "Left Side", "Right Side", "Meter Odometer"];
-                      handlePhotoCaptureSlot(idx, slots[idx] || "Inspection");
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    title="Take Photo"
-                  />
                   <span className="text-lg">📷</span>
                   <span className="uppercase tracking-wider">
                     TAKE PHOTO {uploadedPhotos.length + 1}/5 ({["Front View", "Rear View", "Left Side", "Right Side", "Meter Odometer"][uploadedPhotos.length]})

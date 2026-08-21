@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/navigation";
 
 import { audioSynth } from "@/lib/audio-effects";
@@ -16,7 +17,6 @@ export function BookingHandoverVerifier() {
   const [bookingId, setBookingId] = useState("");
   const [error, setError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const scannerRef = useRef<any>(null);
   const router = useRouter();
 
@@ -26,29 +26,12 @@ export function BookingHandoverVerifier() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
 
-  // Dynamically load html5-qrcode script when scanner is activated
-  useEffect(() => {
-    if (isScanning && !scriptLoaded) {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/html5-qrcode";
-      script.async = true;
-      script.onload = () => {
-        setScriptLoaded(true);
-      };
-      document.body.appendChild(script);
-      return () => {
-        // Clean up script if unmounted during load
-        if (document.body.contains(script)) {
-          document.body.removeChild(script);
-        }
-      };
-    }
-  }, [isScanning, scriptLoaded]);
 
-  // Initialize and start scanner once script is loaded and scanning is active
+
+  // Initialize and start scanner once scanning is active
   useEffect(() => {
     let active = true;
-    if (isScanning && scriptLoaded && typeof window !== "undefined" && window.Html5Qrcode) {
+    if (isScanning) {
       const startScanner = async () => {
         try {
           setError("");
@@ -59,37 +42,62 @@ export function BookingHandoverVerifier() {
           await new Promise(resolve => setTimeout(resolve, 350));
           if (!active) return;
 
-          const html5QrCode = new window.Html5Qrcode("qr-reader");
+          const html5QrCode = new Html5Qrcode("qr-reader");
           scannerRef.current = html5QrCode;
 
-          // Start environment camera first (handles permission prompt correctly)
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: { width: 220, height: 220 },
-            },
-            async (decodedText: string) => {
-              audioSynth.playSuccess();
-              await stopScanner();
+          const config = {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+          };
 
-              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+          const handleScanSuccess = async (decodedText: string) => {
+            audioSynth.playSuccess();
+            await stopScanner();
 
-              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
-                targetUrl = "/dashboard/mobile-hub";
-              } else if (decodedText.includes("/dashboard/scan-booking")) {
-                try {
-                  const url = new URL(decodedText);
-                  url.searchParams.set("source", "qr");
-                  targetUrl = url.pathname + url.search;
-                } catch {
-                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-                }
+            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+
+            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
+              targetUrl = "/dashboard/mobile-hub";
+            } else if (decodedText.includes("/dashboard/scan-booking")) {
+              try {
+                const url = new URL(decodedText);
+                url.searchParams.set("source", "qr");
+                targetUrl = url.pathname + url.search;
+              } catch {
+                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
               }
-              router.push(targetUrl);
-            },
-            () => {}
-          );
+            }
+            router.push(targetUrl);
+          };
+
+          // Start environment camera first (handles permission prompt correctly)
+          let started = false;
+          try {
+            await html5QrCode.start(
+              { facingMode: "environment" },
+              config,
+              handleScanSuccess,
+              () => {}
+            );
+            started = true;
+          } catch (envErr) {
+            console.warn("Environment camera failed in verifier, trying user camera:", envErr);
+          }
+
+          if (!started && active) {
+            try {
+              await html5QrCode.start(
+                { facingMode: "user" },
+                config,
+                handleScanSuccess,
+                () => {}
+              );
+              started = true;
+            } catch (userErr) {
+              console.error("Both environment and user cameras failed in verifier:", userErr);
+              throw userErr;
+            }
+          }
 
           if (!active) {
             void html5QrCode.stop().catch(() => {});
@@ -98,7 +106,7 @@ export function BookingHandoverVerifier() {
 
           // Enumerate devices list now that permission is active
           try {
-            const devices = await window.Html5Qrcode.getCameras();
+            const devices = await Html5Qrcode.getCameras();
             if (active) {
               setCameras(devices);
               const backCam = devices.find(d => 
@@ -114,7 +122,7 @@ export function BookingHandoverVerifier() {
 
           // Check if torch/flashlight is supported on active track
           const hasTorch = typeof html5QrCode.getRunningTrackCapabilities === "function" &&
-                           !!html5QrCode.getRunningTrackCapabilities()?.torch;
+                           !!(html5QrCode.getRunningTrackCapabilities() as any)?.torch;
           if (active) {
             setTorchSupported(hasTorch);
           }
@@ -137,7 +145,7 @@ export function BookingHandoverVerifier() {
         void scannerRef.current.stop().catch(() => {});
       }
     };
-  }, [isScanning, scriptLoaded]);
+  }, [isScanning]);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
@@ -248,9 +256,8 @@ export function BookingHandoverVerifier() {
         <div className="mt-4 space-y-3">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-1">
             <div id="qr-reader" className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden" />
-            
-            {/* Up & Down Animated Cyber Laser Scanline */}
-            {!error && scriptLoaded && (
+                        {/* Up & Down Animated Cyber Laser Scanline */}
+            {!error && (
               <>
                 <div className="pointer-events-none absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_15px_#ef4444,_0_0_25px_#ef4444] z-20 animate-scanline" />
                 
@@ -264,13 +271,7 @@ export function BookingHandoverVerifier() {
               </>
             )}
 
-            {!scriptLoaded && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 text-xs text-white/70 z-30">
-                Initializing camera modules...
-              </div>
-            )}
-            {scriptLoaded && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-30">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-30">
                 {torchSupported && (
                   <button
                     type="button"
@@ -294,7 +295,6 @@ export function BookingHandoverVerifier() {
                   </button>
                 )}
               </div>
-            )}
           </div>
           <button
             onClick={stopScanner}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/navigation";
 import { audioSynth } from "@/lib/audio-effects";
 
@@ -13,7 +14,6 @@ declare global {
 export function AdminQRScannerButton() {
   const router = useRouter();
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [scannerError, setScannerError] = useState("");
   const [cameras, setCameras] = useState<any[]>([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
@@ -21,28 +21,12 @@ export function AdminQRScannerButton() {
   const [isTorchOn, setIsTorchOn] = useState(false);
   const scannerRef = useRef<any>(null);
 
-  // Dynamically load html5-qrcode script when scanner modal is opened
-  useEffect(() => {
-    if (isScanModalOpen && !scriptLoaded) {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/html5-qrcode";
-      script.async = true;
-      script.onload = () => {
-        setScriptLoaded(true);
-      };
-      document.body.appendChild(script);
-      return () => {
-        if (document.body.contains(script)) {
-          document.body.removeChild(script);
-        }
-      };
-    }
-  }, [isScanModalOpen, scriptLoaded]);
+
 
   // Handle scanner initial setup
   useEffect(() => {
     let active = true;
-    if (isScanModalOpen && scriptLoaded && typeof window !== "undefined" && window.Html5Qrcode) {
+    if (isScanModalOpen) {
       const startScanner = async () => {
         try {
           setScannerError("");
@@ -52,48 +36,74 @@ export function AdminQRScannerButton() {
           await new Promise((resolve) => setTimeout(resolve, 350));
           if (!active) return;
 
-          const html5QrCode = new window.Html5Qrcode("admin-qr-reader");
+          const html5QrCode = new Html5Qrcode("admin-qr-reader");
           scannerRef.current = html5QrCode;
 
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: { width: 220, height: 220 },
-            },
-            (decodedText: string) => {
-              audioSynth.playSuccess();
-              void stopScanner();
+          const config = {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+          };
 
-              // Redirection logic based on scanned code content
-              if (decodedText.includes("scan-booking") || decodedText.startsWith("bk-")) {
-                let bookingId = decodedText;
-                if (decodedText.includes("?id=")) {
-                  const url = new URL(decodedText);
-                  bookingId = url.searchParams.get("id") || decodedText;
-                }
-                router.push(`/dashboard/scan-booking?id=${encodeURIComponent(bookingId)}&source=qr`);
-              } else if (decodedText.startsWith("vnd-") || decodedText.includes("vendor")) {
-                let vendorId = decodedText;
-                if (decodedText.includes("id=")) {
-                  const url = new URL(decodedText);
-                  vendorId = url.searchParams.get("id") || decodedText;
-                }
-                router.push(`/dashboard/admin?section=approvals&status=all`);
-              } else if (decodedText.startsWith("usr-") || decodedText.includes("user")) {
-                let userId = decodedText;
-                if (decodedText.includes("id=")) {
-                  const url = new URL(decodedText);
-                  userId = url.searchParams.get("id") || decodedText;
-                }
-                router.push(`/dashboard/admin?section=approvals&status=all`);
-              } else {
-                // Default fallback
-                router.push(`/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`);
+          const handleScanSuccess = (decodedText: string) => {
+            audioSynth.playSuccess();
+            void stopScanner();
+
+            // Redirection logic based on scanned code content
+            if (decodedText.includes("scan-booking") || decodedText.startsWith("bk-")) {
+              let bookingId = decodedText;
+              if (decodedText.includes("?id=")) {
+                const url = new URL(decodedText);
+                bookingId = url.searchParams.get("id") || decodedText;
               }
-            },
-            () => {}
-          );
+              router.push(`/dashboard/scan-booking?id=${encodeURIComponent(bookingId)}&source=qr`);
+            } else if (decodedText.startsWith("vnd-") || decodedText.includes("vendor")) {
+              let vendorId = decodedText;
+              if (decodedText.includes("id=")) {
+                const url = new URL(decodedText);
+                vendorId = url.searchParams.get("id") || decodedText;
+              }
+              router.push(`/dashboard/admin?section=approvals&status=all`);
+            } else if (decodedText.startsWith("usr-") || decodedText.includes("user")) {
+              let userId = decodedText;
+              if (decodedText.includes("id=")) {
+                const url = new URL(decodedText);
+                userId = url.searchParams.get("id") || decodedText;
+              }
+              router.push(`/dashboard/admin?section=approvals&status=all`);
+            } else {
+              // Default fallback
+              router.push(`/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`);
+            }
+          };
+
+          // Start environment camera first
+          let started = false;
+          try {
+            await html5QrCode.start(
+              { facingMode: "environment" },
+              config,
+              handleScanSuccess,
+              () => {}
+            );
+            started = true;
+          } catch (envErr) {
+            console.warn("Environment camera failed in admin, trying user camera:", envErr);
+          }
+
+          if (!started && active) {
+            try {
+              await html5QrCode.start(
+                { facingMode: "user" },
+                config,
+                handleScanSuccess,
+                () => {}
+              );
+              started = true;
+            } catch (userErr) {
+              console.error("Both environment and user cameras failed in admin:", userErr);
+              throw userErr;
+            }
+          }
 
           if (!active) {
             void html5QrCode.stop().catch(console.error);
@@ -102,7 +112,7 @@ export function AdminQRScannerButton() {
 
           // Query available video cameras
           try {
-            const devices = await window.Html5Qrcode.getCameras();
+            const devices = await Html5Qrcode.getCameras();
             if (active) {
               setCameras(devices);
               const backCam = devices.find((d: any) =>
@@ -119,7 +129,7 @@ export function AdminQRScannerButton() {
 
           // Check if torch/flash is supported
           const hasTorch = typeof html5QrCode.getRunningTrackCapabilities === "function" &&
-            !!html5QrCode.getRunningTrackCapabilities()?.torch;
+            !!(html5QrCode.getRunningTrackCapabilities() as any)?.torch;
           if (active) {
             setTorchSupported(hasTorch);
           }
@@ -140,7 +150,7 @@ export function AdminQRScannerButton() {
         void scannerRef.current.stop().catch(console.error);
       }
     };
-  }, [isScanModalOpen, scriptLoaded]);
+  }, [isScanModalOpen]);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
