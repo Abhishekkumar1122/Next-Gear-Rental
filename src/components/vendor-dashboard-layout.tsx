@@ -237,19 +237,6 @@ export function VendorDashboardLayout({
           await new Promise(resolve => setTimeout(resolve, 350));
           if (!active) return;
 
-          // Explicitly request native browser camera permission prompt first!
-          if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
-            try {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } }
-              });
-              // Stop stream immediately so Html5Qrcode can bind to the device cleanly
-              stream.getTracks().forEach(track => track.stop());
-            } catch (nativeErr) {
-              console.warn("Native browser camera permission prompt denied/failed:", nativeErr);
-            }
-          }
-
           const html5QrCode = new window.Html5Qrcode("layout-qr-reader");
           scannerRef.current = html5QrCode;
 
@@ -275,51 +262,56 @@ export function VendorDashboardLayout({
             router.push(targetUrl);
           };
 
-          // Try environment camera first, then fallback to device camera list
+          // Step 1: Query cameras via getCameras() first (prompts permission natively)
+          let started = false;
           try {
-            await html5QrCode.start(
-              { facingMode: "environment" },
-              { fps: 10, qrbox: { width: 220, height: 220 } },
-              handleScanSuccess,
-              () => {}
-            );
-          } catch (camErr) {
-            console.warn("FacingMode environment failed, trying device cameras list:", camErr);
             const devices = await window.Html5Qrcode.getCameras();
-            if (devices && devices.length > 0) {
+            if (active && devices && devices.length > 0) {
+              setCameras(devices);
               const backCam = devices.find((d: any) =>
-                d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment")
+                d.label.toLowerCase().includes("back") ||
+                d.label.toLowerCase().includes("environment") ||
+                d.label.toLowerCase().includes("rear")
               ) || devices[0];
+
               await html5QrCode.start(
                 backCam.id,
                 { fps: 10, qrbox: { width: 220, height: 220 } },
                 handleScanSuccess,
                 () => {}
               );
-            } else {
-              throw camErr;
+              started = true;
+            }
+          } catch (getCamErr) {
+            console.warn("getCameras() failed or denied, trying facingMode object fallback:", getCamErr);
+          }
+
+          if (!started && active) {
+            // Step 2: Try facingMode environment
+            try {
+              await html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                handleScanSuccess,
+                () => {}
+              );
+              started = true;
+            } catch (fmErr) {
+              console.warn("facingMode environment failed, trying user camera:", fmErr);
+              // Step 3: Try user camera (front camera fallback)
+              await html5QrCode.start(
+                { facingMode: "user" },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                handleScanSuccess,
+                () => {}
+              );
+              started = true;
             }
           }
 
           if (!active) {
             void html5QrCode.stop().catch(console.error);
             return;
-          }
-
-          // Query remaining cameras list now that permission is active
-          try {
-            const devices = await window.Html5Qrcode.getCameras();
-            if (active) {
-              setCameras(devices);
-              const backCam = devices.find((d: any) => 
-                d.label.toLowerCase().includes("back") || 
-                d.label.toLowerCase().includes("environment")
-              );
-              const initialIndex = backCam ? devices.indexOf(backCam) : 0;
-              setCurrentCameraIndex(initialIndex);
-            }
-          } catch (e) {
-            console.warn("Could not retrieve layout camera list after startup:", e);
           }
 
           // Check if torch/flashlight is supported
@@ -331,7 +323,7 @@ export function VendorDashboardLayout({
         } catch (err) {
           console.error("Layout scanner start error:", err);
           if (active) {
-            setScannerError("Camera permission needed for live scan. You can grant camera permission in phone settings or enter Booking ID manually below.");
+            setScannerError("Camera permission blocked or denied. Tap below to retry or snap a QR photo using your phone camera.");
           }
         }
       };
@@ -387,6 +379,36 @@ export function VendorDashboardLayout({
     setTimeout(() => {
       setIsScanModalOpen(true);
     }, 200);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || typeof window === "undefined" || !window.Html5Qrcode) return;
+    try {
+      const html5QrCode = scannerRef.current || new window.Html5Qrcode("layout-qr-reader");
+      const decodedText = await html5QrCode.scanFile(file, true);
+      audioSynth.playSuccess();
+      await stopScanner();
+      let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+      if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
+        targetUrl = "/dashboard/mobile-hub";
+      } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
+        targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
+      } else if (decodedText.includes("/dashboard/scan-booking")) {
+        try {
+          const url = new URL(decodedText);
+          url.searchParams.set("source", "qr");
+          targetUrl = url.pathname + url.search;
+        } catch {
+          targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
+        }
+      }
+      router.push(targetUrl);
+    } catch (err) {
+      alert("Could not detect a valid QR code in the captured photo. Please try again or enter Booking ID manually.");
+    }
   };
 
   const toggleLayoutTorch = async () => {
@@ -730,13 +752,31 @@ export function VendorDashboardLayout({
                     📷 Camera permission prompt required to start live scanning feed.
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={requestNativeCameraAndRetry}
-                    className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Camera className="w-4 h-4" /> Tap to Allow Camera Access
-                  </button>
+                  <div className="w-full space-y-2">
+                    <button
+                      type="button"
+                      onClick={requestNativeCameraAndRetry}
+                      className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Camera className="w-4 h-4" /> Start Live Web Camera
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-slate-800 border border-white/20 text-white shadow-md active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5 hover:bg-slate-700"
+                    >
+                      📸 Snap Photo with Phone Camera App
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleQrFileUpload}
+                    />
+                  </div>
 
                   <div className="w-full border-t border-white/10 my-1 pt-2 space-y-2">
                     <p className="text-[10px] text-slate-400">Or enter Booking ID manually below:</p>
