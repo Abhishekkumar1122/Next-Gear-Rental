@@ -211,7 +211,7 @@ export function HomeInventoryShowcase() {
     }
   };
 
-  // 3D Deck Style Calculation for circular rotation & perspective flip
+  // 3D Deck Style Calculation for circular rotation & perspective flip (Hardware Accelerated)
   const get3DCardStyle = (index: number) => {
     const total = filteredItems.length;
     let diff = index - activeIndex;
@@ -232,40 +232,40 @@ export function HomeInventoryShowcase() {
     } else if (diff === 1) {
       // Right 3D Card
       return {
-        transform: "translate3d(42%, 0, -80px) scale(0.88) rotateY(-14deg)",
+        transform: "translate3d(38%, 0, -60px) scale(0.88) rotateY(-10deg)",
         zIndex: 20,
-        opacity: 0.65,
-        filter: "brightness(0.65) blur(0.5px)",
+        opacity: 0.7,
+        filter: "brightness(0.7)",
         pointerEvents: "auto" as const,
       };
     } else if (diff === -1) {
       // Left 3D Card
       return {
-        transform: "translate3d(-42%, 0, -80px) scale(0.88) rotateY(14deg)",
+        transform: "translate3d(-38%, 0, -60px) scale(0.88) rotateY(10deg)",
         zIndex: 20,
-        opacity: 0.65,
-        filter: "brightness(0.65) blur(0.5px)",
+        opacity: 0.7,
+        filter: "brightness(0.7)",
         pointerEvents: "auto" as const,
       };
     } else if (diff === 2) {
       return {
-        transform: "translate3d(95%, 0, -220px) scale(0.7) rotateY(-32deg)",
+        transform: "translate3d(80%, 0, -160px) scale(0.72) rotateY(-18deg)",
         zIndex: 10,
-        opacity: 0.2,
-        filter: "brightness(0.4) blur(1px)",
+        opacity: 0.3,
+        filter: "brightness(0.5)",
         pointerEvents: "none" as const,
       };
     } else if (diff === -2) {
       return {
-        transform: "translate3d(-95%, 0, -220px) scale(0.7) rotateY(32deg)",
+        transform: "translate3d(-80%, 0, -160px) scale(0.72) rotateY(18deg)",
         zIndex: 10,
-        opacity: 0.2,
-        filter: "brightness(0.4) blur(1px)",
+        opacity: 0.3,
+        filter: "brightness(0.5)",
         pointerEvents: "none" as const,
       };
     } else {
       return {
-        transform: "translate3d(0, 0, -320px) scale(0.5)",
+        transform: "translate3d(0, 0, -280px) scale(0.5)",
         zIndex: 0,
         opacity: 0,
         pointerEvents: "none" as const,
@@ -351,7 +351,7 @@ export function HomeInventoryShowcase() {
               key={item.id}
               onClick={() => setActiveIndex(idx)}
               style={cardStyle}
-              className={`absolute top-0 w-[320px] sm:w-[360px] max-w-[92vw] rounded-3xl border transition-all duration-700 ease-out overflow-hidden shadow-2xl cursor-pointer bg-[#0c0c0c] ${
+              className={`absolute top-0 w-[320px] sm:w-[360px] max-w-[92vw] rounded-3xl border transition-all duration-300 ease-out overflow-hidden shadow-2xl cursor-pointer bg-[#0c0c0c] will-change-transform transform-gpu ${
                 isCenter
                   ? "border-white/30 bg-[#0d0d0d]"
                   : "border-white/10 bg-[#0d0d0d]"
