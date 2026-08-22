@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const payouts = getVendorPayouts("all");
+  const payouts = await getVendorPayouts("all");
   return NextResponse.json({ payouts });
 }
 

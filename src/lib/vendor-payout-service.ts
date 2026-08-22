@@ -1,5 +1,6 @@
 import { dispatchAlert, dispatchHtmlEmail } from "@/lib/alert-dispatch";
 import { wrapInMasterEmailTemplate } from "@/lib/email-templates";
+import { prisma } from "@/lib/prisma";
 
 export type PayoutStatus = "pending" | "processing" | "settled" | "failed";
 
@@ -21,7 +22,7 @@ export type VendorPayoutRecord = {
   requestedAt: string;
 };
 
-// In-memory settlement store
+// Fallback in-memory store for mock development mode
 const payoutRecords: VendorPayoutRecord[] = [
   {
     id: "SETTLE-9901",
@@ -59,18 +60,91 @@ const payoutRecords: VendorPayoutRecord[] = [
   },
 ];
 
-export function getVendorPayouts(vendorId: string): VendorPayoutRecord[] {
-  return payoutRecords.filter((r) => r.vendorId === vendorId || vendorId === "all");
+let hasEnsuredPayoutTable = false;
+
+async function ensurePayoutTable() {
+  if (!process.env.DATABASE_URL || hasEnsuredPayoutTable) {
+    return;
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "VendorPayout" (
+        "id" TEXT PRIMARY KEY,
+        "vendorId" TEXT NOT NULL,
+        "vendorName" TEXT NOT NULL,
+        "period" TEXT NOT NULL,
+        "grossRevenueINR" INTEGER NOT NULL,
+        "commissionRate" INTEGER NOT NULL,
+        "commissionINR" INTEGER NOT NULL,
+        "gstOnCommissionINR" DOUBLE PRECISION NOT NULL,
+        "netPayoutINR" INTEGER NOT NULL,
+        "status" TEXT NOT NULL,
+        "bankAccountMasked" TEXT NOT NULL,
+        "upiIdMasked" TEXT NOT NULL,
+        "settlementTxnRef" TEXT,
+        "settledAt" TIMESTAMP(3),
+        "requestedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "VendorPayout_vendor_idx"
+      ON "VendorPayout"("vendorId", "requestedAt" DESC)
+    `);
+
+    hasEnsuredPayoutTable = true;
+  } catch (err) {
+    console.error("Failed to automatically provision VendorPayout table:", err);
+  }
 }
 
-export function requestVendorPayout(input: {
+export async function getVendorPayouts(vendorId: string): Promise<VendorPayoutRecord[]> {
+  if (!process.env.DATABASE_URL) {
+    return payoutRecords.filter((r) => r.vendorId === vendorId || vendorId === "all");
+  }
+
+  await ensurePayoutTable();
+  try {
+    const query = vendorId === "all"
+      ? `SELECT * FROM "VendorPayout" ORDER BY "requestedAt" DESC`
+      : `SELECT * FROM "VendorPayout" WHERE "vendorId" = $1 ORDER BY "requestedAt" DESC`;
+    
+    const rows = vendorId === "all"
+      ? await prisma.$queryRawUnsafe<any[]>(query)
+      : await prisma.$queryRawUnsafe<any[]>(query, vendorId);
+
+    return rows.map((row) => ({
+      id: row.id,
+      vendorId: row.vendorId,
+      vendorName: row.vendorName,
+      period: row.period,
+      grossRevenueINR: Number(row.grossRevenueINR),
+      commissionRate: Number(row.commissionRate),
+      commissionINR: Number(row.commissionINR),
+      gstOnCommissionINR: Number(row.gstOnCommissionINR),
+      netPayoutINR: Number(row.netPayoutINR),
+      status: row.status as PayoutStatus,
+      bankAccountMasked: row.bankAccountMasked,
+      upiIdMasked: row.upiIdMasked,
+      settlementTxnRef: row.settlementTxnRef || undefined,
+      settledAt: row.settledAt ? new Date(row.settledAt).toISOString() : undefined,
+      requestedAt: new Date(row.requestedAt).toISOString(),
+    }));
+  } catch (err) {
+    console.error("Failed to query VendorPayouts, falling back to mock:", err);
+    return payoutRecords.filter((r) => r.vendorId === vendorId || vendorId === "all");
+  }
+}
+
+export async function requestVendorPayout(input: {
   vendorId: string;
   vendorName: string;
   grossRevenueINR: number;
   commissionRate: number;
   bankAccountMasked?: string;
   upiIdMasked?: string;
-}): VendorPayoutRecord {
+}): Promise<VendorPayoutRecord> {
   const commissionINR = Math.round((input.grossRevenueINR * input.commissionRate) / 100);
   const gstOnCommissionINR = Math.round(commissionINR * 0.18);
   const netPayoutINR = input.grossRevenueINR - commissionINR;
@@ -79,7 +153,7 @@ export function requestVendorPayout(input: {
     id: `SETTLE-${Math.floor(1000 + Math.random() * 9000)}`,
     vendorId: input.vendorId,
     vendorName: input.vendorName,
-    period: `${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString()} - ${new Date().toLocaleDateString()}`,
+    period: `${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN")} - ${new Date().toLocaleDateString("en-IN")}`,
     grossRevenueINR: input.grossRevenueINR,
     commissionRate: input.commissionRate,
     commissionINR,
@@ -91,17 +165,95 @@ export function requestVendorPayout(input: {
     requestedAt: new Date().toISOString(),
   };
 
-  payoutRecords.unshift(newRecord);
+  if (!process.env.DATABASE_URL) {
+    payoutRecords.unshift(newRecord);
+    return newRecord;
+  }
+
+  await ensurePayoutTable();
+  try {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "VendorPayout" (
+        "id", "vendorId", "vendorName", "period", "grossRevenueINR", "commissionRate", 
+        "commissionINR", "gstOnCommissionINR", "netPayoutINR", "status", 
+        "bankAccountMasked", "upiIdMasked", "requestedAt"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
+      newRecord.id,
+      newRecord.vendorId,
+      newRecord.vendorName,
+      newRecord.period,
+      newRecord.grossRevenueINR,
+      newRecord.commissionRate,
+      newRecord.commissionINR,
+      newRecord.gstOnCommissionINR,
+      newRecord.netPayoutINR,
+      newRecord.status,
+      newRecord.bankAccountMasked,
+      newRecord.upiIdMasked
+    );
+  } catch (err) {
+    console.error("Failed to insert VendorPayout, storing in mock memory:", err);
+    payoutRecords.unshift(newRecord);
+  }
+
   return newRecord;
 }
 
 export async function approveVendorPayout(payoutId: string, txnRef?: string, vendorEmail?: string, vendorPhone?: string) {
-  const record = payoutRecords.find((r) => r.id === payoutId);
-  if (!record) return null;
+  let record: VendorPayoutRecord | null = null;
 
-  record.status = "settled";
-  record.settlementTxnRef = txnRef || `IMPS/${Date.now()}/SETTLE`;
-  record.settledAt = new Date().toISOString();
+  if (!process.env.DATABASE_URL) {
+    const r = payoutRecords.find((r) => r.id === payoutId);
+    if (r) {
+      r.status = "settled";
+      r.settlementTxnRef = txnRef || `IMPS/${Date.now()}/SETTLE`;
+      r.settledAt = new Date().toISOString();
+      record = r;
+    }
+  } else {
+    await ensurePayoutTable();
+    try {
+      const finalTxnRef = txnRef || `IMPS/${Date.now()}/SETTLE`;
+      const settledAt = new Date();
+      await prisma.$executeRawUnsafe(
+        `UPDATE "VendorPayout"
+         SET "status" = 'settled', "settlementTxnRef" = $1, "settledAt" = $2
+         WHERE "id" = $3`,
+        finalTxnRef,
+        settledAt,
+        payoutId
+      );
+
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT * FROM "VendorPayout" WHERE "id" = $1`,
+        payoutId
+      );
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        record = {
+          id: row.id,
+          vendorId: row.vendorId,
+          vendorName: row.vendorName,
+          period: row.period,
+          grossRevenueINR: Number(row.grossRevenueINR),
+          commissionRate: Number(row.commissionRate),
+          commissionINR: Number(row.commissionINR),
+          gstOnCommissionINR: Number(row.gstOnCommissionINR),
+          netPayoutINR: Number(row.netPayoutINR),
+          status: row.status as PayoutStatus,
+          bankAccountMasked: row.bankAccountMasked,
+          upiIdMasked: row.upiIdMasked,
+          settlementTxnRef: row.settlementTxnRef || undefined,
+          settledAt: row.settledAt ? new Date(row.settledAt).toISOString() : undefined,
+          requestedAt: new Date(row.requestedAt).toISOString(),
+        };
+      }
+    } catch (err) {
+      console.error("Failed to approve VendorPayout in DB:", err);
+    }
+  }
+
+  if (!record) return null;
 
   // Send Email & WhatsApp Payout Confirmation
   if (vendorEmail) {

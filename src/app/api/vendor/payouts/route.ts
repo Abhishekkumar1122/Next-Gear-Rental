@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const format = request.nextUrl.searchParams.get("format");
   const payoutId = request.nextUrl.searchParams.get("payoutId");
 
-  const records = getVendorPayouts(vendorId);
+  const records = await getVendorPayouts(vendorId);
 
   if (format === "html" && payoutId) {
     const record = records.find((r) => r.id === payoutId);
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing vendorId or grossRevenueINR" }, { status: 400 });
     }
 
-    const record = requestVendorPayout({
+    const record = await requestVendorPayout({
       vendorId,
       vendorName: vendorName || "Vendor Partner",
       grossRevenueINR: Number(grossRevenueINR),
@@ -45,3 +45,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to create payout request" }, { status: 500 });
   }
 }
+

@@ -408,13 +408,14 @@ export function PromoPopup() {
                                   strokeWidth="1"
                                 />
                                 <text
-                                  x="100"
-                                  y="50"
+                                  x="148"
+                                  y="100"
                                   fill={idx % 2 === 0 ? "#f87171" : "#fca5a5"}
-                                  fontSize="8"
+                                  fontSize="7"
                                   fontWeight="900"
                                   letterSpacing="0.05em"
                                   textAnchor="middle"
+                                  dominantBaseline="central"
                                   transform={`rotate(${startAngle + 30} 100 100)`}
                                 >
                                   {seg.title}

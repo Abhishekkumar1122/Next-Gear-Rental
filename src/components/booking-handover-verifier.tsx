@@ -1,166 +1,193 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import jsQR from "jsqr";
 import { useRouter } from "next/navigation";
 
 import { audioSynth } from "@/lib/audio-effects";
 import { Zap, Search, Camera, RefreshCw } from "lucide-react";
 
-declare global {
-  interface Window {
-    Html5Qrcode?: any;
-  }
-}
-
 export function BookingHandoverVerifier() {
   const [bookingId, setBookingId] = useState("");
   const [error, setError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  const scannerRef = useRef<any>(null);
   const router = useRouter();
 
-  // Camera & Flash States
-  const [cameras, setCameras] = useState<any[]>([]);
-  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  // Custom Camera States
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [torchSupported, setTorchSupported] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
-
-  // Initialize and start scanner once scanning is active
+  // Check if multiple cameras are available
   useEffect(() => {
-    let active = true;
-    if (isScanning) {
-      const startScanner = async () => {
-        try {
-          setError("");
-          setIsTorchOn(false);
-          setTorchSupported(false);
-
-          // Wait a brief moment to let any previous teardown release camera hardware
-          await new Promise(resolve => setTimeout(resolve, 350));
-          if (!active) return;
-
-          const html5QrCode = new Html5Qrcode("qr-reader");
-          scannerRef.current = html5QrCode;
-
-          const config = {
-            fps: 10,
-            qrbox: { width: 220, height: 220 },
-          };
-
-          const handleScanSuccess = async (decodedText: string) => {
-            audioSynth.playSuccess();
-            await stopScanner();
-
-            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-
-            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
-              targetUrl = "/dashboard/mobile-hub";
-            } else if (decodedText.includes("/dashboard/scan-booking")) {
-              try {
-                const url = new URL(decodedText);
-                url.searchParams.set("source", "qr");
-                targetUrl = url.pathname + url.search;
-              } catch {
-                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-              }
-            }
-            router.push(targetUrl);
-          };
-
-          // Start environment camera first (handles permission prompt correctly)
-          let started = false;
-          try {
-            await html5QrCode.start(
-              { facingMode: "environment" },
-              config,
-              handleScanSuccess,
-              () => {}
-            );
-            started = true;
-          } catch (envErr) {
-            console.warn("Environment camera failed in verifier, trying user camera:", envErr);
-          }
-
-          if (!started && active) {
-            try {
-              await html5QrCode.start(
-                { facingMode: "user" },
-                config,
-                handleScanSuccess,
-                () => {}
-              );
-              started = true;
-            } catch (userErr) {
-              console.error("Both environment and user cameras failed in verifier:", userErr);
-              throw userErr;
-            }
-          }
-
-          if (!active) {
-            void html5QrCode.stop().catch(() => {});
-            return;
-          }
-
-          // Enumerate devices list now that permission is active
-          try {
-            const devices = await Html5Qrcode.getCameras();
-            if (active) {
-              setCameras(devices);
-              const backCam = devices.find(d => 
-                d.label.toLowerCase().includes("back") || 
-                d.label.toLowerCase().includes("environment")
-              );
-              const initialIndex = backCam ? devices.indexOf(backCam) : 0;
-              setCurrentCameraIndex(initialIndex);
-            }
-          } catch (e) {
-            console.warn("Could not retrieve camera list after startup:", e);
-          }
-
-          // Check if torch/flashlight is supported on active track
-          const hasTorch = typeof html5QrCode.getRunningTrackCapabilities === "function" &&
-                           !!(html5QrCode.getRunningTrackCapabilities() as any)?.torch;
-          if (active) {
-            setTorchSupported(hasTorch);
-          }
-        } catch (err: any) {
-          console.error("Scanner start error:", err);
-          if (active) {
-            const isPermissionDenied = err?.name === "NotAllowedError" || String(err).includes("NotAllowedError") || String(err).includes("Permission denied");
-            if (isPermissionDenied) {
-              setError("PERMISSION_DENIED");
-            } else {
-              setError("Could not access camera. Please check permissions.");
-            }
-          }
-        }
-      };
-
-      void startScanner();
-    }
-
-    return () => {
-      active = false;
-      // Clean up camera stream on unmount
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        void scannerRef.current.stop().catch(() => {});
+    const checkCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
+        setHasMultipleCameras(videoDevices.length > 1);
+      } catch (e) {
+        console.warn("Failed to list cameras:", e);
       }
     };
+    void checkCameras();
+  }, []);
+
+  // Cleanup camera streams on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Set default facingMode based on device type on mount or when scanning starts
+  useEffect(() => {
+    if (isScanning) {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setFacingMode(isMobile ? "environment" : "user");
+    }
   }, [isScanning]);
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop().catch(() => {});
+  const startScanningFlow = async () => {
+    setError("");
+    setIsTorchOn(false);
+    setTorchSupported(false);
+
+    try {
+      // 1. Request camera stream directly inside the user gesture handler (synchronous tick)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const activeFacingMode = isMobile ? "environment" : "user";
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: activeFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      }).catch(async (firstErr) => {
+        console.warn("Ideal constraints failed, trying simple constraints:", firstErr);
+        try {
+          return await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: activeFacingMode },
+            audio: false
+          });
+        } catch (secondErr) {
+          console.warn("FacingMode constraints failed, falling back to raw video:true (diag page style):", secondErr);
+          return await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
         }
-      } catch (e) {
-        // Suppress cleanup error on DOM unmount
+      });
+
+      streamRef.current = stream;
+      
+      // 2. Set scanning UI active
+      setIsScanning(true);
+
+      // 3. Bind stream to video element once it renders
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute("playsinline", "true");
+          videoRef.current.muted = true;
+          videoRef.current.play().catch((playErr) => {
+            console.error("Video play failed:", playErr);
+          });
+        }
+
+        // Start scanning loop using jsQR
+        const scanFrame = () => {
+          if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          const context = canvas.getContext("2d");
+
+          if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert",
+            });
+
+            if (code && code.data) {
+              audioSynth.playSuccess();
+              stopScanner();
+              const decodedText = code.data;
+              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+
+              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
+                targetUrl = "/dashboard/mobile-hub";
+              } else if (decodedText.includes("/dashboard/scan-booking")) {
+                try {
+                  const url = new URL(decodedText);
+                  url.searchParams.set("source", "qr");
+                  targetUrl = url.pathname + url.search;
+                } catch {
+                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
+                }
+              }
+              router.push(targetUrl);
+              return;
+            }
+          }
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+
+        // Check if torch/flashlight is supported
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          try {
+            const capabilities = videoTrack.getCapabilities() as any;
+            if (capabilities && capabilities.torch) {
+              setTorchSupported(true);
+            }
+          } catch (capErr) {
+            console.warn("Could not read capabilities:", capErr);
+          }
+        }
+      }, 150);
+
+    } catch (err: any) {
+      console.error("Camera start error:", err);
+      const errStr = String(err);
+      const isInteractionError = errStr.includes("interact") || errStr.includes("interaction");
+      const isPermissionDenied = (err?.name === "NotAllowedError" || errStr.includes("NotAllowedError") || errStr.includes("Permission denied")) && !isInteractionError;
+      
+      if (isInteractionError) {
+        setError("INTERACTION_REQUIRED");
+      } else if (isPermissionDenied) {
+        setError("PERMISSION_DENIED");
+      } else {
+        setError("Could not access camera. Please check permissions.");
       }
-      scannerRef.current = null;
+    }
+  };
+
+  const stopScanner = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     setIsScanning(false);
     setIsTorchOn(false);
@@ -168,66 +195,43 @@ export function BookingHandoverVerifier() {
   };
 
   const toggleTorch = async () => {
-    if (scannerRef.current && typeof scannerRef.current.applyVideoConstraints === "function") {
-      const capabilities = typeof scannerRef.current.getRunningTrackCapabilities === "function"
-        ? scannerRef.current.getRunningTrackCapabilities()
-        : null;
-      if (capabilities && "torch" in capabilities) {
+    if (!streamRef.current) return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (videoTrack) {
+      try {
         const newTorchState = !isTorchOn;
-        try {
-          await scannerRef.current.applyVideoConstraints({
-            advanced: [{ torch: newTorchState } as any]
-          });
-          setIsTorchOn(newTorchState);
-        } catch (err) {
-          console.error("Failed to toggle torch:", err);
-        }
+        await videoTrack.applyConstraints({
+          advanced: [{ torch: newTorchState } as any]
+        });
+        setIsTorchOn(newTorchState);
+      } catch (err) {
+        console.error("Failed to toggle torch:", err);
       }
     }
   };
 
   const switchCamera = async () => {
-    if (cameras.length <= 1 || !scannerRef.current) return;
-    const nextIndex = (currentCameraIndex + 1) % cameras.length;
-    setCurrentCameraIndex(nextIndex);
+    const newFacingMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacingMode);
+    
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
 
     try {
-      if (scannerRef.current.isScanning) {
-        await scannerRef.current.stop();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacingMode },
+        audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
       }
-      setIsTorchOn(false);
-      setTorchSupported(false);
-
-      await scannerRef.current.start(
-        cameras[nextIndex].id,
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-        },
-        (decodedText: string) => {
-          audioSynth.playSuccess();
-          void stopScanner();
-          if (decodedText.includes("/dashboard/scan-booking")) {
-            try {
-              const url = new URL(decodedText);
-              url.searchParams.set("source", "qr");
-              router.push(url.pathname + url.search);
-            } catch {
-              router.push(`${decodedText}&source=qr`);
-            }
-          } else {
-            router.push(`/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`);
-          }
-        },
-        () => {}
-      );
-
-      const hasTorch = typeof scannerRef.current.getRunningTrackCapabilities === "function" &&
-                       !!scannerRef.current.getRunningTrackCapabilities()?.torch;
-      setTorchSupported(hasTorch);
     } catch (err) {
       console.error("Failed to switch camera:", err);
-      setError("Failed to switch to the next camera.");
     }
   };
 
@@ -240,7 +244,7 @@ export function BookingHandoverVerifier() {
     }
     setError("");
     audioSynth.playSuccess();
-    void stopScanner();
+    stopScanner();
     router.push(`/dashboard/scan-booking?id=${encodeURIComponent(cleanId)}&source=qr`);
   };
 
@@ -259,7 +263,43 @@ export function BookingHandoverVerifier() {
       {isScanning ? (
         <div className="mt-4 space-y-3">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-1">
-            <div id="qr-reader" className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center">
+            <div className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center">
+              
+              {/* Direct HTML5 Video Feed */}
+              {!error && (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  autoPlay
+                  className="w-full h-full object-cover rounded-xl"
+                />
+              )}
+
+              {/* Hidden canvas for image analysis */}
+              <canvas ref={canvasRef} className="hidden" />
+
+              {error === "INTERACTION_REQUIRED" && (
+                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2.5">
+                  <span className="text-xl">👆</span>
+                  <p className="text-[11px] font-bold text-amber-400">Interaction Required</p>
+                  <p className="text-[9px] text-slate-300 leading-relaxed px-2">
+                    Please tap anywhere inside this box to activate the camera feed.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setError("");
+                      setIsScanning(false);
+                      setTimeout(startScanningFlow, 200);
+                    }}
+                    className="w-full py-1.5 px-3 text-[10px] font-bold rounded-lg bg-gradient-to-r from-red-600 to-red-700 text-white transition cursor-pointer"
+                  >
+                    Activate Camera Feed
+                  </button>
+                </div>
+              )}
+
               {error === "PERMISSION_DENIED" && (
                 <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2">
                   <span className="text-xl">📵</span>
@@ -276,7 +316,7 @@ export function BookingHandoverVerifier() {
                     onClick={async () => {
                       setError("");
                       setIsScanning(false);
-                      setTimeout(() => setIsScanning(true), 200);
+                      setTimeout(startScanningFlow, 200);
                     }}
                     className="w-full py-1.5 px-3 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
                   >
@@ -285,7 +325,7 @@ export function BookingHandoverVerifier() {
                 </div>
               )}
 
-              {error && error !== "PERMISSION_DENIED" && (
+              {error && error !== "PERMISSION_DENIED" && error !== "INTERACTION_REQUIRED" && (
                 <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2">
                   <span className="text-xl">⚠️</span>
                   <p className="text-[10px] text-amber-300 font-medium leading-relaxed">{error}</p>
@@ -294,7 +334,7 @@ export function BookingHandoverVerifier() {
                     onClick={async () => {
                       setError("");
                       setIsScanning(false);
-                      setTimeout(() => setIsScanning(true), 200);
+                      setTimeout(startScanningFlow, 200);
                     }}
                     className="w-full py-1.5 px-3 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer"
                   >
@@ -303,6 +343,7 @@ export function BookingHandoverVerifier() {
                 </div>
               )}
             </div>
+
             {/* Up & Down Animated Cyber Laser Scanline */}
             {!error && (
               <>
@@ -319,29 +360,29 @@ export function BookingHandoverVerifier() {
             )}
 
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-30">
-                {torchSupported && (
-                  <button
-                    type="button"
-                    onClick={toggleTorch}
-                    className={`p-2.5 rounded-full border border-white/20 text-white transition active:scale-95 cursor-pointer backdrop-blur-md ${
-                      isTorchOn ? "bg-[var(--brand-red)]/85" : "bg-black/60 hover:bg-black/80"
-                    }`}
-                    title="Toggle Flashlight"
-                  >
-                    <Zap className="w-4 h-4" fill={isTorchOn ? "currentColor" : "none"} />
-                  </button>
-                )}
-                {cameras.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={switchCamera}
-                    className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white transition active:scale-95 cursor-pointer"
-                    title="Switch Camera"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              {torchSupported && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className={`p-2.5 rounded-full border border-white/20 text-white transition active:scale-95 cursor-pointer backdrop-blur-md ${
+                    isTorchOn ? "bg-[var(--brand-red)]/85" : "bg-black/60 hover:bg-black/80"
+                  }`}
+                  title="Toggle Flashlight"
+                >
+                  <Zap className="w-4 h-4" fill={isTorchOn ? "currentColor" : "none"} />
+                </button>
+              )}
+              {hasMultipleCameras && (
+                <button
+                  type="button"
+                  onClick={switchCamera}
+                  className="p-2.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-white transition active:scale-95 cursor-pointer"
+                  title="Switch Camera"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
           <button
             onClick={stopScanner}
@@ -381,7 +422,7 @@ export function BookingHandoverVerifier() {
 
           {/* Camera Trigger */}
           <button
-            onClick={() => setIsScanning(true)}
+            onClick={startScanningFlow}
             className="w-full rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-white py-2.5 text-xs font-bold transition hover:-translate-y-0.5 shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Camera className="w-3.5 h-3.5 shrink-0" />
@@ -390,7 +431,7 @@ export function BookingHandoverVerifier() {
         </div>
       )}
 
-      {error && (
+      {error && error !== "PERMISSION_DENIED" && error !== "INTERACTION_REQUIRED" && (
         <p className="text-xs text-red-400 font-semibold mt-2 text-center">{error}</p>
       )}
     </div>

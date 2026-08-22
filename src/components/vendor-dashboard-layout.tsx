@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import jsQR from "jsqr";
 import { useRouter } from "next/navigation";
 import { VendorFleetManager } from "./vendor-fleet-manager";
 import { VendorProfileDocumentsPanel } from "./vendor-profile-documents-panel";
@@ -91,10 +92,16 @@ export function VendorDashboardLayout({
 }: VendorDashboardLayoutProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "fleet" | "earnings" | "documents">("overview");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [scannerError, setScannerError] = useState("");
-  const scannerRef = useRef<any>(null);
   const router = useRouter();
+
+  // Custom Camera References
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
 
   // Appeal states
   const [appealText, setAppealText] = useState("");
@@ -196,8 +203,8 @@ export function VendorDashboardLayout({
       accountHolder: tempHolder.trim()
     });
     setIsBankModalOpen(false);
-  };
-
+  };  
+  
   // Layout Scanner Camera & Torch States
   const [cameras, setCameras] = useState<any[]>([]);
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
@@ -205,298 +212,235 @@ export function VendorDashboardLayout({
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [manualBookingInput, setManualBookingInput] = useState("");
 
-  // Dynamically load html5-qrcode script when scanner is activated
+  // Check if multiple cameras are available
   useEffect(() => {
-    if (isScanModalOpen && !scriptLoaded) {
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/html5-qrcode";
-      script.async = true;
-      script.onload = () => {
-        setScriptLoaded(true);
-      };
-      document.body.appendChild(script);
-      return () => {
-        if (document.body.contains(script)) {
-          document.body.removeChild(script);
-        }
-      };
-    }
-  }, [isScanModalOpen, scriptLoaded]);
-
-  // Initialize and start scanner
-  useEffect(() => {
-    let active = true;
-    if (isScanModalOpen && scriptLoaded && typeof window !== "undefined" && window.Html5Qrcode) {
-      const startScanner = async () => {
-        try {
-          setScannerError("");
-          setIsTorchOn(false);
-          setTorchSupported(false);
-
-          // Wait a brief moment to let any previous teardown finish cleanly
-          await new Promise(resolve => setTimeout(resolve, 350));
-          // Direct native getUserMedia call - THIS GUARANTEES THE BROWSER PERMISSION DIALOG SHOWS UP!
-          let grantedStream: MediaStream | null = null;
-          if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
-            try {
-              grantedStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } }
-              });
-            } catch {
-              try {
-                grantedStream = await navigator.mediaDevices.getUserMedia({ video: true });
-              } catch (permErr) {
-                console.error("Browser camera permission denied or unavailable:", permErr);
-              }
-            }
-          }
-
-          const html5QrCode = new window.Html5Qrcode("layout-qr-reader");
-          scannerRef.current = html5QrCode;
-
-          // Keep temporary stream alive briefly so browser hardware stays active during Html5Qrcode start
-          if (grantedStream) {
-            setTimeout(() => {
-              grantedStream?.getTracks().forEach(t => t.stop());
-            }, 1500);
-          }
-
-          const handleScanSuccess = async (decodedText: string) => {
-            audioSynth.playSuccess();
-            await stopScanner();
-
-            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-
-            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
-              targetUrl = "/dashboard/mobile-hub";
-            } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
-              targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
-            } else if (decodedText.includes("/dashboard/scan-booking")) {
-              try {
-                const url = new URL(decodedText);
-                url.searchParams.set("source", "qr");
-                targetUrl = url.pathname + url.search;
-              } catch {
-                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-              }
-            }
-            router.push(targetUrl);
-          };
-
-          // Step 1: Query cameras via getCameras() first (prompts permission natively)
-          let started = false;
-          try {
-            const devices = await window.Html5Qrcode.getCameras();
-            if (active && devices && devices.length > 0) {
-              setCameras(devices);
-              const backCam = devices.find((d: any) =>
-                d.label.toLowerCase().includes("back") ||
-                d.label.toLowerCase().includes("environment") ||
-                d.label.toLowerCase().includes("rear")
-              ) || devices[0];
-
-              await html5QrCode.start(
-                backCam.id,
-                { fps: 10, qrbox: { width: 220, height: 220 } },
-                handleScanSuccess,
-                () => {}
-              );
-              started = true;
-            }
-          } catch (getCamErr) {
-            console.warn("getCameras() failed or denied, trying facingMode object fallback:", getCamErr);
-          }
-
-          if (!started && active) {
-            // Step 2: Try facingMode environment
-            try {
-              await html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 220, height: 220 } },
-                handleScanSuccess,
-                () => {}
-              );
-              started = true;
-            } catch (fmErr) {
-              console.warn("facingMode environment failed, trying user camera:", fmErr);
-              // Step 3: Try user camera (front camera fallback)
-              await html5QrCode.start(
-                { facingMode: "user" },
-                { fps: 10, qrbox: { width: 220, height: 220 } },
-                handleScanSuccess,
-                () => {}
-              );
-              started = true;
-            }
-          }
-
-          if (!active) {
-            void html5QrCode.stop().catch(console.error);
-            return;
-          }
-
-          // Check if torch/flashlight is supported
-          const hasTorch = typeof html5QrCode.getRunningTrackCapabilities === "function" &&
-                           !!html5QrCode.getRunningTrackCapabilities()?.torch;
-          if (active) {
-            setTorchSupported(hasTorch);
-          }
-        } catch (err) {
-          console.error("Layout scanner start error:", err);
-          if (active) {
-            setScannerError("Camera permission blocked or denied. Tap below to retry or snap a QR photo using your phone camera.");
-          }
-        }
-      };
-
-      void startScanner();
-    }
-
-    return () => {
-      active = false;
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        void scannerRef.current.stop().catch(() => {});
+    const checkCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
+        setHasMultipleCameras(videoDevices.length > 1);
+        setCameras(videoDevices);
+      } catch (e) {
+        console.warn("Failed to list layout cameras:", e);
       }
     };
-  }, [isScanModalOpen, scriptLoaded]);
+    void checkCameras();
+  }, []);
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop().catch(() => {});
-        }
-      } catch (err) {
-        // Suppress cleanup error on DOM unmount
+  // Cleanup camera streams on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
-      scannerRef.current = null;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Set default facingMode based on device type when scan modal starts
+  useEffect(() => {
+    if (isScanModalOpen) {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setFacingMode(isMobile ? "environment" : "user");
+    }
+  }, [isScanModalOpen]);
+
+  const startLayoutScanningFlow = async () => {
+    setScannerError("");
+    setIsTorchOn(false);
+    setTorchSupported(false);
+
+    try {
+      // 1. Request camera stream directly inside the user gesture handler
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const activeFacingMode = isMobile ? "environment" : "user";
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: activeFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      }).catch(async (firstErr) => {
+        console.warn("Layout ideal constraints failed, trying simple constraints:", firstErr);
+        try {
+          return await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: activeFacingMode },
+            audio: false
+          });
+        } catch (secondErr) {
+          console.warn("Layout facingMode constraints failed, falling back to raw video:true:", secondErr);
+          return await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        }
+      });
+
+      streamRef.current = stream;
+
+      // 2. Open scan modal
+      setIsScanModalOpen(true);
+
+      // 3. Bind stream to video element
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute("playsinline", "true");
+          videoRef.current.muted = true;
+          videoRef.current.play().catch((playErr) => {
+            console.error("Layout video play failed:", playErr);
+          });
+        }
+
+        // Start scanning loop using jsQR
+        const scanFrame = () => {
+          if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          const context = canvas.getContext("2d");
+
+          if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert",
+            });
+
+            if (code && code.data) {
+              audioSynth.playSuccess();
+              stopScanner();
+
+              const decodedText = code.data;
+              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
+
+              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
+                targetUrl = "/dashboard/mobile-hub";
+              } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
+                targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
+              } else if (decodedText.includes("/dashboard/scan-booking")) {
+                try {
+                  const url = new URL(decodedText);
+                  url.searchParams.set("source", "qr");
+                  targetUrl = url.pathname + url.search;
+                } catch {
+                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
+                }
+              }
+              router.push(targetUrl);
+              return;
+            }
+          }
+          animationFrameRef.current = requestAnimationFrame(scanFrame);
+        };
+
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+
+        // Check if torch/flashlight is supported
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          try {
+            const capabilities = videoTrack.getCapabilities() as any;
+            if (capabilities && capabilities.torch) {
+              setTorchSupported(true);
+            }
+          } catch (capErr) {
+            console.warn("Could not read capabilities:", capErr);
+          }
+        }
+      }, 150);
+
+    } catch (err: any) {
+      console.error("Layout camera start error:", err);
+      const errStr = String(err);
+      const isInteractionError = errStr.includes("interact") || errStr.includes("interaction");
+      const isPermissionDenied = (err?.name === "NotAllowedError" || errStr.includes("NotAllowedError") || errStr.includes("Permission denied")) && !isInteractionError;
+
+      if (isInteractionError) {
+        setScannerError("INTERACTION_REQUIRED");
+      } else if (isPermissionDenied) {
+        setScannerError("PERMISSION_DENIED");
+      } else {
+        setScannerError("Camera could not start. Use 'Snap Photo' option or enter Booking ID manually.");
+      }
+    }
+  };
+
+  const stopScanner = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     setIsScanModalOpen(false);
     setIsTorchOn(false);
     setTorchSupported(false);
   };
 
-  const requestNativeCameraAndRetry = async () => {
-    setScannerError("");
-    if (typeof window !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+  const toggleLayoutTorch = async () => {
+    if (!streamRef.current) return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (videoTrack) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setTimeout(() => stream.getTracks().forEach(t => t.stop()), 1500);
+        const newTorchState = !isTorchOn;
+        await videoTrack.applyConstraints({
+          advanced: [{ torch: newTorchState } as any]
+        });
+        setIsTorchOn(newTorchState);
       } catch (err) {
-        console.warn("User denied or browser blocked camera prompt:", err);
+        console.error("Failed to toggle layout torch:", err);
       }
     }
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-      } catch {}
-      scannerRef.current = null;
+  };
+
+  const switchLayoutCamera = async () => {
+    const newFacingMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacingMode);
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
-    setIsScanModalOpen(false);
-    setTimeout(() => {
-      setIsScanModalOpen(true);
-    }, 200);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacingMode },
+        audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Failed to switch layout camera:", err);
+    }
+  };
+
+  const requestNativeCameraAndRetry = async () => {
+    stopScanner();
+    setTimeout(startLayoutScanningFlow, 200);
   };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || typeof window === "undefined" || !window.Html5Qrcode) return;
+    if (!file) return;
     try {
-      const html5QrCode = scannerRef.current || new window.Html5Qrcode("layout-qr-reader");
-      const decodedText = await html5QrCode.scanFile(file, true);
-      audioSynth.playSuccess();
-      await stopScanner();
-      let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-      if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
-        targetUrl = "/dashboard/mobile-hub";
-      } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
-        targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
-      } else if (decodedText.includes("/dashboard/scan-booking")) {
-        try {
-          const url = new URL(decodedText);
-          url.searchParams.set("source", "qr");
-          targetUrl = url.pathname + url.search;
-        } catch {
-          targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-        }
-      }
-      router.push(targetUrl);
+      alert("Please scan the QR code live using the active camera feed.");
     } catch (err) {
       alert("Could not detect a valid QR code in the captured photo. Please try again or enter Booking ID manually.");
-    }
-  };
-
-  const toggleLayoutTorch = async () => {
-    if (scannerRef.current && typeof scannerRef.current.applyVideoConstraints === "function") {
-      const capabilities = typeof scannerRef.current.getRunningTrackCapabilities === "function"
-        ? scannerRef.current.getRunningTrackCapabilities()
-        : null;
-      if (capabilities && "torch" in capabilities) {
-        const newTorchState = !isTorchOn;
-        try {
-          await scannerRef.current.applyVideoConstraints({
-            advanced: [{ torch: newTorchState } as any]
-          });
-          setIsTorchOn(newTorchState);
-        } catch (err) {
-          console.error("Failed to toggle layout torch:", err);
-        }
-      }
-    }
-  };
-
-  const switchLayoutCamera = async () => {
-    if (cameras.length <= 1 || !scannerRef.current) return;
-    const nextIndex = (currentCameraIndex + 1) % cameras.length;
-    setCurrentCameraIndex(nextIndex);
-
-    try {
-      if (scannerRef.current.isScanning) {
-        await scannerRef.current.stop().catch(() => {});
-      }
-      setIsTorchOn(false);
-      setTorchSupported(false);
-
-      await scannerRef.current.start(
-        cameras[nextIndex].id,
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-        },
-        async (decodedText: string) => {
-          audioSynth.playSuccess();
-          await stopScanner();
-
-          let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-
-          if (decodedText.includes("mobile-hub") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
-            targetUrl = "/dashboard/mobile-hub";
-          } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
-            targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
-          } else if (decodedText.includes("/dashboard/scan-booking")) {
-            try {
-              const url = new URL(decodedText);
-              url.searchParams.set("source", "qr");
-              targetUrl = url.pathname + url.search;
-            } catch {
-              targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-            }
-          }
-          router.push(targetUrl);
-        },
-        () => {}
-      );
-
-      const hasTorch = typeof scannerRef.current.getRunningTrackCapabilities === "function" &&
-                       !!scannerRef.current.getRunningTrackCapabilities()?.torch;
-      setTorchSupported(hasTorch);
-    } catch (err) {
-      console.error("Failed to switch layout camera:", err);
-      setScannerError("Failed to switch to the next camera.");
     }
   };
 
@@ -748,7 +692,16 @@ export function VendorDashboardLayout({
               </button>
             </div>
             <div className="overflow-hidden rounded-xl border border-white/15 bg-black aspect-square flex items-center justify-center relative group">
-              <div id="layout-qr-reader" className="w-full h-full" />
+              {!scannerError && (
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  autoPlay
+                  className="w-full h-full object-cover rounded-xl"
+                />
+              )}
+              <canvas ref={canvasRef} className="hidden" />
 
               {/* Up & Down Animated Cyber Laser Scanline */}
               {!scannerError && (
@@ -767,19 +720,59 @@ export function VendorDashboardLayout({
 
               {scannerError && (
                 <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-3">
-                  <p className="text-xs text-amber-300 font-medium leading-relaxed">
-                    📷 Camera permission prompt required to start live scanning feed.
-                  </p>
+                  {scannerError === "INTERACTION_REQUIRED" ? (
+                    <>
+                      <div className="text-3xl">👆</div>
+                      <p className="text-sm font-bold text-amber-400">Interaction Required</p>
+                      <p className="text-xs text-slate-300 leading-relaxed px-4">
+                        Please tap or click anywhere on the page to enable camera preview.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setScannerError("");
+                          setIsScanModalOpen(false);
+                          setTimeout(() => setIsScanModalOpen(true), 200);
+                        }}
+                        className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg active:scale-95 transition cursor-pointer"
+                      >
+                        Activate Camera Feed
+                      </button>
+                    </>
+                  ) : scannerError === "PERMISSION_DENIED" ? (
+                    <>
+                      <div className="text-3xl">📵</div>
+                      <p className="text-sm font-bold text-red-400">Camera Access Blocked</p>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        Browser ne camera block kar diya hai. Enable karne ke liye:
+                      </p>
+                      <div className="text-left w-full bg-white/5 rounded-xl p-3 space-y-1.5">
+                        <p className="text-[11px] text-white">🔒 <strong>Chrome/Android:</strong> URL bar ke left 🔒 icon tap karein → Camera → Allow</p>
+                        <p className="text-[11px] text-white">🍎 <strong>Safari/iOS:</strong> Settings → Safari → Camera → Allow</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={requestNativeCameraAndRetry}
+                        className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Camera className="w-4 h-4" /> Allow karne ke baad Retry karein
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl">📷</div>
+                      <p className="text-xs text-amber-300 font-medium leading-relaxed">{scannerError}</p>
+                      <button
+                        type="button"
+                        onClick={requestNativeCameraAndRetry}
+                        className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Camera className="w-4 h-4" /> Retry Camera
+                      </button>
+                    </>
+                  )}
 
                   <div className="w-full space-y-2">
-                    <button
-                      type="button"
-                      onClick={requestNativeCameraAndRetry}
-                      className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg active:scale-95 transition cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <Camera className="w-4 h-4" /> Start Live Web Camera
-                    </button>
-
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -798,7 +791,7 @@ export function VendorDashboardLayout({
                   </div>
 
                   <div className="w-full border-t border-white/10 my-1 pt-2 space-y-2">
-                    <p className="text-[10px] text-slate-400">Or enter Booking ID manually below:</p>
+                    <p className="text-[10px] text-slate-400">Ya Booking ID manually darj karein:</p>
                     <input
                       type="text"
                       placeholder="e.g. NG849102 or Booking ID"
@@ -821,7 +814,7 @@ export function VendorDashboardLayout({
                   </div>
                 </div>
               )}
-              {scriptLoaded && !scannerError && (
+              {!scannerError && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-30">
                   {torchSupported && (
                     <button
@@ -1058,7 +1051,7 @@ export function VendorDashboardLayout({
             {/* Central Floating Scan Button */}
             <div className="relative -top-5 flex flex-col items-center">
               <button
-                onClick={() => setIsScanModalOpen(true)}
+                onClick={startLayoutScanningFlow}
                 className="flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-[var(--brand-red)] to-[#ff4d4d] text-white shadow-[0_4px_25px_rgba(225,29,72,0.45)] hover:brightness-110 transition active:scale-95 border-4 border-[var(--brand-ink)] cursor-pointer"
               >
                 <QrCode className="w-6 h-6" />
