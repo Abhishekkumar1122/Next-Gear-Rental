@@ -334,7 +334,7 @@ export function VendorDashboardLayout({
                   targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
                 }
               }
-              router.push(targetUrl);
+              window.location.href = targetUrl;
               return;
             }
           }

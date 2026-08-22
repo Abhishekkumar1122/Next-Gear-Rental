@@ -122,13 +122,13 @@ export function AdminQRScannerButton() {
                   const url = new URL(decodedText);
                   bookingId = url.searchParams.get("id") || decodedText;
                 }
-                router.push(`/dashboard/scan-booking?id=${encodeURIComponent(bookingId)}&source=qr`);
+                window.location.href = `/dashboard/scan-booking?id=${encodeURIComponent(bookingId)}&source=qr`;
               } else if (decodedText.startsWith("vnd-") || decodedText.includes("vendor")) {
-                router.push(`/dashboard/admin?section=approvals&status=all`);
+                window.location.href = `/dashboard/admin?section=approvals&status=all`;
               } else if (decodedText.startsWith("usr-") || decodedText.includes("user")) {
-                router.push(`/dashboard/admin?section=approvals&status=all`);
+                window.location.href = `/dashboard/admin?section=approvals&status=all`;
               } else {
-                router.push(`/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`);
+                window.location.href = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
               }
               return;
             }

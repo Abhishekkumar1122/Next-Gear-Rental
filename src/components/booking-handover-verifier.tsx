@@ -142,7 +142,7 @@ export function BookingHandoverVerifier() {
                   targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
                 }
               }
-              router.push(targetUrl);
+              window.location.href = targetUrl;
               return;
             }
           }
@@ -245,7 +245,7 @@ export function BookingHandoverVerifier() {
     setError("");
     audioSynth.playSuccess();
     stopScanner();
-    router.push(`/dashboard/scan-booking?id=${encodeURIComponent(cleanId)}&source=qr`);
+    window.location.href = `/dashboard/scan-booking?id=${encodeURIComponent(cleanId)}&source=qr`;
   };
 
   return (
