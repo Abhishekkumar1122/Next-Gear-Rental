@@ -348,7 +348,11 @@ function ScanBookingContent() {
           }
           setRequiresPayment(false);
           setPaymentDetails(null);
-          await fetchDetails();
+
+          // Show success alert and redirect to Vendor Dashboard after 2 seconds
+          setTimeout(() => {
+            window.location.href = "/dashboard/vendor";
+          }, 2000);
         } else {
           setError(data.error ?? `Failed to perform action: ${action}`);
         }
