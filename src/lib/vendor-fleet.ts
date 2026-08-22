@@ -125,9 +125,11 @@ const getCachedVendorFleet = unstable_cache(
         orderBy: { createdAt: "desc" },
       });
 
-      const availabilityMap = await getAvailabilityMapForVehicles(dbVehicles.map((item) => item.id));
-      const imageMap = await getImageMapForVehicles(dbVehicles.map((item) => item.id));
-      const vehicleNumberMap = await getVehicleNumberMap(dbVehicles.map((item) => item.id));
+      const [availabilityMap, imageMap, vehicleNumberMap] = await Promise.all([
+        getAvailabilityMapForVehicles(dbVehicles.map((item) => item.id)),
+        getImageMapForVehicles(dbVehicles.map((item) => item.id)),
+        getVehicleNumberMap(dbVehicles.map((item) => item.id)),
+      ]);
 
       return {
         vendor,

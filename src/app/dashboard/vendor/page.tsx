@@ -1,6 +1,6 @@
 import { getServerSessionUser } from "@/lib/server-session";
 import { getVendorHistory } from "@/lib/dashboard-history";
-import { getVendorFleet } from "@/lib/vendor-fleet";
+import { getVendorFleet, resolveVendorContext } from "@/lib/vendor-fleet";
 import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
@@ -78,7 +78,7 @@ const getCachedVendorFinancials = unstable_cache(
       totalEarningsINR: Math.round(totalRevenueINR * payoutMultiplier),
     };
   },
-  ["vendor-financials"],
+  ["vendor-financials", "ownerUserId", "commissionRate"],
   { revalidate: 90, tags: ["financials"] }
 );
 
@@ -121,7 +121,7 @@ const getCachedVendorBookings = unstable_cache(
       },
     })) as any[];
   },
-  ["vendor-bookings-cache"],
+  ["vendor-bookings-cache", "vendorId"],
   { revalidate: 60, tags: ["bookings"] }
 );
 
@@ -131,29 +131,26 @@ export default async function VendorDashboardPage() {
     redirect("/dashboard/customer");
   }
 
-  // Parallelize initial database queries to eliminate sequential waterfall delays
-  const [dbUser, history, fleetResult] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: sessionUser.id },
-      select: { name: true },
-    }),
-    getVendorHistory(sessionUser.id),
-    getVendorFleet(sessionUser),
-  ]);
-
-  const { vendor, vehicles: fleetVehicles } = fleetResult;
-  
+  const vendor = await resolveVendorContext(sessionUser);
   if (!vendor) {
     redirect("/dashboard/customer"); // Fallback if vendor account is not setup
   }
 
   const commissionRate = Number(vendor.commissionRate ?? 0);
 
-  // Parallelize financial calculations & booking history queries
-  const [financials, bookings] = await Promise.all([
+  // Parallelize ALL database queries to execute concurrently and eliminate any sequential waterfalls
+  const [dbUser, history, fleetResult, financials, bookings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { name: true },
+    }),
+    getVendorHistory(sessionUser.id),
+    getVendorFleet(sessionUser),
     getCachedVendorFinancials(sessionUser.id, commissionRate),
     getCachedVendorBookings(vendor.id),
   ]);
+
+  const { vehicles: fleetVehicles } = fleetResult;
 
   const headersList = await headers();
   const host = headersList.get("host") || "localhost:3000";
