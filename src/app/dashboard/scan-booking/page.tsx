@@ -86,6 +86,60 @@ function ScanBookingContent() {
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [deferPaymentToReturn, setDeferPaymentToReturn] = useState(false);
+
+  // KYC counter verification states
+  const [kycStatus, setKycStatus] = useState<string>("unverified");
+  const [dlNumber, setDlNumber] = useState<string>("");
+  const [dlName, setDlName] = useState<string>("");
+  const [dlPhoto, setDlPhoto] = useState<string | null>(null);
+  const [kycVerifying, setKycVerifying] = useState<boolean>(false);
+
+  const handleDlPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setDlPhoto(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleVerifyKyc = async () => {
+    if (!bookingId || !dlNumber || !dlName || !dlPhoto) return;
+    setKycVerifying(true);
+    try {
+      const res = await fetch("/api/bookings/handover/kyc-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          dlNumber,
+          dlName,
+          dlPhoto,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setKycStatus("approved");
+        setPhotoSubmitToast("✅ Customer Driving License Approved & KYC Verified Successfully!");
+        setTimeout(() => setPhotoSubmitToast(null), 4000);
+      } else {
+        alert(data.error ?? "Failed to verify KYC document.");
+      }
+    } catch {
+      alert("Network error while submitting KYC document.");
+    } finally {
+      setKycVerifying(false);
+    }
+  };
+
+  const maskPhone = (phone?: string) => {
+    if (!phone) return "";
+    const clean = phone.trim();
+    if (clean.length < 8) return clean;
+    return clean.slice(0, 3) + "•••••" + clean.slice(-2);
+  };
   
   const totalAmount = booking?.totalAmountINR ?? 0;
   const bookingAmt = (booking as any)?.amountPaid ?? calculateBookingAmount(totalAmount);
@@ -149,6 +203,10 @@ function ScanBookingContent() {
       const data = await res.json();
       if (res.ok && data.success) {
         setBooking(data.booking);
+        setKycStatus(data.booking.kycStatus || "unverified");
+        if (data.booking.customerName) {
+          setDlName(data.booking.customerName);
+        }
         // Pre-fill fields if already populated
         if (data.booking.handoverStatus === "RELEASED") {
           setOdometer(data.booking.endOdometer ? String(data.booking.endOdometer) : "");
@@ -666,7 +724,7 @@ function ScanBookingContent() {
             <div className="bg-black/40 border border-white/5 rounded-xl p-3">
               <span className="text-white/40 block text-[10px] font-medium uppercase">Customer</span>
               <span className="font-bold text-white mt-0.5 block truncate">{booking?.customerName}</span>
-              <span className="text-[10px] font-mono text-white/60 block mt-0.5">{booking?.customerPhone}</span>
+              <span className="text-[10px] font-mono text-white/60 block mt-0.5">{maskPhone(booking?.customerPhone)}</span>
             </div>
             <div className="bg-black/40 border border-white/5 rounded-xl p-3">
               <span className="text-white/40 block text-[10px] font-medium uppercase">Assigned Vehicle</span>
@@ -679,6 +737,86 @@ function ScanBookingContent() {
                 {booking?.vehicleStatus}
               </span>
             </div>
+
+            {/* KYC Status Check & Counter Upload Widget */}
+            {kycStatus === "approved" ? (
+              <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between col-span-2">
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Driving License Verification</span>
+                <span className="flex items-center gap-1 text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  ✅ KYC Verified (Lifetime)
+                </span>
+              </div>
+            ) : (
+              <div className="col-span-2 bg-gradient-to-r from-red-950/20 via-black to-red-950/10 border border-red-500/20 rounded-xl p-4 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Driving License Verification</span>
+                  <span className="text-[10px] font-black uppercase text-red-400 bg-red-500/20 px-2.5 py-0.5 rounded-full border border-red-500/30">
+                    🚨 KYC Pending
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/60 leading-normal">
+                  Rider's profile does not have a verified Driving License. Please verify their physical DL hard copy and upload a photo to verify their account.
+                </p>
+
+                {/* DL Form inputs & Camera Upload */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block">DL Number</label>
+                    <input
+                      type="text"
+                      placeholder="DL-1234567890"
+                      value={dlNumber}
+                      onChange={(e) => setDlNumber(e.target.value)}
+                      className="w-full bg-black border border-white/10 rounded-lg p-2 text-white text-[11px] font-mono uppercase mt-1 focus:border-red-500/50 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block">Full Name on DL</label>
+                    <input
+                      type="text"
+                      placeholder="John Doe"
+                      value={dlName}
+                      onChange={(e) => setDlName(e.target.value)}
+                      className="w-full bg-black border border-white/10 rounded-lg p-2 text-white text-[11px] mt-1 focus:border-red-500/50 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Camera Upload Button */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="relative flex items-center justify-center gap-1.5 px-4 py-2.5 border border-dashed border-white/20 hover:border-white/40 rounded-xl bg-white/[0.02] hover:bg-white/5 text-[10px] font-bold text-white/80 cursor-pointer select-none transition">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleDlPhotoChange}
+                        className="hidden"
+                      />
+                      <span>📸 {dlPhoto ? "Change DL Photo" : "Snap DL Hard Copy"}</span>
+                    </label>
+                  </div>
+                  {dlPhoto && (
+                    <div className="w-10 h-10 rounded-lg border border-white/10 overflow-hidden shrink-0">
+                      <img src={dlPhoto} alt="DL Photo Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit KYC button */}
+                <button
+                  onClick={handleVerifyKyc}
+                  disabled={kycVerifying || !dlNumber || !dlName || !dlPhoto}
+                  className="w-full py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 disabled:from-white/5 disabled:to-white/5 disabled:text-white/40 font-black text-[10px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {kycVerifying ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    "✔️ Approve & Verify KYC Profile"
+                  )}
+                </button>
+              </div>
+            )}
             
             {/* Grand Total Settlement Card & Direct Pay Trigger */}
             <div className="col-span-2 bg-gradient-to-r from-amber-950/40 via-black to-amber-950/20 border border-amber-500/30 rounded-xl p-3.5 space-y-2.5 shadow-lg">
@@ -1175,6 +1313,12 @@ function ScanBookingContent() {
                 👉 **Instructions**: Complete the pickup inspection. Ensure odometer reading, fuel level, all 5 mandatory photos uploaded, checklist verified, and pending pickup balance settled.
               </div>
 
+              {kycStatus !== "approved" && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-200 text-xs rounded-2xl p-4 leading-relaxed font-semibold">
+                  ⚠️ **KYC Approval Required**: The customer must be KYC Verified before you can release the vehicle. Please use the Driving License Verification form above to approve their profile first.
+                </div>
+              )}
+
               {/* If Balance Due > 0 and NOT deferred, button guides vendor to Collect Payment first */}
               {grandTotalSettlement > 0 && !deferPaymentToReturn ? (
                 <button
@@ -1192,6 +1336,7 @@ function ScanBookingContent() {
                   disabled={
                     actionLoading ||
                     requiresPayment ||
+                    kycStatus !== "approved" ||
                     !isChecklistComplete ||
                     uploadedPhotos.length < 5 ||
                     Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
@@ -1200,6 +1345,8 @@ function ScanBookingContent() {
                 >
                   {actionLoading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : kycStatus !== "approved" ? (
+                    <>🔒 Customer KYC Verification Required</>
                   ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
                     <>⏳ Photos uploading in background...</>
                   ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (

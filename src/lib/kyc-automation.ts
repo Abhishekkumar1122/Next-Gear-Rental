@@ -155,9 +155,15 @@ export async function submitKycAutomation(input: {
   documentNumber: string;
   dob: string;
   expiryDate?: string;
+  overrideStatus?: KycAutomationStatus;
 }) {
   const userEmail = normalizeEmail(input.userEmail);
   const result = evaluateKyc(input);
+
+  if (input.overrideStatus) {
+    result.status = input.overrideStatus;
+    result.score = input.overrideStatus === "approved" ? 100 : 0;
+  }
 
   const entry: KycAutomationEntry = {
     id: randomUUID(),

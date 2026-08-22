@@ -6,6 +6,7 @@ import { getServerSessionUser } from "@/lib/server-session";
 import { resolveVendorContext } from "@/lib/vendor-fleet";
 import { bookingsStore } from "@/lib/store";
 import { vehicles as mockVehicles, vendors as mockVendors } from "@/lib/mock-data";
+import { listKycAutomationByEmail } from "@/lib/kyc-automation";
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -89,6 +90,9 @@ export async function GET(request: Request) {
         );
       }
 
+      const kycEntries = await listKycAutomationByEmail(booking.user.email);
+      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : "unverified";
+
       bookingData = {
         id: booking.id,
         status: booking.status,
@@ -100,6 +104,7 @@ export async function GET(request: Request) {
         customerName: booking.user.name,
         customerEmail: booking.user.email,
         customerPhone: booking.user.phone || booking.user.email?.split("@")[0],
+        kycStatus,
         vehicleTitle: booking.vehicle.title,
         vehicleStatus: booking.vehicle.operationalStatus,
         startOdometer: booking.startOdometer,
@@ -152,6 +157,7 @@ export async function GET(request: Request) {
         customerName: booking.userName,
         customerEmail: booking.userEmail,
         customerPhone: "9876543210",
+        kycStatus: "unverified",
         vehicleTitle: vehicle.title,
         vehicleStatus: vehicle.operationalStatus,
         startOdometer: null,
