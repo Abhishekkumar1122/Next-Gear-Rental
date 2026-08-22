@@ -266,19 +266,38 @@ function ScanBookingContent() {
     });
   };
 
-  const handleConfirmPhotoSubmit = () => {
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  const handleConfirmPhotoSubmit = async () => {
     if (!pendingCapturedPhoto) return;
     const { slotIdx, slotName, geoTaggedUrl } = pendingCapturedPhoto;
 
-    setUploadedPhotos((prev) => {
-      const next = [...prev];
-      next[slotIdx] = geoTaggedUrl;
-      return next;
-    });
-
-    setPendingCapturedPhoto(null);
-    setPhotoSubmitToast(`🎉 Photo ${slotIdx + 1}/5 (${slotName}) Submitted & Geo-Tagged Successfully!`);
-    setTimeout(() => setPhotoSubmitToast(null), 4000);
+    setPhotoUploading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/bookings/handover/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: geoTaggedUrl })
+      });
+      const data = await res.json();
+      if (res.ok && data.imageUrl) {
+        setUploadedPhotos((prev) => {
+          const next = [...prev];
+          next[slotIdx] = data.imageUrl;
+          return next;
+        });
+        setPendingCapturedPhoto(null);
+        setPhotoSubmitToast(`🎉 Photo ${slotIdx + 1}/5 (${slotName}) Uploaded Successfully!`);
+        setTimeout(() => setPhotoSubmitToast(null), 4000);
+      } else {
+        setError(data.error ?? "Failed to upload photo to Cloudinary.");
+      }
+    } catch {
+      setError("Network error while uploading photo to Cloudinary.");
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const handleRetryPhotoCapture = () => {
@@ -1190,10 +1209,20 @@ function ScanBookingContent() {
               <button
                 type="button"
                 onClick={handleConfirmPhotoSubmit}
-                className="py-3 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:brightness-110 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer flex items-center justify-center gap-1.5 uppercase"
+                disabled={photoUploading}
+                className="py-3 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl transition shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer flex items-center justify-center gap-1.5 uppercase min-w-[120px]"
               >
-                <span>✅</span>
-                <span>OK / Confirm</span>
+                {photoUploading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✅</span>
+                    <span>OK / Confirm</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

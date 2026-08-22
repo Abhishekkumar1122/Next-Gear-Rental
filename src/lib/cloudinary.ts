@@ -63,3 +63,16 @@ export async function uploadBufferToCloudinary(params: {
     resourceType: result.resource_type,
   };
 }
+
+export async function deleteFromCloudinary(publicId: string) {
+  ensureCloudinaryConfig();
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.destroy(publicId, (error, result) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+}

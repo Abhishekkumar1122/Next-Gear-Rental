@@ -1,6 +1,7 @@
 import { processWebhookRetryJobs } from "@/lib/webhook-retry";
 import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
+import { cleanupExpiredPhotos } from "@/lib/handover-cleanup";
 
 function isAuthorized(request: Request) {
   const expected = process.env.WEBHOOK_RETRY_CRON_SECRET ?? process.env.WEBHOOK_RETRY_SECRET;
@@ -32,10 +33,18 @@ async function handle(request: Request) {
   }
 
   const results = await processWebhookRetryJobs(50);
+  
+  // Run photo cleanup for privacy compliance (older than 48 hours)
+  const cleanupResult = await cleanupExpiredPhotos().catch((err) => {
+    console.error("Cron execution error during photo cleanup:", err);
+    return { success: false, error: String(err) };
+  });
+
   const summary = {
     completed: results.filter((item) => item.status === "COMPLETED").length,
     requeued: results.filter((item) => item.status === "REQUEUED").length,
     failed: results.filter((item) => item.status === "FAILED").length,
+    photoCleanup: cleanupResult,
   };
 
   return NextResponse.json({ processed: results.length, summary, results });
