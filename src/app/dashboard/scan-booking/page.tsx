@@ -667,7 +667,7 @@ function ScanBookingContent() {
           booking.status !== "CANCELLED" &&
           booking.handoverStatus !== "RETURNED" &&
           !requiresPayment &&
-          (booking.handoverStatus === "PENDING" || (booking.handoverStatus === "RELEASED" && source === "qr" && !justReleased)) && (
+          (booking.handoverStatus === "PENDING" || (booking.handoverStatus === "RELEASED" && !justReleased)) && (
           <div className="space-y-4 pt-5 border-t border-white/10 text-xs">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
@@ -1079,7 +1079,7 @@ function ScanBookingContent() {
                 <p className="font-extrabold text-sm uppercase tracking-wider">🚀 Vehicle Released Successfully</p>
                 <p className="text-white/70">The vehicle is now active and in use. To complete the return, please scan the customer's QR code again at return time.</p>
               </div>
-            ) : source === "qr" ? (
+            ) : (
               <div className="space-y-4">
                 <div className="bg-amber-500/10 border border-amber-500/20 text-white/90 text-xs rounded-2xl p-4 leading-relaxed font-bold">
                   🔔 Pickup Reading: <span className="text-amber-400">{booking.startOdometer} km</span> · Fuel: <span className="text-amber-400">{booking.startFuel}</span>
@@ -1112,11 +1112,6 @@ function ScanBookingContent() {
                     )}
                   </button>
                 )}
-              </div>
-            ) : (
-              <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs rounded-2xl p-4 text-center space-y-1.5 animate-[fade-up_0.3s_ease]">
-                <p className="font-black text-sm uppercase tracking-wider">🏍️ Vehicle is In-Use</p>
-                <p className="text-white/70">To complete the check-in process and calculate any extra charges, you must scan the customer's QR code again.</p>
               </div>
             )
           ) : booking?.handoverStatus === "RETURNED" ? (
