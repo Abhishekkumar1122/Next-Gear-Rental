@@ -209,6 +209,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // 15-second Idempotency check to prevent duplicate bookings from double clicks
+  if (process.env.DATABASE_URL) {
+    const fifteenSecondsAgo = new Date(Date.now() - 15 * 1000);
+    const existingPending = await prisma.booking.findFirst({
+      where: {
+        user: { email: { equals: userEmail, mode: "insensitive" } },
+        vehicleId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        createdAt: { gte: fifteenSecondsAgo },
+      },
+    });
+
+    if (existingPending) {
+      console.log(`[Idempotency active] Returning existing pending booking ${existingPending.id} to prevent duplicates`);
+      return NextResponse.json({
+        booking: {
+          id: existingPending.id,
+          vehicleId: existingPending.vehicleId,
+          userName,
+          userEmail,
+          city: existingPending.cityName,
+          startDate: existingPending.startDate.toISOString().slice(0, 10),
+          endDate: existingPending.endDate.toISOString().slice(0, 10),
+          totalAmountINR: existingPending.totalAmountINR,
+          currency: existingPending.currency,
+          status: normalizeStatus(existingPending.status),
+          createdAt: existingPending.createdAt.toISOString(),
+        },
+        payuCheckout: null,
+      }, { status: 201 });
+    }
+  }
+
   if (new Date(endDate) < new Date(startDate)) {
     return NextResponse.json({ error: "End date must be on or after start date" }, { status: 400 });
   }

@@ -124,6 +124,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
 
+    const currentStatus = booking.status.toUpperCase();
+    if (currentStatus === "COMPLETED") {
+      return NextResponse.json({ error: "Cannot cancel a completed booking." }, { status: 400 });
+    }
+    if (currentStatus === "CANCELLED") {
+      return NextResponse.json({ error: "This booking is already cancelled." }, { status: 400 });
+    }
+
     const { refundPercent, refundAmount, cancellationFee, description } = calculateRefund(
       booking.startDate,
       booking.totalAmountINR

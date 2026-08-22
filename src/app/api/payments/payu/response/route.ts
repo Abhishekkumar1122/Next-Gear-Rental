@@ -44,39 +44,78 @@ export async function POST(request: NextRequest) {
       let confirmedBooking: any = null;
 
       if (hasDatabase) {
-        // Update payment record
+        // Update payment and booking within a transaction to enforce concurrency check
         try {
-          await prisma.payment.updateMany({
-            where: { providerPaymentId: txnid },
-            data: {
-              status: "PAID",
-              metadataJson: JSON.stringify({
-                mihpayid,
-                bankRefNum,
-                paymentMode,
-                payuParams: params,
-              }),
-            },
-          });
-        } catch (e) {
-          console.warn("[PayU Payment Update Warn]", e);
-        }
+          await prisma.$transaction(async (tx) => {
+            // 1. Update Payment Status to PAID
+            await tx.payment.updateMany({
+              where: { providerPaymentId: txnid },
+              data: {
+                status: "PAID",
+                metadataJson: JSON.stringify({
+                  mihpayid,
+                  bankRefNum,
+                  paymentMode,
+                  payuParams: params,
+                }),
+              },
+            });
 
-        // Update booking to confirmed
-        try {
-          confirmedBooking = await prisma.booking.update({
-            where: { id: bookingId },
-            data: {
-              status: "CONFIRMED",
-            },
-            include: { user: true, vehicle: true },
+            // 2. Fetch booking details to lock vehicle
+            const booking = await tx.booking.findUnique({
+              where: { id: bookingId },
+              include: { vehicle: true },
+            });
+
+            if (!booking) {
+              throw new Error("Booking not found");
+            }
+
+            // 3. PostgreSQL Row-level locking to serialize checks on this vehicle
+            await tx.$queryRaw`SELECT id FROM "Vehicle" WHERE id = ${booking.vehicleId} FOR UPDATE`;
+
+            // 4. Overlap double-booking verification check
+            const isTestRideVehicle = booking.vehicle.pricePerDayINR <= 1 || booking.vehicle.title.toLowerCase().includes("test");
+            const hasOverlap = isTestRideVehicle
+              ? false
+              : (await tx.booking.count({
+                  where: {
+                    vehicleId: booking.vehicleId,
+                    status: "CONFIRMED",
+                    id: { not: bookingId },
+                    startDate: { lte: booking.endDate },
+                    endDate: { gte: booking.startDate },
+                  },
+                })) > 0;
+
+            if (hasOverlap) {
+              console.error(`[Double-Booking Guard] Blocking overlapping confirmation for booking ${bookingId}`);
+              confirmedBooking = await tx.booking.update({
+                where: { id: bookingId },
+                data: {
+                  status: "CANCELLED",
+                  handoverStatus: "CONFLICT",
+                },
+                include: { user: true, vehicle: true },
+              });
+            } else {
+              confirmedBooking = await tx.booking.update({
+                where: { id: bookingId },
+                data: {
+                  status: "CONFIRMED",
+                },
+                include: { user: true, vehicle: true },
+              });
+            }
           });
-        } catch (bookingErr) {
-          console.warn("[PayU Booking Update Warn]", bookingErr);
-          confirmedBooking = await prisma.booking.findUnique({
-            where: { id: bookingId },
-            include: { user: true, vehicle: true },
-          });
+        } catch (txErr) {
+          console.error("[PayU Transaction Fail]", txErr);
+          try {
+            confirmedBooking = await prisma.booking.findUnique({
+              where: { id: bookingId },
+              include: { user: true, vehicle: true },
+            });
+          } catch {}
         }
       } else {
         // Runtime Store fallback
