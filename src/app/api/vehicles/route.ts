@@ -90,8 +90,28 @@ export async function GET(request: NextRequest) {
                 }
               : {}),
           },
-          include: {
-            city: true,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fuel: true,
+            transmission: true,
+            seats: true,
+            pricePerDayINR: true,
+            airportPickup: true,
+            city: {
+              select: {
+                name: true,
+              },
+            },
+            vendorId: true,
+            addonWaiverPrice: true,
+            addonRsaPrice: true,
+            addonHelmetPrice: true,
+            price1HrINR: true,
+            price3HrINR: true,
+            price6HrINR: true,
+            price12HrINR: true,
           },
           orderBy: {
             createdAt: "desc",
