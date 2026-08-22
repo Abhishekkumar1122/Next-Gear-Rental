@@ -50,6 +50,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Allow VENDOR and ADMIN to access shared dashboard pages (scan-booking, mobile-hub)
+    const isSharedDashboardPage =
+      pathname === "/dashboard/scan-booking" ||
+      pathname === "/dashboard/mobile-hub";
+    if (isSharedDashboardPage) {
+      if (role === "VENDOR" || role === "ADMIN") {
+        return NextResponse.next();
+      }
+    }
+
     const requiredRole = requiredRoleForPath(pathname);
     if (requiredRole !== role) {
       return NextResponse.redirect(new URL(dashboardForRole(role), request.url));
