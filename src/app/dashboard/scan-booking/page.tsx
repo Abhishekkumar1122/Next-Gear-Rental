@@ -179,7 +179,36 @@ function ScanBookingContent() {
     fetchDetails();
   }, [bookingId]);
 
-  const generateGeoTaggedImage = (imageSrc: string, slotName: string): Promise<string> => {
+  const getGPSCoordinates = (): Promise<{ lat: number; lng: number } | null> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined" || !navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        () => {
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
+  };
+
+  const generateGeoTaggedImage = async (imageSrc: string, slotName: string): Promise<string> => {
+    const coordsObj = await getGPSCoordinates().catch(() => null);
+    let coords = "28.5355° N, 77.3910° E"; // default fallback (Delhi/Noida)
+    if (coordsObj) {
+      const latStr = `${Math.abs(coordsObj.lat).toFixed(4)}° ${coordsObj.lat >= 0 ? "N" : "S"}`;
+      const lngStr = `${Math.abs(coordsObj.lng).toFixed(4)}° ${coordsObj.lng >= 0 ? "E" : "W"}`;
+      coords = `${latStr}, ${lngStr}`;
+    }
+
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
@@ -206,7 +235,6 @@ function ScanBookingContent() {
         const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
         const cityName = booking?.cityName || "Noida";
-        const coords = "28.5355° N, 77.3910° E";
 
         // Geo Banner Background
         const bannerH = Math.max(60, Math.floor(h * 0.22));
