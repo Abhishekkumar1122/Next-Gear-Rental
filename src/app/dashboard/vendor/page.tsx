@@ -11,7 +11,7 @@ export const revalidate = 120; // Cache dashboard for 2 minutes
 
 // Cache vendor financials to avoid repeated expensive database queries
 const getCachedVendorFinancials = unstable_cache(
-  async (ownerUserId: string, commissionRate: number) => {
+  async (vendorId: string, commissionRate: number) => {
     if (!process.env.DATABASE_URL) {
       return {
         totalBookings: 0,
@@ -29,9 +29,7 @@ const getCachedVendorFinancials = unstable_cache(
       prisma.booking.count({
         where: {
           vehicle: {
-            vendor: {
-              ownerUserId,
-            },
+            vendorId,
           },
         },
       }),
@@ -44,9 +42,7 @@ const getCachedVendorFinancials = unstable_cache(
           },
           booking: {
             vehicle: {
-              vendor: {
-                ownerUserId,
-              },
+              vendorId,
             },
           },
         },
@@ -57,9 +53,7 @@ const getCachedVendorFinancials = unstable_cache(
           status: "PAID",
           booking: {
             vehicle: {
-              vendor: {
-                ownerUserId,
-              },
+              vendorId,
             },
           },
         },
@@ -78,7 +72,7 @@ const getCachedVendorFinancials = unstable_cache(
       totalEarningsINR: Math.round(totalRevenueINR * payoutMultiplier),
     };
   },
-  ["vendor-financials", "ownerUserId", "commissionRate"],
+  ["vendor-financials", "vendorId", "commissionRate"],
   { revalidate: 90, tags: ["financials"] }
 );
 
@@ -144,9 +138,9 @@ export default async function VendorDashboardPage() {
       where: { id: sessionUser.id },
       select: { name: true },
     }),
-    getVendorHistory(sessionUser.id),
+    getVendorHistory(vendor.id),
     getVendorFleet(sessionUser),
-    getCachedVendorFinancials(sessionUser.id, commissionRate),
+    getCachedVendorFinancials(vendor.id, commissionRate),
     getCachedVendorBookings(vendor.id),
   ]);
 

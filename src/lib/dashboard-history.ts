@@ -68,16 +68,14 @@ export async function getCustomerHistory(userId: string) {
 }
 
 const getCachedVendorHistory = unstable_cache(
-  async (ownerUserId: string) => {
+  async (vendorId: string) => {
     if (!process.env.DATABASE_URL) return [];
 
     const payments = await prisma.payment.findMany({
       where: {
         booking: {
           vehicle: {
-            vendor: {
-              ownerUserId,
-            },
+            vendorId,
           },
         },
       },
@@ -100,8 +98,8 @@ const getCachedVendorHistory = unstable_cache(
   { revalidate: 60, tags: ["history"] }
 );
 
-export async function getVendorHistory(ownerUserId: string) {
-  return getCachedVendorHistory(ownerUserId);
+export async function getVendorHistory(vendorId: string) {
+  return getCachedVendorHistory(vendorId);
 }
 
 export async function getAdminHistory(filters?: AdminHistoryFilters) {
