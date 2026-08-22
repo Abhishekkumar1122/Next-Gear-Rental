@@ -1200,6 +1200,12 @@ function ScanBookingContent() {
               Verify image clarity and Geo-Tag stamp. Click <strong className="text-emerald-400">OK / Confirm</strong> to upload to server or <strong className="text-amber-400">Retry</strong> to retake photo.
             </p>
 
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] rounded-xl p-2.5 text-center font-semibold">
+                ⚠️ {error}
+              </div>
+            )}
+
             {/* Action Buttons: RETRY vs CONFIRM OK */}
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button
