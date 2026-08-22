@@ -44,8 +44,6 @@ export async function getAvailabilityMapForVehicles(vehicleIds: string[]) {
     return map;
   }
 
-  await ensureAvailabilityTable();
-
   const rows = await prisma.$queryRaw<AvailabilityRow[]>(Prisma.sql`
     SELECT vehicle_id, date
     FROM "VendorVehicleAvailability"

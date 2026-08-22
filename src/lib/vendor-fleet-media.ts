@@ -51,7 +51,6 @@ export async function getImageMapForVehicles(vehicleIds: string[]) {
     return map;
   }
 
-  await ensureMediaTable();
   console.log(`[Database Media] Querying images for ${vehicleIds.length} vehicles`);
   
   const rows = await prisma.$queryRaw<MediaRow[]>(Prisma.sql`

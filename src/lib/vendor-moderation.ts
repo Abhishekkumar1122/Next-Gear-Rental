@@ -86,8 +86,6 @@ export async function getVendorModerationDetails(vendorId: string, fallback: Ven
     };
   }
 
-  await ensureVendorModerationTable();
-
   const rows = await prisma.$queryRaw<ModerationRow[]>(Prisma.sql`
     SELECT vendor_id, status, reason, block_count, appeal_text
     FROM "VendorModerationStatus"

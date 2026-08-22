@@ -104,7 +104,6 @@ export async function getVendorPayouts(vendorId: string): Promise<VendorPayoutRe
     return payoutRecords.filter((r) => r.vendorId === vendorId || vendorId === "all");
   }
 
-  await ensurePayoutTable();
   try {
     const query = vendorId === "all"
       ? `SELECT * FROM "VendorPayout" ORDER BY "requestedAt" DESC`

@@ -38,7 +38,6 @@ export async function getVehicleNumberMap(vehicleIds: string[]) {
     return map;
   }
 
-  await ensureVehicleNumberTable();
   const rows = await prisma.$queryRaw<NumberRow[]>(Prisma.sql`
     SELECT vehicle_id, vehicle_number
     FROM "VendorVehicleNumber"
