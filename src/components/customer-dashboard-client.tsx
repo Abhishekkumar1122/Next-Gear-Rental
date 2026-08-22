@@ -113,6 +113,28 @@ export function CustomerDashboardClient({
   // Format Currency
   const formatCurrency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
+  // Poll bookings status every 4 seconds to sync status changes dynamically (e.g. checkout completion)
+  useEffect(() => {
+    if (!email) return;
+
+    let isMounted = true;
+    const pollInterval = setInterval(() => {
+      fetch(`/api/bookings?email=${encodeURIComponent(email)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (isMounted && data?.bookings) {
+            setBookings(data.bookings);
+          }
+        })
+        .catch((err) => console.error("Error polling bookings:", err));
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [email]);
+
   // Find latest active/confirmed booking for QR Code display
   const latestConfirmedBooking = useMemo(() => {
     return bookings.find((b) => b.status === "confirmed");
@@ -134,6 +156,13 @@ export function CustomerDashboardClient({
       setActiveQrIndex(0);
     }
   }, [isQrModalOpen]);
+
+  // Auto-close QR modal if there are no active/confirmed bookings left (e.g. checked out)
+  useEffect(() => {
+    if (isQrModalOpen && !currentBookingForQr) {
+      setIsQrModalOpen(false);
+    }
+  }, [currentBookingForQr, isQrModalOpen]);
 
   // Touch swiping state & event handlers for QR slider
   const [touchStart, setTouchStart] = useState<number | null>(null);
