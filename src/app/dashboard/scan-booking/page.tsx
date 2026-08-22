@@ -214,8 +214,24 @@ function ScanBookingContent() {
       img.crossOrigin = "anonymous";
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const w = img.width || 600;
-        const h = img.height || 450;
+        
+        // Scale down image to a max width of 1280px or max height of 960px to fit Vercel serverless request limits (keeps file size ~150KB)
+        const maxW = 1280;
+        const maxH = 960;
+        let w = img.width || 600;
+        let h = img.height || 450;
+
+        if (w > maxW) {
+          const ratio = maxW / w;
+          w = maxW;
+          h = Math.floor(h * ratio);
+        }
+        if (h > maxH) {
+          const ratio = maxH / h;
+          h = maxH;
+          w = Math.floor(w * ratio);
+        }
+
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext("2d");
@@ -260,7 +276,8 @@ function ScanBookingContent() {
         ctx.font = `bold ${Math.max(9, Math.floor(w * 0.022))}px sans-serif`;
         ctx.fillText(`🛡️ NEXT GEAR GEO-STAMP`, w - Math.max(150, Math.floor(w * 0.3)), h - Math.floor(bannerH * 0.25));
 
-        resolve(canvas.toDataURL("image/png"));
+        // Export as compressed JPEG to reduce payload sizes drastically
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
       };
       img.onerror = () => resolve(imageSrc);
       img.src = imageSrc;
