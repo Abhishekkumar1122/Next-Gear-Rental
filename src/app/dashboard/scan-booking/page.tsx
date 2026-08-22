@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { calculateBookingAmount, formatBookingId } from "@/lib/pricing-tiers";
@@ -30,6 +30,7 @@ type BookingDetails = {
 
 function ScanBookingContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const bookingId = searchParams.get("id");
   const source = searchParams.get("source");
 
@@ -312,37 +313,54 @@ function ScanBookingContent() {
   };
 
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoUploadStatuses, setPhotoUploadStatuses] = useState<Record<number, 'uploading' | 'done' | 'failed'>>({});
 
-  const handleConfirmPhotoSubmit = async () => {
+  const handleConfirmPhotoSubmit = () => {
     if (!pendingCapturedPhoto) return;
     const { slotIdx, slotName, geoTaggedUrl } = pendingCapturedPhoto;
 
-    setPhotoUploading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/bookings/handover/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: geoTaggedUrl })
-      });
-      const data = await res.json();
-      if (res.ok && data.imageUrl) {
+    // 1. Temporarily store local geotagged data URL in uploadedPhotos array instantly
+    setUploadedPhotos((prev) => {
+      const next = [...prev];
+      next[slotIdx] = geoTaggedUrl;
+      return next;
+    });
+
+    // 2. Set status to uploading for this specific index
+    setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'uploading' }));
+
+    // 3. Instantly close the modal so vendor can take the next photo
+    setPendingCapturedPhoto(null);
+    setPhotoSubmitToast(`📸 Photo ${slotIdx + 1}/5 (${slotName}) queued for background upload...`);
+    setTimeout(() => setPhotoSubmitToast(null), 3000);
+
+    // 4. Trigger concurrent background upload to Cloudinary
+    fetch("/api/bookings/handover/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: geoTaggedUrl })
+    })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.imageUrl) {
+        // Swap local data URL with secure Cloudinary URL
         setUploadedPhotos((prev) => {
           const next = [...prev];
           next[slotIdx] = data.imageUrl;
           return next;
         });
-        setPendingCapturedPhoto(null);
-        setPhotoSubmitToast(`🎉 Photo ${slotIdx + 1}/5 (${slotName}) Uploaded Successfully!`);
-        setTimeout(() => setPhotoSubmitToast(null), 4000);
+        setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'done' }));
+        setPhotoSubmitToast(`✅ Photo ${slotIdx + 1}/5 (${slotName}) uploaded successfully!`);
+        setTimeout(() => setPhotoSubmitToast(null), 3000);
       } else {
-        setError(data.error ?? "Failed to upload photo to Cloudinary.");
+        setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'failed' }));
+        setError(data.error ?? "Cloudinary upload failed.");
       }
-    } catch {
-      setError("Network error while uploading photo to Cloudinary.");
-    } finally {
-      setPhotoUploading(false);
-    }
+    })
+    .catch(() => {
+      setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'failed' }));
+      setError("Cloudinary background upload network error.");
+    });
   };
 
   const handleRetryPhotoCapture = () => {
@@ -396,7 +414,7 @@ function ScanBookingContent() {
 
           // Show success alert and redirect to Vendor Dashboard after 2 seconds
           setTimeout(() => {
-            window.location.href = "/dashboard/vendor";
+            router.push("/dashboard/vendor");
           }, 2000);
         } else {
           setError(data.error ?? `Failed to perform action: ${action}`);
@@ -1025,18 +1043,40 @@ function ScanBookingContent() {
                     return (
                       <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-white/20 bg-black/60 shadow-md">
                         <img src={url} alt={slotNames[idx]} className="w-full h-full object-cover" />
+                        
+                        {photoUploadStatuses[idx] === "uploading" && (
+                          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1 select-none z-10">
+                            <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-[7px] font-black text-amber-300 uppercase tracking-widest">Uploading</span>
+                          </div>
+                        )}
+
+                        {photoUploadStatuses[idx] === "failed" && (
+                          <div className="absolute inset-0 bg-red-950/80 flex flex-col items-center justify-center gap-0.5 select-none z-10">
+                            <span className="text-base">⚠️</span>
+                            <span className="text-[7px] font-black text-red-300 uppercase tracking-widest text-center px-1 leading-tight">Failed</span>
+                          </div>
+                        )}
+
                         <span className="absolute bottom-0.5 left-0.5 bg-black/85 text-[7px] font-black text-emerald-400 px-1 py-0.2 rounded border border-emerald-500/30 font-mono">
                           📍 GEO
                         </span>
                         <button
                           type="button"
-                          onClick={() => setUploadedPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-0.5 right-0.5 bg-black/80 hover:bg-black text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold cursor-pointer border border-white/20"
+                          onClick={() => {
+                            setUploadedPhotos((prev) => prev.filter((_, i) => i !== idx));
+                            setPhotoUploadStatuses((prev) => {
+                              const next = { ...prev };
+                              delete next[idx];
+                              return next;
+                            });
+                          }}
+                          className="absolute top-0.5 right-0.5 bg-black/80 hover:bg-black text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold cursor-pointer border border-white/20 z-20"
                           title="Remove Photo"
                         >
                           ×
                         </button>
-                        <span className="absolute top-0.5 left-0.5 bg-black/75 text-[7px] font-bold text-white/80 px-1 rounded">
+                        <span className="absolute top-0.5 left-0.5 bg-black/75 text-[7px] font-bold text-white/80 px-1 rounded z-20">
                           {idx + 1}. {slotNames[idx]}
                         </span>
                       </div>
@@ -1056,7 +1096,32 @@ function ScanBookingContent() {
 
             {/* Inspection Checklist */}
             <div className="space-y-3 pt-4 border-t border-white/10">
-              <label className="text-white/70 block font-extrabold text-xs">Inspection Verification Checklist</label>
+              <div className="flex items-center justify-between">
+                <label className="text-white/70 block font-extrabold text-xs">Inspection Verification Checklist</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const items = booking.handoverStatus === "PENDING" ? [
+                      "helmet",
+                      "brakes",
+                      "engine",
+                      "body",
+                      "documents",
+                      "key",
+                      ...(balanceDue > 0 ? ["collectedPending"] : [])
+                    ] : ["helmet", "damage", "key", "cleanliness"];
+                    
+                    const nextChecklist: Record<string, boolean> = {};
+                    items.forEach((it) => {
+                      nextChecklist[it] = true;
+                    });
+                    setChecklist(nextChecklist);
+                  }}
+                  className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black rounded-lg transition active:scale-95 cursor-pointer uppercase tracking-wider"
+                >
+                  ⚡ Quick Verify All
+                </button>
+              </div>
               <div className="space-y-2">
                 {(booking.handoverStatus === "PENDING" ? [
                   { id: "helmet", label: "🪖 Safety Helmet Provided to Rider" },
@@ -1124,11 +1189,21 @@ function ScanBookingContent() {
                 <button
                   type="button"
                   onClick={() => handleHandoverAction("release")}
-                  disabled={actionLoading || requiresPayment || !isChecklistComplete || uploadedPhotos.length < 5}
+                  disabled={
+                    actionLoading ||
+                    requiresPayment ||
+                    !isChecklistComplete ||
+                    uploadedPhotos.length < 5 ||
+                    Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
+                  }
                   className="w-full py-4 bg-gradient-to-r from-emerald-600 to-green-600 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-sm text-white transition shadow-lg cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
                 >
                   {actionLoading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
+                    <>⏳ Photos uploading in background...</>
+                  ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (
+                    <>⚠️ Photo upload failed (Retake failed photos)</>
                   ) : uploadedPhotos.length < 5 ? (
                     <>📷 Take All 5 Mandatory Photos to Handover ({uploadedPhotos.length}/5)</>
                   ) : !isChecklistComplete ? (
@@ -1166,11 +1241,20 @@ function ScanBookingContent() {
                   <button
                     type="button"
                     onClick={() => handleHandoverAction("return")}
-                    disabled={actionLoading || !isChecklistComplete || uploadedPhotos.length < 5}
+                    disabled={
+                      actionLoading ||
+                      !isChecklistComplete ||
+                      uploadedPhotos.length < 5 ||
+                      Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
+                    }
                     className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-sm text-white transition shadow-lg cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
                   >
                     {actionLoading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
+                      <>⏳ Photos uploading in background...</>
+                    ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (
+                      <>⚠️ Photo upload failed (Retake failed photos)</>
                     ) : uploadedPhotos.length < 5 ? (
                       <>📷 Take All 5 Mandatory Photos to Return ({uploadedPhotos.length}/5)</>
                     ) : !isChecklistComplete ? (
