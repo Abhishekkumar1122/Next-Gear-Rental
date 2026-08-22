@@ -96,74 +96,72 @@ export function BookingHandoverVerifier() {
       // 2. Set scanning UI active
       setIsScanning(true);
 
-      // 3. Bind stream to video element once it renders
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute("playsinline", "true");
-          videoRef.current.muted = true;
-          videoRef.current.play().catch((playErr) => {
-            console.error("Video play failed:", playErr);
+      // 3. Bind stream to video element synchronously (no setTimeout!)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.muted = true;
+        videoRef.current.play().catch((playErr) => {
+          console.error("Video play failed:", playErr);
+        });
+      }
+
+      // Start scanning loop using jsQR
+      const scanFrame = () => {
+        if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
           });
-        }
 
-        // Start scanning loop using jsQR
-        const scanFrame = () => {
-          if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+          if (code && code.data) {
+            audioSynth.playSuccess();
+            stopScanner();
+            const decodedText = code.data;
+            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
 
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
-          const context = canvas.getContext("2d");
-
-          if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: "dontInvert",
-            });
-
-            if (code && code.data) {
-              audioSynth.playSuccess();
-              stopScanner();
-              const decodedText = code.data;
-              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-
-              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
-                targetUrl = "/dashboard/mobile-hub";
-              } else if (decodedText.includes("/dashboard/scan-booking")) {
-                try {
-                  const url = new URL(decodedText);
-                  url.searchParams.set("source", "qr");
-                  targetUrl = url.pathname + url.search;
-                } catch {
-                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-                }
+            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor")) {
+              targetUrl = "/dashboard/mobile-hub";
+            } else if (decodedText.includes("/dashboard/scan-booking")) {
+              try {
+                const url = new URL(decodedText);
+                url.searchParams.set("source", "qr");
+                targetUrl = url.pathname + url.search;
+              } catch {
+                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
               }
-              window.location.href = targetUrl;
-              return;
             }
-          }
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
-        };
-
-        animationFrameRef.current = requestAnimationFrame(scanFrame);
-
-        // Check if torch/flashlight is supported
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          try {
-            const capabilities = videoTrack.getCapabilities() as any;
-            if (capabilities && capabilities.torch) {
-              setTorchSupported(true);
-            }
-          } catch (capErr) {
-            console.warn("Could not read capabilities:", capErr);
+            window.location.href = targetUrl;
+            return;
           }
         }
-      }, 150);
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(scanFrame);
+
+      // Check if torch/flashlight is supported
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        try {
+          const capabilities = videoTrack.getCapabilities() as any;
+          if (capabilities && capabilities.torch) {
+            setTorchSupported(true);
+          }
+        } catch (capErr) {
+          console.warn("Could not read capabilities:", capErr);
+        }
+      }
 
     } catch (err: any) {
       console.error("Camera start error:", err);
@@ -260,24 +258,21 @@ export function BookingHandoverVerifier() {
         </p>
       </div>
 
-      {isScanning ? (
-        <div className="mt-4 space-y-3">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-1">
-            <div className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center">
-              
-              {/* Direct HTML5 Video Feed */}
-              {!error && (
-                <video
-                  ref={videoRef}
-                  playsInline
-                  muted
-                  autoPlay
-                  className="w-full h-full object-cover rounded-xl"
-                />
-              )}
+      <div className={`mt-4 space-y-3 ${isScanning ? "block" : "hidden"}`}>
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black p-1">
+          <div className="w-full h-56 bg-slate-900 rounded-xl overflow-hidden relative flex items-center justify-center">
+            
+            {/* Direct HTML5 Video Feed */}
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              className={`w-full h-full object-cover rounded-xl ${!error ? "block" : "hidden"}`}
+            />
 
-              {/* Hidden canvas for image analysis */}
-              <canvas ref={canvasRef} className="hidden" />
+            {/* Hidden canvas for image analysis */}
+            <canvas ref={canvasRef} className="hidden" />
 
               {error === "INTERACTION_REQUIRED" && (
                 <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-30 space-y-2.5">
@@ -391,8 +386,8 @@ export function BookingHandoverVerifier() {
             Cancel Scanning
           </button>
         </div>
-      ) : (
-        <div className="mt-4 space-y-4">
+
+      <div className={`mt-4 space-y-4 ${!isScanning ? "block" : "hidden"}`}>
           {/* Manual Form */}
           <form onSubmit={handleVerify} className="space-y-2.5">
             <input
@@ -429,7 +424,6 @@ export function BookingHandoverVerifier() {
             <span>Scan QR via Camera / Webcam</span>
           </button>
         </div>
-      )}
 
       {error && error !== "PERMISSION_DENIED" && error !== "INTERACTION_REQUIRED" && (
         <p className="text-xs text-red-400 font-semibold mt-2 text-center">{error}</p>

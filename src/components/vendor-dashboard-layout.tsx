@@ -285,77 +285,75 @@ export function VendorDashboardLayout({
       // 2. Open scan modal
       setIsScanModalOpen(true);
 
-      // 3. Bind stream to video element
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute("playsinline", "true");
-          videoRef.current.muted = true;
-          videoRef.current.play().catch((playErr) => {
-            console.error("Layout video play failed:", playErr);
+      // 3. Bind stream to video element synchronously (no setTimeout!)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.muted = true;
+        videoRef.current.play().catch((playErr) => {
+          console.error("Layout video play failed:", playErr);
+        });
+      }
+
+      // Start scanning loop using jsQR
+      const scanFrame = () => {
+        if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
           });
-        }
 
-        // Start scanning loop using jsQR
-        const scanFrame = () => {
-          if (!streamRef.current || !videoRef.current || !canvasRef.current) return;
+          if (code && code.data) {
+            audioSynth.playSuccess();
+            stopScanner();
 
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
-          const context = canvas.getContext("2d");
+            const decodedText = code.data;
+            let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
 
-          if (video.readyState === video.HAVE_ENOUGH_DATA && context) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: "dontInvert",
-            });
-
-            if (code && code.data) {
-              audioSynth.playSuccess();
-              stopScanner();
-
-              const decodedText = code.data;
-              let targetUrl = `/dashboard/scan-booking?id=${encodeURIComponent(decodedText)}&source=qr`;
-
-              if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
-                targetUrl = "/dashboard/mobile-hub";
-              } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
-                targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
-              } else if (decodedText.includes("/dashboard/scan-booking")) {
-                try {
-                  const url = new URL(decodedText);
-                  url.searchParams.set("source", "qr");
-                  targetUrl = url.pathname + url.search;
-                } catch {
-                  targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
-                }
+            if (decodedText.includes("mobile-hub") || decodedText.includes("/dashboard/vendor") || decodedText.includes("FLEET") || decodedText.includes("INVENTORY")) {
+              targetUrl = "/dashboard/mobile-hub";
+            } else if (decodedText.includes("VEHICLE_") || decodedText.includes("/vehicles/")) {
+              targetUrl = `/dashboard/mobile-hub?highlight=${encodeURIComponent(decodedText)}`;
+            } else if (decodedText.includes("/dashboard/scan-booking")) {
+              try {
+                const url = new URL(decodedText);
+                url.searchParams.set("source", "qr");
+                targetUrl = url.pathname + url.search;
+              } catch {
+                targetUrl = decodedText.includes("?") ? `${decodedText}&source=qr` : `${decodedText}?source=qr`;
               }
-              window.location.href = targetUrl;
-              return;
             }
-          }
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
-        };
-
-        animationFrameRef.current = requestAnimationFrame(scanFrame);
-
-        // Check if torch/flashlight is supported
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          try {
-            const capabilities = videoTrack.getCapabilities() as any;
-            if (capabilities && capabilities.torch) {
-              setTorchSupported(true);
-            }
-          } catch (capErr) {
-            console.warn("Could not read capabilities:", capErr);
+            window.location.href = targetUrl;
+            return;
           }
         }
-      }, 150);
+        animationFrameRef.current = requestAnimationFrame(scanFrame);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(scanFrame);
+
+      // Check if torch/flashlight is supported
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        try {
+          const capabilities = videoTrack.getCapabilities() as any;
+          if (capabilities && capabilities.torch) {
+            setTorchSupported(true);
+          }
+        } catch (capErr) {
+          console.warn("Could not read capabilities:", capErr);
+        }
+      }
 
     } catch (err: any) {
       console.error("Layout camera start error:", err);
@@ -682,10 +680,9 @@ export function VendorDashboardLayout({
       </main>
 
       {/* Built-in Webcam QR Scanner Modal */}
-      {isScanModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[var(--brand-ink)] p-6 shadow-2xl space-y-4 text-white">
-            <div className="flex items-center justify-between">
+      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 ${isScanModalOpen ? "block" : "hidden"}`}>
+        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[var(--brand-ink)] p-6 shadow-2xl space-y-4 text-white">
+          <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wider">Scan Customer QR</h3>
               <button onClick={stopScanner} className="text-slate-400 hover:text-white transition cursor-pointer" aria-label="Close">
                 <X className="w-4 h-4" />
@@ -849,7 +846,6 @@ export function VendorDashboardLayout({
             </button>
           </div>
         </div>
-      )}
 
       {/* Withdraw Modal */}
       {isWithdrawModalOpen && (
