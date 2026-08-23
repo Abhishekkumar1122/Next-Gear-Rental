@@ -1,7 +1,7 @@
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ContactContainerInteractive } from "@/components/contact-container-interactive";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import { Headphones, ShieldCheck, MapPin, Zap, MessageSquare } from "lucide-react";
 
 export default async function ContactPage() {

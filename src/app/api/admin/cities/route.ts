@@ -4,6 +4,7 @@ import { INDIA_STATES, formatCityWithState, splitCityAndState, cityConfigs } fro
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 
 const cityPayloadSchema = z.object({
   cityName: z.string().min(2).max(80),
@@ -82,6 +83,12 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, airportName: true },
     });
+
+    try {
+      revalidateTag("cities-list", "default");
+    } catch (e) {
+      // safe catch if called outside of Server Action/Route Context
+    }
 
     const normalized = splitCityAndState(saved.name);
     return NextResponse.json({

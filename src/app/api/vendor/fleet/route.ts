@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { Vehicle } from "@/lib/types";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,11 @@ export async function POST(request: Request) {
         data: { name: payload.city.trim(), isActive: true },
         select: { id: true, name: true },
       });
+      try {
+        revalidateTag("cities-list", "default");
+      } catch (e) {
+        // catch outside of Next.js serverless execution context
+      }
     }
 
     const created = await prisma.vehicle.create({

@@ -2,7 +2,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { VendorApplicationStatusPanel } from "@/components/vendor-application-status-panel";
 import { VendorRegistrationForm } from "@/components/vendor-registration-form";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";

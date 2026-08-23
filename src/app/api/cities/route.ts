@@ -1,6 +1,7 @@
 import { splitCityAndState } from "@/lib/india-locations";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 
 type CoverageCity = {
   name: string;
@@ -34,16 +35,27 @@ function toCoverageCity(params: {
   return city;
 }
 
-export async function GET() {
-  const dbCities = await prisma.city.findMany({
-    where: { isActive: true },
-    include: {
-      vehicles: {
-        select: { type: true },
+const fetchActiveCitiesFromDb = unstable_cache(
+  async () => {
+    return prisma.city.findMany({
+      where: { isActive: true },
+      include: {
+        vehicles: {
+          select: { type: true },
+        },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    });
+  },
+  ["cities-list-key"],
+  {
+    tags: ["cities-list"],
+    revalidate: 600, // 10 minutes cache TTL
+  }
+);
+
+export async function GET() {
+  const dbCities = await fetchActiveCitiesFromDb();
 
   const cities: CoverageCity[] = dbCities.map((city) => {
     const base = toCoverageCity({

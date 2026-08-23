@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 
 export const dynamic = "force-dynamic";
 

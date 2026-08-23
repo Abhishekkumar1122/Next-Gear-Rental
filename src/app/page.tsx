@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
 import { getEffectiveDailyPrice } from "@/lib/pricing";
 import { getTrendingRideMap } from "@/lib/trending-rides";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";

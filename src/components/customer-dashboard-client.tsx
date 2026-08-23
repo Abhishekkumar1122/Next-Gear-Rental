@@ -113,12 +113,14 @@ export function CustomerDashboardClient({
   // Format Currency
   const formatCurrency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
-  // Poll bookings status every 4 seconds to sync status changes dynamically (e.g. checkout completion)
+  // Poll bookings status every 10 seconds with smart browser visibility change listener
   useEffect(() => {
     if (!email) return;
 
+    let intervalId: NodeJS.Timeout | null = null;
     let isMounted = true;
-    const pollInterval = setInterval(() => {
+
+    const fetchUpdatedBookings = () => {
       fetch(`/api/bookings?email=${encodeURIComponent(email)}`)
         .then((res) => res.json())
         .then((data) => {
@@ -127,11 +129,41 @@ export function CustomerDashboardClient({
           }
         })
         .catch((err) => console.error("Error polling bookings:", err));
-    }, 4000);
+    };
+
+    const startPolling = () => {
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(fetchUpdatedBookings, 10000);
+    };
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchUpdatedBookings(); // Immediate refresh trigger
+        startPolling();         // Resume 10s interval
+      } else {
+        stopPolling();          // Stop database queries when tab is in background
+      }
+    };
+
+    // Initial activation
+    if (document.visibilityState === "visible") {
+      fetchUpdatedBookings();
+      startPolling();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       isMounted = false;
-      clearInterval(pollInterval);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [email]);
 

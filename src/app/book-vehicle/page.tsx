@@ -1,7 +1,7 @@
 import { BookingExperience } from "@/components/booking-experience";
 import { PageShell } from "@/components/page-shell";
 import { getServerSessionUser } from "@/lib/server-session";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 

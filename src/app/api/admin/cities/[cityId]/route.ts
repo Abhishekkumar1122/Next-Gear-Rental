@@ -4,6 +4,7 @@ import { formatCityWithState, splitCityAndState } from "@/lib/india-locations";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 
 const updateCitySchema = z.object({
   cityName: z.string().min(2).max(80),
@@ -45,6 +46,12 @@ export async function PATCH(request: Request, { params }: Props) {
     select: { id: true, name: true, airportName: true },
   });
 
+  try {
+    revalidateTag("cities-list", "default");
+  } catch (e) {
+    // catch outside of Next.js serverless execution container
+  }
+
   const normalized = splitCityAndState(updated.name);
   return NextResponse.json({
     message: "City updated",
@@ -77,5 +84,10 @@ export async function DELETE(request: Request, { params }: Props) {
   }
 
   await prisma.city.delete({ where: { id: cityId } });
+  try {
+    revalidateTag("cities-list", "default");
+  } catch (e) {
+    // catch outside of Next.js serverless execution container
+  }
   return NextResponse.json({ message: "City deleted", cityId });
 }

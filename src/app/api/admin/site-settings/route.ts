@@ -1,5 +1,5 @@
 import { assertAdminMutationRequest, assertAdminSession } from "@/lib/admin-security";
-import { getSiteSettings, updateSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings, updateSiteSettings } from "@/lib/site-settings-server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 

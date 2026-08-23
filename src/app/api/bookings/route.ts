@@ -7,7 +7,7 @@ import { resolveVehicleAvailability } from "@/lib/vehicle-availability";
 import { getEffectiveDailyPrice } from "@/lib/pricing";
 import { computePromotionBreakdown, getBookingPromotionsByBookingIds, saveBookingPromotion } from "@/lib/promotions";
 import { sendBookingAlert, upsertBookingAlertProfile } from "@/lib/booking-alerts";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import { calculateBookingAmount } from "@/lib/pricing-tiers";
 import { getServerSessionUser } from "@/lib/server-session";
 import { sendWhatsAppBookingReceipt } from "@/lib/whatsapp-service";

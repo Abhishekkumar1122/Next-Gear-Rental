@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { bookingsStore } from "@/lib/store";
-import { getSiteSettings } from "@/lib/site-settings";
+import { getSiteSettings } from "@/lib/site-settings-server";
 import { getVehicleAvailabilityOverrides } from "@/lib/vehicle-availability-db";
 import { adminVehicleStatusStore, resolveVehicleAvailability } from "@/lib/vehicle-availability";
 import { getImageMapForVehicles } from "@/lib/vendor-fleet-media";
@@ -54,6 +54,10 @@ export async function GET(request: NextRequest) {
   const fuel = searchParams.get("fuel");
   const transmission = searchParams.get("transmission");
   const maxPrice = Number(searchParams.get("maxPrice") ?? 0);
+  
+  // Parse cursor pagination parameters (Default limit 12)
+  const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? 12)));
+  const cursor = searchParams.get("cursor")?.trim();
 
   if (process.env.DATABASE_URL) {
     try {
@@ -113,9 +117,15 @@ export async function GET(request: NextRequest) {
             price6HrINR: true,
             price12HrINR: true,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          // Limit results to limit + 1 to check if a next page exists
+          take: limit + 1,
+          skip: cursor ? 1 : 0,
+          cursor: cursor ? { id: cursor } : undefined,
+          // Deterministic sorting with id tie-breaker to prevent pagination gaps
+          orderBy: [
+            { createdAt: "desc" },
+            { id: "desc" },
+          ],
         }),
         prisma.city.findMany({
           where: { isActive: true },
@@ -123,6 +133,10 @@ export async function GET(request: NextRequest) {
           orderBy: { name: "asc" },
         }),
       ]);
+
+      const hasMore = dbVehicles.length > limit;
+      const pageVehicles = hasMore ? dbVehicles.slice(0, limit) : dbVehicles;
+      const nextCursor = hasMore ? pageVehicles[pageVehicles.length - 1]?.id : null;
 
       const activeVehicleIds = new Set(activeBookings.map((item) => item.vehicleId));
       const bookedUntilMap = new Map<string, string>();
@@ -132,7 +146,7 @@ export async function GET(request: NextRequest) {
         if (!existing || nextEnd > existing) bookedUntilMap.set(item.vehicleId, nextEnd);
       }
 
-      const vehicleIds = dbVehicles.map((v) => v.id);
+      const vehicleIds = pageVehicles.map((v) => v.id);
 
       // ⚡ Phase 2: Fetch media maps and site settings in parallel
       const [imageMap, vehicleNumberMap, appSiteSettings] = await Promise.all([
@@ -141,94 +155,93 @@ export async function GET(request: NextRequest) {
         getSiteSettings(),
       ]);
 
-    const mappedVehicles = dbVehicles
-      .map((vehicle) => {
-      const isTestRide = vehicle.pricePerDayINR <= 1 || vehicle.title.toLowerCase().includes("test");
-      const status = isTestRide
-        ? "available"
-        : resolveVehicleAvailability({
-            vehicleId: vehicle.id,
-            hasActiveBooking: activeVehicleIds.has(vehicle.id),
-            override: overrides.get(vehicle.id),
-          });
+      const mappedVehicles = pageVehicles.map((vehicle) => {
+        const isTestRide = vehicle.pricePerDayINR <= 1 || vehicle.title.toLowerCase().includes("test");
+        const status = isTestRide
+          ? "available"
+          : resolveVehicleAvailability({
+              vehicleId: vehicle.id,
+              hasActiveBooking: activeVehicleIds.has(vehicle.id),
+              override: overrides.get(vehicle.id),
+            });
 
-      const dates = futureDates();
-      const slots = defaultHourlySlots();
-      const override = overrides.get(vehicle.id);
-      const statusMessage =
-        status === "booked"
-          ? `Booked until ${bookedUntilMap.get(vehicle.id) ?? "upcoming date"}`
-          : status === "maintenance"
-          ? override?.note || "Under maintenance"
-          : status === "crashed"
-          ? override?.note || "Temporarily unavailable due to incident"
-          : status === "unavailable"
-          ? override?.note || "Currently unavailable"
-          : "Available now";
+        const dates = futureDates();
+        const slots = defaultHourlySlots();
+        const override = overrides.get(vehicle.id);
+        const statusMessage =
+          status === "booked"
+            ? `Booked until ${bookedUntilMap.get(vehicle.id) ?? "upcoming date"}`
+            : status === "maintenance"
+            ? override?.note || "Under maintenance"
+            : status === "crashed"
+            ? override?.note || "Temporarily unavailable due to incident"
+            : status === "unavailable"
+            ? override?.note || "Currently unavailable"
+            : "Available now";
 
-      const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
-      if (maxPrice > 0 && effectivePrice > maxPrice) return null;
+        const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
+        if (maxPrice > 0 && effectivePrice > maxPrice) return null;
 
-      return {
-        id: vehicle.id,
-        title: vehicle.title,
-        city: vehicle.city.name,
-        type: vehicle.type as Vehicle["type"],
-        fuel: vehicle.fuel as Vehicle["fuel"],
-        transmission: vehicle.transmission as Vehicle["transmission"],
-        seats: vehicle.seats,
-        pricePerDayINR: effectivePrice,
-        availableDates: dates,
-        availabilitySlots: dates.map((date) => ({ date, slots })),
-        vendorId: vehicle.vendorId ?? undefined,
-        airportPickup: vehicle.airportPickup,
-        availabilityStatus: status,
-        availabilityMessage: statusMessage,
-        bookedUntil: bookedUntilMap.get(vehicle.id),
-        adminNote: override?.note,
-        addonWaiverPrice: vehicle.addonWaiverPrice,
-        addonRsaPrice: vehicle.addonRsaPrice,
-        addonHelmetPrice: vehicle.addonHelmetPrice,
-        price1HrINR: vehicle.price1HrINR,
-        price3HrINR: vehicle.price3HrINR,
-        price6HrINR: vehicle.price6HrINR,
-        price12HrINR: vehicle.price12HrINR,
-        imageUrls: imageMap.get(vehicle.id) ?? [],
-        vehicleNumber: vehicleNumberMap.get(vehicle.id),
-      };
-    }).filter((item) => item !== null) as Vehicle[];
+        return {
+          id: vehicle.id,
+          title: vehicle.title,
+          city: vehicle.city.name,
+          type: vehicle.type as Vehicle["type"],
+          fuel: vehicle.fuel as Vehicle["fuel"],
+          transmission: vehicle.transmission as Vehicle["transmission"],
+          seats: vehicle.seats,
+          pricePerDayINR: effectivePrice,
+          availableDates: dates,
+          availabilitySlots: dates.map((date) => ({ date, slots })),
+          vendorId: vehicle.vendorId ?? undefined,
+          airportPickup: vehicle.airportPickup,
+          availabilityStatus: status,
+          availabilityMessage: statusMessage,
+          bookedUntil: bookedUntilMap.get(vehicle.id),
+          adminNote: override?.note,
+          addonWaiverPrice: vehicle.addonWaiverPrice,
+          addonRsaPrice: vehicle.addonRsaPrice,
+          addonHelmetPrice: vehicle.addonHelmetPrice,
+          price1HrINR: vehicle.price1HrINR,
+          price3HrINR: vehicle.price3HrINR,
+          price6HrINR: vehicle.price6HrINR,
+          price12HrINR: vehicle.price12HrINR,
+          imageUrls: imageMap.get(vehicle.id) ?? [],
+          vehicleNumber: vehicleNumberMap.get(vehicle.id),
+        };
+      }).filter((item) => item !== null) as Vehicle[];
 
-    const cityOptions = Array.from(
-      new Set([
-        ...dbCities.map((city) => city.name),
-        ...dbVehicles.map((vehicle) => vehicle.city.name),
-      ])
-    ).sort((a, b) => a.localeCompare(b));
+      const cityOptions = Array.from(
+        new Set([
+          ...dbCities.map((city) => city.name),
+          ...pageVehicles.map((vehicle) => vehicle.city.name),
+        ])
+      ).sort((a, b) => a.localeCompare(b));
 
-    // Check if shuffling available listings is active from pre-fetched settings
-    const shouldShuffle = appSiteSettings.shuffleAvailableListings === "true";
+      // Check if shuffling available listings is active from pre-fetched settings
+      const shouldShuffle = appSiteSettings.shuffleAvailableListings === "true";
 
-    // Split results into active available listings and booked/unavailable listings
-    const availableItems = mappedVehicles.filter((v) => (v.availabilityStatus ?? "available") === "available");
-    const unavailableItems = mappedVehicles.filter((v) => (v.availabilityStatus ?? "available") !== "available");
+      // Split results into active available listings and booked/unavailable listings
+      const availableItems = mappedVehicles.filter((v) => (v.availabilityStatus ?? "available") === "available");
+      const unavailableItems = mappedVehicles.filter((v) => (v.availabilityStatus ?? "available") !== "available");
 
-    // Perform rotational shuffle on available items to prevent vendor bias
-    if (shouldShuffle) {
-      for (let i = availableItems.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        const temp = availableItems[i];
-        availableItems[i] = availableItems[j];
-        availableItems[j] = temp;
+      // Perform rotational shuffle on available items to prevent vendor bias
+      if (shouldShuffle) {
+        for (let i = availableItems.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const temp = availableItems[i];
+          availableItems[i] = availableItems[j];
+          availableItems[j] = temp;
+        }
       }
-    }
 
-    // Combine (Available first, booked/waitlist items go to the bottom)
-    const sortedAndShuffled = [...availableItems, ...unavailableItems];
+      // Combine (Available first, booked/waitlist items go to the bottom)
+      const sortedAndShuffled = [...availableItems, ...unavailableItems];
 
-    return NextResponse.json(
-      { vehicles: sortedAndShuffled, cities: cityOptions },
-      { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=59" } },
-    );
+      return NextResponse.json(
+        { vehicles: sortedAndShuffled, cities: cityOptions, nextCursor },
+        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=59" } },
+      );
     } catch (dbError) {
       console.warn("Prisma vehicles query fallback to runtime store:", dbError);
     }
