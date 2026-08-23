@@ -177,6 +177,39 @@ function generateApplicationId(businessName: string, phone: string): string {
   return `${namePart}${phonePart}`;
 }
 
+async function generateUniqueApplicationId(businessName: string, phone: string): Promise<string> {
+  const baseId = generateApplicationId(businessName, phone);
+  
+  if (!process.env.DATABASE_URL) {
+    const exists = runtimeVendorApplications.some((a) => a.id === baseId);
+    if (!exists) return baseId;
+    return `${baseId}-${Math.floor(10 + Math.random() * 90)}`;
+  }
+
+  await ensureTable();
+  const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM "VendorApplication" WHERE id = $1`,
+    baseId
+  );
+
+  if (!existing || existing.length === 0) {
+    return baseId;
+  }
+
+  for (let i = 2; i <= 99; i++) {
+    const candidate = `${baseId}-${i}`;
+    const check = await prisma.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM "VendorApplication" WHERE id = $1`,
+      candidate
+    );
+    if (!check || check.length === 0) {
+      return candidate;
+    }
+  }
+
+  return `${baseId}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+}
+
 function buildTempPassword() {
   const random = Math.random().toString(36).slice(-5).toUpperCase();
   return `Vnd@${new Date().getFullYear()}${random}`;
@@ -192,7 +225,7 @@ function isChecklistComplete(checklist: VendorKycChecklist) {
 }
 
 export async function createVendorApplication(input: VendorApplicationCreateInput): Promise<VendorApplication> {
-  const id = generateApplicationId(input.businessName, input.phone);
+  const id = await generateUniqueApplicationId(input.businessName, input.phone);
 
   if (!process.env.DATABASE_URL) {
     const now = new Date().toISOString();
