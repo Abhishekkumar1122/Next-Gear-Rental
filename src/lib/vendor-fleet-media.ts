@@ -51,21 +51,22 @@ export async function getImageMapForVehicles(vehicleIds: string[]) {
     return map;
   }
 
-  console.log(`[Database Media] Querying images for ${vehicleIds.length} vehicles`);
-  
-  const rows = await prisma.$queryRaw<MediaRow[]>(Prisma.sql`
-    SELECT vehicle_id, image_url
-    FROM "VendorVehicleMedia"
-    WHERE vehicle_id IN (${Prisma.join(vehicleIds)})
-    ORDER BY sort_order ASC, created_at ASC
-  `);
+  try {
+    await ensureMediaTable();
+    const rows = await prisma.$queryRaw<MediaRow[]>(Prisma.sql`
+      SELECT vehicle_id, image_url
+      FROM "VendorVehicleMedia"
+      WHERE vehicle_id IN (${Prisma.join(vehicleIds)})
+      ORDER BY sort_order ASC, created_at ASC
+    `);
 
-  console.log(`[Database Media] Retrieved ${rows.length} image rows from database`);
-
-  for (const row of rows) {
-    const list = map.get(row.vehicle_id) ?? [];
-    list.push(row.image_url);
-    map.set(row.vehicle_id, list);
+    for (const row of rows) {
+      const existing = map.get(row.vehicle_id) ?? [];
+      existing.push(row.image_url);
+      map.set(row.vehicle_id, existing);
+    }
+  } catch (err) {
+    console.warn("[Database Media] Warning querying images:", err);
   }
 
   return map;

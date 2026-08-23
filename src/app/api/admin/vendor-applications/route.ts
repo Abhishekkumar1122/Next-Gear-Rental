@@ -70,7 +70,16 @@ export async function PATCH(request: Request) {
 
   const payload = await request.json().catch(() => ({}));
   if (payload && payload.id && !payload.action) {
-    payload.action = "generate-credentials";
+    if (payload.kycChecklist || payload.checklist) {
+      payload.action = "update-kyc-checklist";
+      if (payload.kycChecklist && !payload.checklist) {
+        payload.checklist = payload.kycChecklist;
+      }
+    } else {
+      payload.action = "update";
+    }
+  } else if (payload && payload.kycChecklist && !payload.checklist) {
+    payload.checklist = payload.kycChecklist;
   }
 
   const parsed = updateSchema.safeParse(payload);

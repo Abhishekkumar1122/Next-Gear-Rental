@@ -1,9 +1,9 @@
 import { SiteHeader } from "@/components/site-header";
 import { getServerSessionUser } from "@/lib/server-session";
 import { prisma } from "@/lib/prisma";
+import { getUserModerationDetails } from "@/lib/user-moderation";
 import { redirect } from "next/navigation";
 import { CustomerDashboardClient } from "@/components/customer-dashboard-client";
-import { unstable_cache } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function CustomerDashboardPage() {
   const user = await getServerSessionUser();
   if (!user) redirect("/login?next=%2Fdashboard%2Fcustomer");
 
-  const [dbUser, bookings] = await Promise.all([
+  const [dbUser, bookings, moderation] = await Promise.all([
     process.env.DATABASE_URL
       ? prisma.user.findUnique({
           where: { id: user.id },
@@ -60,6 +60,7 @@ export default async function CustomerDashboardPage() {
         })
       : Promise.resolve(null),
     fetchUserBookingsDirect(user.id, user.email),
+    getUserModerationDetails(user.id, "approved"),
   ]);
 
   return (
@@ -68,6 +69,9 @@ export default async function CustomerDashboardPage() {
       email={user.email} 
       name={dbUser?.name || user.email.split("@")[0]} 
       initialBookings={bookings}
+      isBlocked={moderation.status === "blacklisted"}
+      blockReason={moderation.reason}
+      blockCustomMessage={moderation.customMessage}
     />
   );
 }

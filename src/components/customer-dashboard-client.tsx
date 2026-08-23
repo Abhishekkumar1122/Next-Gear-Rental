@@ -58,13 +58,19 @@ type CustomerDashboardClientProps = {
   email: string;
   name: string;
   initialBookings?: Booking[];
+  isBlocked?: boolean;
+  blockReason?: string;
+  blockCustomMessage?: string;
 };
 
 export function CustomerDashboardClient({
   userId,
   email,
   name,
-  initialBookings = []
+  initialBookings = [],
+  isBlocked = false,
+  blockReason,
+  blockCustomMessage,
 }: CustomerDashboardClientProps) {
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [activeTab, setActiveTab] = useState<"overview" | "bookings" | "payments" | "kyc">("overview");
@@ -465,6 +471,30 @@ export function CustomerDashboardClient({
             </Link>
           </div>
         </div>
+
+        {/* Blocked / Account Suspension Alert */}
+        {isBlocked && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-red-500/30 bg-red-950/40 p-5 shadow-2xl flex items-start gap-3.5">
+              <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <h2 className="text-sm font-bold text-red-400">Account Access Suspended</h2>
+                <p className="text-xs text-red-200/90 leading-relaxed font-semibold">
+                  Reason:{" "}
+                  <span className="text-white font-bold">{blockReason || "Policy Violation & Account Review"}</span>
+                </p>
+                {blockCustomMessage && (
+                  <div className="rounded-xl border border-red-500/20 bg-black/50 p-3.5 text-xs text-red-200/80 leading-relaxed italic">
+                    "{blockCustomMessage}"
+                  </div>
+                )}
+                <p className="text-[11px] text-white/50 pt-1">
+                  Active bookings and new rental requests are temporarily disabled. If you believe this is an error, please contact Next Gear Support at <strong className="text-white font-mono">support@next-gear.app</strong> or WhatsApp helpdesk.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tab content renders here */}
         <div className="space-y-6">

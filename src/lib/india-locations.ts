@@ -14,6 +14,69 @@ export const INDIA_CITY_STATE_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(INDIA_CITIES_BY_STATE).flatMap(([state, cities]) => cities.map((city) => [city, state]))
 );
 
+const COMMON_CITY_ALIASES: Record<string, string> = {
+  bangalore: "Karnataka",
+  bengaluru: "Karnataka",
+  mumbai: "Maharashtra",
+  bombay: "Maharashtra",
+  delhi: "Delhi",
+  "new delhi": "Delhi",
+  "delhi ncr": "Delhi",
+  pune: "Maharashtra",
+  gurugram: "Haryana",
+  gurgaon: "Haryana",
+  noida: "Uttar Pradesh",
+  "greater noida": "Uttar Pradesh",
+  ghaziabad: "Uttar Pradesh",
+  faridabad: "Haryana",
+  chennai: "Tamil Nadu",
+  madras: "Tamil Nadu",
+  kolkata: "West Bengal",
+  calcutta: "West Bengal",
+  hyderabad: "Telangana",
+  secunderabad: "Telangana",
+  ahmedabad: "Gujarat",
+  jaipur: "Rajasthan",
+  chandigarh: "Chandigarh",
+  goa: "Goa",
+  panaji: "Goa",
+  vasco: "Goa",
+  surat: "Gujarat",
+  vadodara: "Gujarat",
+  lucknow: "Uttar Pradesh",
+  kanpur: "Uttar Pradesh",
+  nagpur: "Maharashtra",
+  indore: "Madhya Pradesh",
+  bhopal: "Madhya Pradesh",
+  patna: "Bihar",
+  visakhapatnam: "Andhra Pradesh",
+  vizag: "Andhra Pradesh",
+  coimbatore: "Tamil Nadu",
+  kochi: "Kerala",
+  cochin: "Kerala",
+  thiruvananthapuram: "Kerala",
+  trivandrum: "Kerala",
+  dehradun: "Uttarakhand",
+  ranchi: "Jharkhand",
+  raipur: "Chhattisgarh",
+  guwahati: "Assam",
+  bhubaneswar: "Odisha",
+  shillong: "Meghalaya",
+  shimla: "Himachal Pradesh",
+  manali: "Himachal Pradesh",
+  srinagar: "Jammu and Kashmir",
+  leh: "Ladakh",
+};
+
+const LOWER_CASE_CITY_STATE_MAP: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(INDIA_CITIES_BY_STATE).flatMap(([state, cities]) =>
+      cities.map((city) => [city.toLowerCase().trim(), state])
+    )
+  ),
+  ...COMMON_CITY_ALIASES,
+};
+
 export function formatCityWithState(cityName: string, stateName?: string) {
   if (!stateName?.trim()) return cityName.trim();
   const city = cityName.trim();
@@ -23,20 +86,23 @@ export function formatCityWithState(cityName: string, stateName?: string) {
 }
 
 export function splitCityAndState(cityValue: string) {
-  const value = cityValue.trim();
+  const value = (cityValue || "").trim();
   if (!value) return { city: "", state: "" };
 
   if (value.includes(",")) {
     const [city, ...rest] = value.split(",");
+    const directState = rest.join(",").trim();
     return {
       city: city.trim(),
-      state: rest.join(",").trim(),
+      state: directState || LOWER_CASE_CITY_STATE_MAP[city.trim().toLowerCase()] || "",
     };
   }
 
+  const lookupState = LOWER_CASE_CITY_STATE_MAP[value.toLowerCase()] || INDIA_CITY_STATE_MAP[value] || "";
+
   return {
     city: value,
-    state: INDIA_CITY_STATE_MAP[value] ?? "",
+    state: lookupState,
   };
 }
 

@@ -4,6 +4,7 @@ import { addVendorKycDocument, type VendorKycDocumentType } from "@/lib/vendor-k
 import { NextResponse } from "next/server";
 
 const ALLOWED_DOC_TYPES = new Set<VendorKycDocumentType>([
+  "shop-photo",
   "aadhaar",
   "pan",
   "business-proof",
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
     fileUrl: upload.url,
     mimeType: file.type,
     sizeBytes: file.size,
+    geoLat: formData.get("geoLat") ? Number(formData.get("geoLat")) : undefined,
+    geoLng: formData.get("geoLng") ? Number(formData.get("geoLng")) : undefined,
   });
 
   return NextResponse.json({ document }, { status: 201 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { INDIA_CITIES_BY_STATE, INDIA_STATES } from "@/lib/india-locations";
+import { INDIA_CITIES_BY_STATE, INDIA_STATES, splitCityAndState } from "@/lib/india-locations";
+import { compressImageClient } from "@/lib/client-image-compressor";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
 import { LiveVehicleCardPreview } from "./vendor-fleet-manager";
@@ -150,15 +151,48 @@ export function AdminVehicleInventoryPanel() {
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/vehicles", { cache: "no-store" });
-      const data = await res.json();
-      setVehicles(data.vehicles ?? []);
-      setCities(data.cities ?? []);
-      setVendors(data.vendors ?? []);
+      const [vehRes, cityRes] = await Promise.allSettled([
+        fetch("/api/admin/vehicles", { cache: "no-store" }),
+        fetch("/api/admin/cities", { cache: "no-store" }),
+      ]);
 
-      if (!vehicleForm.cityId && data.cities?.length) {
-        setVehicleForm((prev) => ({ ...prev, cityId: data.cities[0].id }));
+      let loadedCities: CityOption[] = [];
+      let loadedVehicles: AdminVehicle[] = [];
+      let loadedVendors: VendorOption[] = [];
+
+      if (vehRes.status === "fulfilled" && vehRes.value.ok) {
+        const data = await vehRes.value.json().catch(() => ({}));
+        loadedVehicles = data.vehicles ?? [];
+        loadedVendors = data.vendors ?? [];
+        if (Array.isArray(data.cities) && data.cities.length > 0) {
+          loadedCities = data.cities;
+        }
       }
+
+      if (loadedCities.length === 0 && cityRes.status === "fulfilled" && cityRes.value.ok) {
+        const cData = await cityRes.value.json().catch(() => ({}));
+        if (Array.isArray(cData.cities) && cData.cities.length > 0) {
+          loadedCities = cData.cities;
+        }
+      }
+
+      if (loadedCities.length === 0) {
+        loadedCities = [
+          { id: "bengaluru-hub", name: "Bengaluru", state: "Karnataka", displayName: "Bengaluru, Karnataka", airportName: "Kempegowda International Airport" },
+          { id: "delhi-hub", name: "Delhi", state: "Delhi", displayName: "Delhi, Delhi", airportName: "Indira Gandhi International Airport" },
+          { id: "mumbai-hub", name: "Mumbai", state: "Maharashtra", displayName: "Mumbai, Maharashtra", airportName: "Chhatrapati Shivaji Maharaj Airport" }
+        ];
+      }
+
+      setVehicles(loadedVehicles);
+      setCities(loadedCities);
+      setVendors(loadedVendors);
+
+      if (!vehicleForm.cityId && loadedCities.length > 0) {
+        setVehicleForm((prev) => ({ ...prev, cityId: loadedCities[0].id }));
+      }
+    } catch (err) {
+      console.error("[Vehicle Panel] Fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -346,42 +380,52 @@ export function AdminVehicleInventoryPanel() {
     }
   }, [fleetPage, totalFleetPages]);
 
-  const availableStates = useMemo(() => {
-    const statesFromCities = Array.from(new Set(cities.map((city) => city.state).filter(Boolean) as string[]));
-    const merged = Array.from(new Set([...statesFromCities, ...INDIA_STATES]));
-    return ["all", ...merged.sort((a, b) => a.localeCompare(b))];
+  const normalizedCities = useMemo(() => {
+    return cities.map((c) => {
+      const parsed = splitCityAndState(c.name);
+      const resolvedState = c.state || parsed.state || "";
+      return {
+        ...c,
+        state: resolvedState,
+        displayName: c.displayName || (resolvedState ? `${parsed.city || c.name}, ${resolvedState}` : c.name),
+      };
+    });
   }, [cities]);
 
+  const availableStates = useMemo(() => {
+    const statesFromCities = Array.from(new Set(normalizedCities.map((city) => city.state).filter(Boolean) as string[]));
+    return ["all", ...statesFromCities.sort((a, b) => a.localeCompare(b))];
+  }, [normalizedCities]);
+
   const createStateCities = useMemo(() => {
-    return cities.filter((city) => {
-      if (!selectedState || selectedState === "all") return true;
-      return city.state === selectedState;
-    });
-  }, [cities, selectedState]);
+    if (!selectedState || selectedState === "all") return normalizedCities;
+    return normalizedCities.filter((city) => city.state === selectedState);
+  }, [normalizedCities, selectedState]);
 
   const editStateCities = useMemo(() => {
-    return cities.filter((city) => {
-      if (!editSelectedState || editSelectedState === "all") return true;
-      return city.state === editSelectedState;
-    });
-  }, [cities, editSelectedState]);
+    if (!editSelectedState || editSelectedState === "all") return normalizedCities;
+    return normalizedCities.filter((city) => city.state === editSelectedState);
+  }, [normalizedCities, editSelectedState]);
 
   useEffect(() => {
-    if (!cities.length) return;
+    if (!normalizedCities.length) return;
 
     if (!selectedState) setSelectedState("all");
 
-    if (!vehicleForm.cityId) return;
-    const city = cities.find((item) => item.id === vehicleForm.cityId);
+    if (!vehicleForm.cityId) {
+      setVehicleForm((prev) => ({ ...prev, cityId: normalizedCities[0].id }));
+      return;
+    }
+    const city = normalizedCities.find((item) => item.id === vehicleForm.cityId);
     if (!city || (selectedState !== "all" && selectedState && city.state !== selectedState)) {
       const nextCity = selectedState === "all"
-        ? cities[0]
-        : cities.find((item) => item.state === selectedState) || cities[0];
+        ? normalizedCities[0]
+        : normalizedCities.find((item) => item.state === selectedState) || normalizedCities[0];
       if (nextCity) {
         setVehicleForm((prev) => ({ ...prev, cityId: nextCity.id }));
       }
     }
-  }, [cities, selectedState, vehicleForm.cityId]);
+  }, [normalizedCities, selectedState, vehicleForm.cityId]);
 
   const filteredCities = useMemo(() => {
     const query = citySearch.trim().toLowerCase();
@@ -395,8 +439,18 @@ export function AdminVehicleInventoryPanel() {
   }, [cities, citySearch]);
 
   async function uploadAdminVehicleImage(file: File) {
+    // Compress image client-side before sending to Cloudinary
+    let fileToUpload = file;
+    try {
+      const compressed = await compressImageClient(file, 1600, 0.82);
+      fileToUpload = compressed.file;
+      console.log(`[Image Compressor] ${compressed.originalSizeKB}KB ➔ ${compressed.compressedSizeKB}KB (${Math.round((1 - compressed.compressedSizeKB/compressed.originalSizeKB)*100)}% smaller)`);
+    } catch (compressErr) {
+      console.warn("Client compression fallback to original:", compressErr);
+    }
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", fileToUpload);
 
     const res = await fetch("/api/admin/vehicles/upload-image", {
       method: "POST",
@@ -405,7 +459,7 @@ export function AdminVehicleInventoryPanel() {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.error ?? "Failed to upload image");
+      throw new Error(data.error ?? "Failed to upload image to Cloudinary");
     }
 
     return String(data.imageUrl ?? "");
@@ -1063,102 +1117,172 @@ export function AdminVehicleInventoryPanel() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Form Inputs (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="grid gap-2 md:grid-cols-2">
-              <input
-                value={vehicleForm.title}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="Vehicle title"
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              />
-              <input
-                value={vehicleForm.vehicleNumber}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
-                placeholder="Vehicle number (required)"
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              />
-              <input
-                value={vehicleForm.imageUrl}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                placeholder="Vehicle photo URL (required)"
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              />
-              <select
-                value={vehicleForm.type}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, type: e.target.value }))}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                <option value="bike">Bike</option>
-                <option value="car">Car</option>
-                <option value="scooty">Scooty</option>
-              </select>
-              <select
-                value={vehicleForm.fuel}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, fuel: e.target.value }))}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                <option value="petrol">Petrol</option>
-                <option value="diesel">Diesel</option>
-                <option value="electric">Electric</option>
-              </select>
-              <select
-                value={vehicleForm.transmission}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, transmission: e.target.value }))}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                <option value="manual">Manual</option>
-                <option value="automatic">Automatic</option>
-              </select>
+            <div className="grid gap-3 md:grid-cols-2 text-xs font-semibold">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Vehicle Title / Model *
+                </label>
+                <input
+                  value={vehicleForm.title}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Royal Enfield Hunter 350"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                />
+              </div>
 
-              <input
-                value={vehicleForm.seats}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, seats: e.target.value }))}
-                placeholder="Seats"
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              />
-              <input
-                value={vehicleForm.pricePerDayINR}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
-                placeholder="Price per day (INR)"
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              />
-              <select
-                value={selectedState}
-                onChange={(e) => {
-                  const state = e.target.value;
-                  setSelectedState(state);
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Vehicle Plate Number (Required) *
+                </label>
+                <input
+                  value={vehicleForm.vehicleNumber}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
+                  placeholder="e.g. MH-12-AB-1234"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Vehicle Photo URL (Optional)
+                </label>
+                <input
+                  value={vehicleForm.imageUrl}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                  placeholder="Optional if uploading below"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Category *
+                </label>
+                <select
+                  value={vehicleForm.type}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, type: e.target.value }))}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="bike" className="bg-[#121216] text-white">🏍️ Bike (Motorcycle)</option>
+                  <option value="car" className="bg-[#121216] text-white">🚗 Car (4-Wheeler)</option>
+                  <option value="scooty" className="bg-[#121216] text-white">🛵 Scooty (Gearless)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Fuel Type *
+                </label>
+                <select
+                  value={vehicleForm.fuel}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, fuel: e.target.value }))}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="petrol" className="bg-[#121216] text-white">⛽ Petrol</option>
+                  <option value="diesel" className="bg-[#121216] text-white">🛢️ Diesel</option>
+                  <option value="electric" className="bg-[#121216] text-white">⚡ Electric (EV)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Transmission *
+                </label>
+                <select
+                  value={vehicleForm.transmission}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, transmission: e.target.value }))}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="manual" className="bg-[#121216] text-white">⚙️ Manual</option>
+                  <option value="automatic" className="bg-[#121216] text-white">🕹️ Automatic</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Seating Capacity *
+                </label>
+                <input
+                  value={vehicleForm.seats}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, seats: e.target.value }))}
+                  placeholder="e.g. 2 or 5"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Daily Rental Rate (₹ INR) *
+                </label>
+                <input
+                  value={vehicleForm.pricePerDayINR}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
+                  placeholder="e.g. 1200"
+                  className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Approved State (Locations Hub) *
+                </label>
+                <select
+                  value={selectedState}
+                  onChange={(e) => {
+                    const state = e.target.value;
+                    setSelectedState(state);
                     const nextCity = state === "all"
                       ? cities[0]
                       : cities.find((item) => item.state === state);
-                  if (nextCity) {
-                    setVehicleForm((prev) => ({ ...prev, cityId: nextCity.id }));
-                  }
-                }}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                {availableStates.map((state) => (
-                    <option key={state} value={state}>{state === "all" ? "All States" : state}</option>
-                ))}
-              </select>
-              <select
-                value={vehicleForm.cityId}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, cityId: e.target.value }))}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                <option value="">Select city</option>
-                {createStateCities.map((city) => (
-                  <option key={city.id} value={city.id}>{city.displayName ?? city.name}</option>
-                ))}
-              </select>
-              <select
-                value={vehicleForm.vendorId}
-                onChange={(e) => setVehicleForm((prev) => ({ ...prev, vendorId: e.target.value }))}
-                className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-              >
-                <option value="">No vendor</option>
-                {vendors.map((vendor) => (
-                  <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>
-                ))}
-              </select>
+                    if (nextCity) {
+                      setVehicleForm((prev) => ({ ...prev, cityId: nextCity.id }));
+                    }
+                  }}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  {availableStates.map((state) => (
+                    <option key={state} value={state} className="bg-[#121216] text-white">
+                      {state === "all" ? "🌐 All Active States" : `📍 ${state}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Approved Operating City *
+                </label>
+                <select
+                  value={vehicleForm.cityId}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, cityId: e.target.value }))}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="" disabled className="bg-[#121216] text-white/40">Select approved city</option>
+                  {createStateCities.map((city) => (
+                    <option key={city.id} value={city.id} className="bg-[#121216] text-white">
+                      {city.displayName ?? city.name} {city.airportName ? `(✈️ ${city.airportName})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                  Partner Vendor Owner
+                </label>
+                <select
+                  value={vehicleForm.vendorId}
+                  onChange={(e) => setVehicleForm((prev) => ({ ...prev, vendorId: e.target.value }))}
+                  className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#121216] text-white/60">🏢 Self / Next Gear Fleet (No Vendor)</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id} className="bg-[#121216] text-white">
+                      🏢 {vendor.businessName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1722,143 +1846,172 @@ export function AdminVehicleInventoryPanel() {
               </div>
               <p className="text-xs text-black/60">{editingVehicle.title} ({editingVehicle.type.toUpperCase()})</p>
 
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                <input
-                  value={editForm.title}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="Vehicle title"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.vehicleNumber}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
-                  placeholder="Vehicle number"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.imageUrl}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                  placeholder="Vehicle photo URL"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <select
-                  value={editForm.type}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value }))}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  <option value="bike">Bike</option>
-                  <option value="car">Car</option>
-                  <option value="scooty">Scooty</option>
-                </select>
-                <select
-                  value={editForm.fuel}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, fuel: e.target.value }))}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  <option value="petrol">Petrol</option>
-                  <option value="diesel">Diesel</option>
-                  <option value="electric">Electric</option>
-                </select>
-                <select
-                  value={editForm.transmission}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, transmission: e.target.value }))}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  <option value="manual">Manual</option>
-                  <option value="automatic">Automatic</option>
-                </select>
-                <input
-                  value={editForm.seats}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, seats: e.target.value }))}
-                  placeholder="Seats"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.pricePerDayINR}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
-                  placeholder="Price per day (INR)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.addonWaiverPrice}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonWaiverPrice: e.target.value }))}
-                  placeholder="Waiver Price (fallback 99)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.addonRsaPrice}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonRsaPrice: e.target.value }))}
-                  placeholder="RSA Price (fallback 49)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.addonHelmetPrice}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, addonHelmetPrice: e.target.value }))}
-                  placeholder="Helmet Price (fallback 50)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.price1HrINR}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, price1HrINR: e.target.value }))}
-                  placeholder="Price 1 Hour (INR)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.price3HrINR}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, price3HrINR: e.target.value }))}
-                  placeholder="Price 3 Hours (INR)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.price6HrINR}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, price6HrINR: e.target.value }))}
-                  placeholder="Price 6 Hours (INR)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <input
-                  value={editForm.price12HrINR}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, price12HrINR: e.target.value }))}
-                  placeholder="Price 12 Hours (INR)"
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                />
-                <select
-                  value={editSelectedState}
-                  onChange={(e) => {
-                    const state = e.target.value;
-                    setEditSelectedState(state);
-                    const nextCity = state === "all"
-                      ? cities[0]
-                      : cities.find((item) => item.state === state);
-                    if (nextCity) {
-                      setEditForm((prev) => ({ ...prev, cityId: nextCity.id }));
-                    }
-                  }}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  {availableStates.map((state) => (
-                    <option key={state} value={state}>{state === "all" ? "All States" : state}</option>
-                  ))}
-                </select>
-                <select
-                  value={editForm.cityId}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, cityId: e.target.value }))}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  <option value="">Select city</option>
-                  {editStateCities.map((city) => (
-                    <option key={city.id} value={city.id}>{city.displayName ?? city.name}</option>
-                  ))}
-                </select>
-                <select
-                  value={editForm.vendorId}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, vendorId: e.target.value }))}
-                  className="rounded-lg border border-black/15 px-3 py-2 text-sm"
-                >
-                  <option value="">No vendor</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>
-                  ))}
-                </select>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Vehicle Title / Model *
+                  </label>
+                  <input
+                    value={editForm.title}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="Vehicle title"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Vehicle Plate Number
+                  </label>
+                  <input
+                    value={editForm.vehicleNumber}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, vehicleNumber: e.target.value }))}
+                    placeholder="Vehicle number"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Vehicle Photo URL (Optional)
+                  </label>
+                  <input
+                    value={editForm.imageUrl}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                    placeholder="Vehicle photo URL"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Category *
+                  </label>
+                  <select
+                    value={editForm.type}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value }))}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="bike" className="bg-[#121216] text-white">🏍️ Bike (Motorcycle)</option>
+                    <option value="car" className="bg-[#121216] text-white">🚗 Car (4-Wheeler)</option>
+                    <option value="scooty" className="bg-[#121216] text-white">🛵 Scooty (Gearless)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Fuel Type *
+                  </label>
+                  <select
+                    value={editForm.fuel}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, fuel: e.target.value }))}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="petrol" className="bg-[#121216] text-white">⛽ Petrol</option>
+                    <option value="diesel" className="bg-[#121216] text-white">🛢️ Diesel</option>
+                    <option value="electric" className="bg-[#121216] text-white">⚡ Electric (EV)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Transmission *
+                  </label>
+                  <select
+                    value={editForm.transmission}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, transmission: e.target.value }))}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="manual" className="bg-[#121216] text-white">⚙️ Manual</option>
+                    <option value="automatic" className="bg-[#121216] text-white">🕹️ Automatic</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Seating Capacity *
+                  </label>
+                  <input
+                    value={editForm.seats}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, seats: e.target.value }))}
+                    placeholder="Seats"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Daily Rate (₹ INR) *
+                  </label>
+                  <input
+                    value={editForm.pricePerDayINR}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, pricePerDayINR: e.target.value }))}
+                    placeholder="Price per day (INR)"
+                    className="w-full rounded-xl border border-white/15 bg-black/60 px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:border-red-500 focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Approved State *
+                  </label>
+                  <select
+                    value={editSelectedState}
+                    onChange={(e) => {
+                      const state = e.target.value;
+                      setEditSelectedState(state);
+                      const nextCity = state === "all"
+                        ? cities[0]
+                        : cities.find((item) => item.state === state);
+                      if (nextCity) {
+                        setEditForm((prev) => ({ ...prev, cityId: nextCity.id }));
+                      }
+                    }}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    {availableStates.map((state) => (
+                      <option key={state} value={state} className="bg-[#121216] text-white">
+                        {state === "all" ? "🌐 All Active States" : `📍 ${state}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Approved City *
+                  </label>
+                  <select
+                    value={editForm.cityId}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, cityId: e.target.value }))}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="" disabled className="bg-[#121216] text-white/40">Select approved city</option>
+                    {editStateCities.map((city) => (
+                      <option key={city.id} value={city.id} className="bg-[#121216] text-white">
+                        {city.displayName ?? city.name} {city.airportName ? `(✈️ ${city.airportName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-white/50 mb-1">
+                    Partner Vendor Owner
+                  </label>
+                  <select
+                    value={editForm.vendorId}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, vendorId: e.target.value }))}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-[#101016] px-3.5 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="" className="bg-[#121216] text-white/60">🏢 Self / Next Gear Fleet (No Vendor)</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor.id} value={vendor.id} className="bg-[#121216] text-white">
+                        🏢 {vendor.businessName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-3">

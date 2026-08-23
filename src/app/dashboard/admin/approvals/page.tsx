@@ -6,7 +6,7 @@ import { useEffect } from "react";
 export default function ApprovalsRedirectPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/dashboard/admin?section=approvals");
+    router.replace("/dashboard/admin?section=vendor-applications");
   }, [router]);
 
   return (

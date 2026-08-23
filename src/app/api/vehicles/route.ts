@@ -6,6 +6,7 @@ import { adminVehicleStatusStore, resolveVehicleAvailability } from "@/lib/vehic
 import { getImageMapForVehicles } from "@/lib/vendor-fleet-media";
 import { getVehicleNumberMap } from "@/lib/vendor-fleet-vehicle-number";
 import { getEffectiveDailyPrice } from "@/lib/pricing";
+import { splitCityAndState } from "@/lib/india-locations";
 import { Vehicle } from "@/lib/types";
 import { vehicles } from "@/lib/mock-data";
 import { NextRequest, NextResponse } from "next/server";
@@ -59,12 +60,39 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") ?? 12)));
   const cursor = searchParams.get("cursor")?.trim();
 
+  console.log("[api/vehicles] Incoming request, DB_URL present:", Boolean(process.env.DATABASE_URL));
+
   if (process.env.DATABASE_URL) {
     try {
       const now = new Date();
 
-      // ⚡ Phase 1: Fetch initial DB datasets in parallel
-      const [activeBookings, overrides, dbVehicles, dbCities] = await Promise.all([
+      const whereClause = {
+        ...(vehicleId ? { id: vehicleId } : {}),
+        ...(type ? { type } : {}),
+        ...(fuel ? { fuel } : {}),
+        ...(transmission ? { transmission } : {}),
+        ...(query ? { title: { contains: query, mode: "insensitive" as const } } : {}),
+        ...(city
+          ? {
+              city: {
+                OR: Array.from(
+                  new Set([
+                    city,
+                    ...city.split(",").map((t) => t.trim()),
+                    ...city.split(/\s+/).map((t) => t.trim()),
+                  ])
+                )
+                  .filter((t) => t.length > 2)
+                  .map((token) => ({
+                    name: { contains: token, mode: "insensitive" as const },
+                  })),
+              },
+            }
+          : {}),
+      };
+
+      // ⚡ Phase 1: Fetch initial DB datasets in parallel (including fast indexed COUNT)
+      const [activeBookings, overrides, dbVehicles, totalCount, dbCities] = await Promise.all([
         prisma.booking.findMany({
           where: {
             status: "CONFIRMED",
@@ -77,23 +105,7 @@ export async function GET(request: NextRequest) {
         }),
         getVehicleAvailabilityOverrides(),
         prisma.vehicle.findMany({
-          where: {
-            ...(vehicleId ? { id: vehicleId } : {}),
-            ...(type ? { type } : {}),
-            ...(fuel ? { fuel } : {}),
-            ...(transmission ? { transmission } : {}),
-            ...(query ? { title: { contains: query, mode: "insensitive" } } : {}),
-            ...(city
-              ? {
-                  city: {
-                    OR: [
-                      { name: { equals: city, mode: "insensitive" as const } },
-                      ...city.split(",").map((token) => ({ name: { contains: token.trim(), mode: "insensitive" as const } })),
-                    ],
-                  },
-                }
-              : {}),
-          },
+          where: whereClause,
           select: {
             id: true,
             title: true,
@@ -127,9 +139,10 @@ export async function GET(request: NextRequest) {
             { id: "desc" },
           ],
         }),
+        prisma.vehicle.count({ where: whereClause }),
         prisma.city.findMany({
           where: { isActive: true },
-          select: { name: true },
+          select: { id: true, name: true, airportName: true },
           orderBy: { name: "asc" },
         }),
       ]);
@@ -211,6 +224,18 @@ export async function GET(request: NextRequest) {
         };
       }).filter((item) => item !== null) as Vehicle[];
 
+      const activeHubs = dbCities.map((c) => {
+        const parsed = splitCityAndState(c.name);
+        return {
+          id: c.id,
+          name: c.name,
+          cityName: parsed.city || c.name,
+          stateName: parsed.state || "",
+          displayName: parsed.state ? `${parsed.city}, ${parsed.state}` : c.name,
+          airportName: c.airportName || "",
+        };
+      });
+
       const cityOptions = Array.from(
         new Set([
           ...dbCities.map((city) => city.name),
@@ -239,11 +264,17 @@ export async function GET(request: NextRequest) {
       const sortedAndShuffled = [...availableItems, ...unavailableItems];
 
       return NextResponse.json(
-        { vehicles: sortedAndShuffled, cities: cityOptions, nextCursor },
-        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=59" } },
+        {
+          vehicles: sortedAndShuffled,
+          totalCount,
+          cities: cityOptions,
+          activeHubs,
+          nextCursor,
+        },
+        { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } },
       );
     } catch (dbError) {
-      console.warn("Prisma vehicles query fallback to runtime store:", dbError);
+      console.error("[api/vehicles] CRITICAL PRISMA ERROR:", dbError);
     }
   }
 

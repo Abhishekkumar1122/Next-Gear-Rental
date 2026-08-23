@@ -38,14 +38,19 @@ export async function getVehicleNumberMap(vehicleIds: string[]) {
     return map;
   }
 
-  const rows = await prisma.$queryRaw<NumberRow[]>(Prisma.sql`
-    SELECT vehicle_id, vehicle_number
-    FROM "VendorVehicleNumber"
-    WHERE vehicle_id IN (${Prisma.join(vehicleIds)})
-  `);
+  try {
+    await ensureVehicleNumberTable();
+    const rows = await prisma.$queryRaw<NumberRow[]>(Prisma.sql`
+      SELECT vehicle_id, vehicle_number
+      FROM "VendorVehicleNumber"
+      WHERE vehicle_id IN (${Prisma.join(vehicleIds)})
+    `);
 
-  for (const row of rows) {
-    map.set(row.vehicle_id, row.vehicle_number);
+    for (const row of rows) {
+      map.set(row.vehicle_id, row.vehicle_number);
+    }
+  } catch (err) {
+    console.warn("[Database Vehicle Number] Warning querying numbers:", err);
   }
 
   return map;

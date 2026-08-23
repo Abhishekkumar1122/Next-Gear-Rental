@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getVendorModerationDetails, setVendorModerationStatus } from "@/lib/vendor-moderation";
+import { getUserModerationDetails, setUserModerationStatus } from "@/lib/user-moderation";
 import { assertAdminSession, assertAdminMutationRequest } from "@/lib/admin-security";
 import { getUserVipTier, setUserVipTier, type VipTier } from "@/lib/user-tiers";
 
@@ -13,6 +14,9 @@ interface SystemUserRecord {
   kycStatus: "pending" | "approved" | "rejected" | "none" | "blacklisted";
   blockCount: number;
   appealText?: string;
+  blockReason?: string;
+  blockCustomMessage?: string;
+  blockedAt?: string;
   vipTier: VipTier;
   commissionRate?: number;
   createdAt: string;
@@ -78,6 +82,9 @@ export async function GET(request: NextRequest) {
           let kycStatus: SystemUserRecord["kycStatus"] = "none";
           let blockCount = 0;
           let appealText: string | undefined;
+          let blockReason: string | undefined;
+          let blockCustomMessage: string | undefined;
+          let blockedAt: string | undefined;
           let commissionRate: number | undefined;
 
           if (isVendor && u.managedVendor) {
@@ -85,12 +92,24 @@ export async function GET(request: NextRequest) {
             kycStatus = moderation.status === "blacklisted" ? "blacklisted" : "approved";
             blockCount = moderation.blockCount;
             appealText = moderation.appealText;
+            blockReason = moderation.reason;
+            blockCustomMessage = moderation.customMessage;
             commissionRate = Number(u.managedVendor.commissionRate);
           } else {
-            const userDocs = await prisma.userDocument.findFirst({
-              where: { userId: u.id },
-            });
-            kycStatus = userDocs ? "approved" : "none";
+            const userModeration = await getUserModerationDetails(u.id, "approved");
+            if (userModeration.status === "blacklisted") {
+              kycStatus = "blacklisted";
+              blockCount = userModeration.blockCount;
+              appealText = userModeration.appealText;
+              blockReason = userModeration.reason;
+              blockCustomMessage = userModeration.customMessage;
+              blockedAt = userModeration.blockedAt;
+            } else {
+              const userDocs = await prisma.userDocument.findFirst({
+                where: { userId: u.id },
+              });
+              kycStatus = userDocs ? "approved" : "none";
+            }
           }
 
           return {
@@ -102,6 +121,9 @@ export async function GET(request: NextRequest) {
             kycStatus,
             blockCount,
             appealText,
+            blockReason,
+            blockCustomMessage,
+            blockedAt,
             commissionRate,
             vipTier: getUserVipTier(u.email || u.id),
             createdAt: u.createdAt.toISOString(),
@@ -139,7 +161,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const payload = await request.json();
-  const { userId, status, vipTier, commissionRate } = payload;
+  const { userId, status, reason, customMessage, vipTier, commissionRate } = payload;
 
   if (!userId) {
     return NextResponse.json({ error: "Missing userId parameter" }, { status: 400 });
@@ -162,7 +184,19 @@ export async function PUT(request: NextRequest) {
 
       if (status && ["pending", "approved", "rejected", "blacklisted"].includes(status)) {
         if (user.managedVendor) {
-          await setVendorModerationStatus(user.managedVendor.id, status as any, "Direct moderator blacklist update");
+          await setVendorModerationStatus(
+            user.managedVendor.id,
+            status as any,
+            reason,
+            customMessage
+          );
+        } else {
+          await setUserModerationStatus(
+            user.id,
+            status === "blacklisted" ? "blacklisted" : "approved",
+            reason,
+            customMessage
+          );
         }
       }
 
@@ -189,6 +223,12 @@ export async function PUT(request: NextRequest) {
       if (isBlocked) {
         match.blockCount += 1;
         match.appealText = undefined;
+        match.blockReason = reason;
+        match.blockCustomMessage = customMessage;
+        match.blockedAt = new Date().toISOString();
+      } else {
+        match.blockReason = undefined;
+        match.blockCustomMessage = undefined;
       }
     }
     if (vipTier) {

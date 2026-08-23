@@ -20,9 +20,19 @@ export async function GET() {
 
   if (process.env.DATABASE_URL) {
     const cities = await prisma.city.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, airportName: true },
-      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        airportName: true,
+        isActive: true,
+        createdAt: true,
+        _count: {
+          select: {
+            vehicles: true,
+          },
+        },
+      },
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
     });
 
     return NextResponse.json({
@@ -35,6 +45,9 @@ export async function GET() {
           state: parsed.state,
           displayName: parsed.state ? `${parsed.city}, ${parsed.state}` : city.name,
           airportName: city.airportName || undefined,
+          isActive: city.isActive,
+          vehiclesCount: city._count.vehicles,
+          createdAt: city.createdAt.toISOString(),
         };
       }),
     });
@@ -42,14 +55,17 @@ export async function GET() {
 
   return NextResponse.json({
     states: INDIA_STATES,
-    cities: cityConfigs.map((city) => {
+    cities: cityConfigs.map((city, idx) => {
       const parsed = splitCityAndState(city.name);
       return {
-        id: city.name,
+        id: `mock-${idx}`,
         name: parsed.city || city.name,
         state: parsed.state,
         displayName: parsed.state ? `${parsed.city}, ${parsed.state}` : city.name,
         airportName: city.airport,
+        isActive: true,
+        vehiclesCount: 4,
+        createdAt: new Date().toISOString(),
       };
     }),
   });

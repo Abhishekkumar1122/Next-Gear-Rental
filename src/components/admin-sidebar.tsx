@@ -8,6 +8,7 @@ type SidebarLink = {
   label: string;
   href: string;
   icon: string;
+  badge?: string;
 };
 
 type AdminSidebarProps = {
@@ -24,11 +25,11 @@ export function AdminSidebar({ activeSection, email, userName, links }: AdminSid
   const categories = [
     {
       title: "General Ledger",
-      items: links.filter(link => ["overview", "approvals", "finance", "deliveries", "bookings", "support", "ops"].includes(link.id))
+      items: links.filter(link => ["overview", "attention-center", "finance", "deliveries", "bookings", "support", "ops"].includes(link.id))
     },
     {
       title: "Fleet & Governance",
-      items: links.filter(link => ["vehicles", "vendor-applications", "users-fleet", "contact-requests", "careers-jobs"].includes(link.id))
+      items: links.filter(link => ["vehicles", "cities", "inspections", "vendor-applications", "users-fleet", "contact-requests", "careers-jobs"].includes(link.id))
     },
     {
       title: "Config & Operations",
@@ -91,14 +92,27 @@ export function AdminSidebar({ activeSection, email, userName, links }: AdminSid
                       <Link
                         href={link.href}
                         onClick={() => setIsOpen(false)}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2 md:py-3 rounded-xl transition-all duration-200 text-[10px] font-black uppercase tracking-wider border ${
+                        className={`w-full flex items-center justify-between px-3.5 py-2 md:py-3 rounded-xl transition-all duration-200 text-[10px] font-black uppercase tracking-wider border ${
                           isActive
                             ? "bg-[var(--brand-red)] text-white border-red-500/20 shadow-lg shadow-red-600/15"
+                            : link.id === "attention-center" && link.badge
+                            ? "text-red-400 hover:text-white bg-red-950/20 hover:bg-red-950/40 border-red-500/20"
                             : "text-white/50 hover:text-white hover:bg-white/[0.02] border-transparent"
                         }`}
                       >
-                        <span className="text-sm select-none">{link.icon}</span>
-                        <span>{link.label}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm select-none">{link.icon}</span>
+                          <span>{link.label}</span>
+                        </div>
+                        {link.badge && Number(link.badge) > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black leading-none ${
+                            isActive
+                              ? "bg-white text-red-600 shadow-sm"
+                              : "bg-red-600 text-white shadow-md shadow-red-600/40 animate-pulse"
+                          }`}>
+                            {link.badge}
+                          </span>
+                        )}
                       </Link>
                     </div>
                   );

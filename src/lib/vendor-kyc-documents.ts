@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 export type VendorKycDocumentType =
+  | "shop-photo"
   | "aadhaar"
   | "pan"
   | "business-proof"
@@ -24,6 +25,8 @@ export type VendorKycDocument = {
   reviewStatus: VendorKycReviewStatus;
   reviewNote?: string;
   reviewedAt?: string;
+  geoLat?: number;
+  geoLng?: number;
 };
 
 type VendorKycDocumentRow = {
@@ -38,6 +41,8 @@ type VendorKycDocumentRow = {
   review_status?: VendorKycReviewStatus | null;
   review_note?: string | null;
   reviewed_at?: Date | null;
+  geo_lat?: number | null;
+  geo_lng?: number | null;
 };
 
 const inMemoryVendorKycDocs = new Map<string, VendorKycDocument[]>();
@@ -56,33 +61,43 @@ function toVendorKycDocument(row: VendorKycDocumentRow): VendorKycDocument {
     reviewStatus: row.review_status ?? "pending",
     reviewNote: row.review_note || undefined,
     reviewedAt: row.reviewed_at ? new Date(row.reviewed_at).toISOString() : undefined,
+    geoLat: row.geo_lat != null ? Number(row.geo_lat) : undefined,
+    geoLng: row.geo_lng != null ? Number(row.geo_lng) : undefined,
   };
 }
 
 async function ensureTable() {
   if (ensuredTable || !process.env.DATABASE_URL) return;
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "VendorKycDocument" (
-      id TEXT PRIMARY KEY,
-      vendor_id TEXT NOT NULL,
-      document_type TEXT NOT NULL,
-      file_name TEXT NOT NULL,
-      file_url TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      size_bytes INTEGER NOT NULL,
-      uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      review_status TEXT NOT NULL DEFAULT 'pending',
-      review_note TEXT,
-      reviewed_at TIMESTAMP
-    )
-  `);
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "VendorKycDocument" (
+        id TEXT PRIMARY KEY,
+        vendor_id TEXT NOT NULL,
+        document_type TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_url TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        review_status TEXT NOT NULL DEFAULT 'pending',
+        review_note TEXT,
+        reviewed_at TIMESTAMP
+      )
+    `);
 
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending'`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_note TEXT`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP`);
+    await Promise.allSettled([
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending'`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS review_note TEXT`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS geo_lat DOUBLE PRECISION`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorKycDocument" ADD COLUMN IF NOT EXISTS geo_lng DOUBLE PRECISION`),
+    ]);
 
-  ensuredTable = true;
+    ensuredTable = true;
+  } catch (e) {
+    console.warn("ensureTable VendorKycDocument warning:", e);
+  }
 }
 
 export async function listVendorKycDocuments(vendorId: string): Promise<VendorKycDocument[]> {
@@ -96,7 +111,7 @@ export async function listVendorKycDocuments(vendorId: string): Promise<VendorKy
 
   const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
     `
-      SELECT id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at
+      SELECT id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at, geo_lat, geo_lng
       FROM "VendorKycDocument"
       WHERE vendor_id = $1
       ORDER BY uploaded_at DESC
@@ -114,6 +129,8 @@ export async function addVendorKycDocument(input: {
   fileUrl: string;
   mimeType: string;
   sizeBytes: number;
+  geoLat?: number;
+  geoLng?: number;
 }): Promise<VendorKycDocument> {
   if (!process.env.DATABASE_URL) {
     const doc: VendorKycDocument = {
@@ -126,6 +143,8 @@ export async function addVendorKycDocument(input: {
       sizeBytes: input.sizeBytes,
       uploadedAt: new Date().toISOString(),
       reviewStatus: "pending",
+      geoLat: input.geoLat,
+      geoLng: input.geoLng,
     };
 
     const list = inMemoryVendorKycDocs.get(input.vendorId) ?? [];
@@ -139,9 +158,9 @@ export async function addVendorKycDocument(input: {
   const id = `vdoc_${crypto.randomUUID()}`;
   const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
     `
-      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending')
-      RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at
+      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, geo_lat, geo_lng)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending', $8, $9)
+      RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at, geo_lat, geo_lng
     `,
     id,
     input.vendorId,
@@ -149,7 +168,9 @@ export async function addVendorKycDocument(input: {
     input.fileName,
     input.fileUrl,
     input.mimeType,
-    input.sizeBytes
+    input.sizeBytes,
+    input.geoLat ?? null,
+    input.geoLng ?? null
   );
 
   return toVendorKycDocument(rows[0]);
@@ -187,6 +208,29 @@ export async function reviewVendorKycDocument(input: {
     input.vendorId,
     input.reviewStatus,
     input.reviewNote?.trim() || null
+  );
+
+  return rows.length ? toVendorKycDocument(rows[0]) : null;
+}
+
+export async function getVendorKycDocumentById(documentId: string): Promise<VendorKycDocument | null> {
+  if (!process.env.DATABASE_URL) {
+    for (const list of inMemoryVendorKycDocs.values()) {
+      const doc = list.find((d) => d.id === documentId);
+      if (doc) return doc;
+    }
+    return null;
+  }
+
+  await ensureTable();
+  const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
+    `
+      SELECT id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at, geo_lat, geo_lng
+      FROM "VendorKycDocument"
+      WHERE id = $1
+      LIMIT 1
+    `,
+    documentId
   );
 
   return rows.length ? toVendorKycDocument(rows[0]) : null;

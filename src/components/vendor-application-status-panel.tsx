@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { VendorKycUploadModal } from "./vendor-kyc-upload-modal";
+import { FileText, MapPin, Upload } from "lucide-react";
 
 type VendorApplicationStatus =
   | "new"
@@ -44,9 +48,12 @@ type VendorKycDocument = {
   reviewStatus: "pending" | "verified" | "rejected" | "needs-reupload";
   reviewNote?: string;
   reviewedAt?: string;
+  geoLat?: number;
+  geoLng?: number;
 };
 
 const documentTypes = [
+  { id: "shop-photo", label: "Shop / Premises Photo (Geo-tagged)" },
   { id: "aadhaar", label: "Aadhaar / Owner ID" },
   { id: "pan", label: "PAN Card" },
   { id: "business-proof", label: "Business Proof" },
@@ -104,6 +111,7 @@ function getReviewClassName(status: VendorKycDocument["reviewStatus"]) {
 }
 
 export function VendorApplicationStatusPanel() {
+  const searchParams = useSearchParams();
   const [applicationId, setApplicationId] = useState("");
   const [phone, setPhone] = useState("");
   const [application, setApplication] = useState<VendorApplicationLookup | null>(null);
@@ -113,6 +121,38 @@ export function VendorApplicationStatusPanel() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Auto-fill from query params and auto-trigger popup modal
+  useEffect(() => {
+    const uploadId = searchParams.get("upload");
+    const phoneParam = searchParams.get("phone");
+    if (uploadId && phoneParam) {
+      setApplicationId(uploadId);
+      setPhone(phoneParam);
+
+      // Auto-run status check
+      setLoading(true);
+      fetch("/api/vendor-registration/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ applicationId: uploadId, phone: phoneParam }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.application) {
+            setApplication(data.application);
+            setDocuments(data.documents ?? []);
+            // Instantly open the KYC upload modal
+            setShowUploadModal(true);
+          }
+        })
+        .catch((err) => console.error(err))
+        .finally(() => setLoading(false));
+    } else if (uploadId) {
+      setApplicationId(uploadId);
+    }
+  }, [searchParams]);
 
   const documentLabelMap = useMemo(
     () => new Map(documentTypes.map((item) => [item.id, item.label])),
@@ -129,17 +169,19 @@ export function VendorApplicationStatusPanel() {
     ];
   }, [application]);
 
-  async function checkStatus() {
+  async function checkStatus(explicitId?: string) {
     setLoading(true);
     setMessage("");
     setApplication(null);
     setDocuments([]);
 
+    const idToLookup = explicitId || applicationId;
+
     try {
       const res = await fetch("/api/vendor-registration/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ applicationId, phone }),
+        body: JSON.stringify({ applicationId: idToLookup, phone }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -272,6 +314,28 @@ export function VendorApplicationStatusPanel() {
             ) : null}
           </div>
 
+          {canUpload ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-950/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-lg flex-shrink-0 text-[var(--brand-red)]">
+                  🪪
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Pending KYC Documents</p>
+                  <p className="text-xs text-white/50 mt-1 max-w-md">
+                    Speed up approval by uploading your GPS-tagged Shop Photo and other business credentials directly in our KYC assistant.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/vendor-kyc?id=${encodeURIComponent(application.id)}&phone=${encodeURIComponent(application.phone)}`}
+                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-[0.98] cursor-pointer text-center inline-block"
+              >
+                Upload KYC Documents →
+              </Link>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 sm:grid-cols-4">
             {checklistRows.map((item) => (
               <div key={item.label} className={`rounded-xl border p-4 text-xs transition-all duration-300 ${item.done ? "border-green-500/20 bg-green-950/10 text-green-400" : "border-white/10 bg-white/[0.01] text-white/50"}`}>
@@ -285,7 +349,7 @@ export function VendorApplicationStatusPanel() {
 
           {canUpload ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-              <p className="text-sm font-semibold text-white">Upload KYC document</p>
+              <p className="text-sm font-semibold text-white">Add single document</p>
               <p className="mt-1 text-xs text-white/50">Accepted formats: PDF, JPG, PNG, WEBP. Max size: 8MB.</p>
               <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr_auto]">
                 <select
@@ -332,6 +396,7 @@ export function VendorApplicationStatusPanel() {
                       </div>
                       <p className="mt-1.5 text-white/50">
                         {doc.fileName} · {formatFileSize(doc.sizeBytes)} · {new Date(doc.uploadedAt).toLocaleString()}
+                        {doc.geoLat != null && ` · 📍 GPS: ${doc.geoLat.toFixed(5)}, ${doc.geoLng?.toFixed(5)}`}
                       </p>
                       {doc.reviewNote ? (
                         <p className="mt-2 rounded border border-yellow-500/20 bg-yellow-950/20 px-3 py-1.5 text-yellow-400">
@@ -349,6 +414,18 @@ export function VendorApplicationStatusPanel() {
           </div>
         </div>
       ) : null}
+
+      {showUploadModal && (
+        <VendorKycUploadModal
+          applicationId={application?.id || applicationId}
+          phone={application?.phone || phone}
+          onClose={() => {
+            setShowUploadModal(false);
+            // Refresh documents list after closing modal
+            void checkStatus();
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
+import { compressImageClient } from "@/lib/client-image-compressor";
 import { useEffect, useMemo, useState } from "react";
 import type { Vehicle, VehicleType } from "@/lib/types";
 import { formatBookingId } from "@/lib/pricing-tiers";
 import { Upload, Image as ImageIcon, CheckCircle, Trash2 } from "lucide-react";
+import { IndiaStateCitySelector } from "@/components/india-state-city-selector";
 
 type VendorFleetManagerProps = {
   initialFleetVehicles: Vehicle[];
@@ -44,7 +46,8 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
   const [isDragOverEditPhoto, setIsDragOverEditPhoto] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     title: "",
-    city: "",
+    state: "Maharashtra",
+    city: "Mumbai",
     type: "car" as VehicleType,
     seats: "5",
     pricePerDayINR: "1500",
@@ -125,9 +128,9 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
   }
 
   async function uploadImageFile(file: File) {
-    const compressedFile = await compressImageFile(file);
+    const compressed = await compressImageClient(file, 1600, 0.82);
     const formData = new FormData();
-    formData.append("file", compressedFile);
+    formData.append("file", compressed.file);
 
     const response = await fetch("/api/vendor/fleet/upload-image", {
       method: "POST",
@@ -140,45 +143,6 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
     }
 
     return String(data?.imageUrl || "");
-  }
-
-  async function compressImageFile(file: File) {
-    if (!file.type.startsWith("image/")) {
-      throw new Error("Only image files are allowed");
-    }
-
-    if (file.size <= 900 * 1024) {
-      return file;
-    }
-
-    const imageBitmap = await createImageBitmap(file);
-    const maxDimension = 1600;
-    const scale = Math.min(1, maxDimension / Math.max(imageBitmap.width, imageBitmap.height));
-    const targetWidth = Math.max(1, Math.round(imageBitmap.width * scale));
-    const targetHeight = Math.max(1, Math.round(imageBitmap.height * scale));
-
-    const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return file;
-    }
-
-    context.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", 0.82);
-    });
-
-    if (!blob) {
-      return file;
-    }
-
-    return new File([blob], `${file.name.replace(/\.[^/.]+$/, "")}.jpg`, {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
   }
 
   async function handleNewVehicleFileUpload(file: File) {
@@ -330,7 +294,7 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
       }
 
       setShowAddForm(false);
-      setNewVehicle({ title: "", city: "", type: "car", seats: "5", pricePerDayINR: "1500", vehicleNumber: "", imageUrl: "", addonWaiverPrice: "", addonRsaPrice: "", addonHelmetPrice: "", price1HrINR: "", price3HrINR: "", price6HrINR: "", price12HrINR: "" });
+      setNewVehicle({ title: "", state: "Maharashtra", city: "Mumbai", type: "car", seats: "5", pricePerDayINR: "1500", vehicleNumber: "", imageUrl: "", addonWaiverPrice: "", addonRsaPrice: "", addonHelmetPrice: "", price1HrINR: "", price3HrINR: "", price6HrINR: "", price12HrINR: "" });
       showFeedback("Vehicle added to your fleet.");
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : "Unable to add vehicle");
@@ -796,11 +760,12 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
                 placeholder="Vehicle title"
                 className="rounded-lg border border-white/15 bg-[var(--brand-ink)] px-3 py-2 text-sm text-white placeholder-white/35 focus:border-[var(--brand-red)] focus:ring-1 focus:ring-[var(--brand-red)]"
               />
-              <input
-                value={newVehicle.city}
-                onChange={(event) => setNewVehicle((prev) => ({ ...prev, city: event.target.value }))}
-                placeholder="City"
-                className="rounded-lg border border-white/15 bg-[var(--brand-ink)] px-3 py-2 text-sm text-white placeholder-white/35 focus:border-[var(--brand-red)] focus:ring-1 focus:ring-[var(--brand-red)]"
+              <IndiaStateCitySelector
+                selectedState={newVehicle.state}
+                selectedCity={newVehicle.city}
+                onStateChange={(st) => setNewVehicle((prev) => ({ ...prev, state: st }))}
+                onCityChange={(ct) => setNewVehicle((prev) => ({ ...prev, city: ct }))}
+                showAirportHint={false}
               />
               <select
                 value={newVehicle.type}
@@ -955,15 +920,13 @@ export function VendorFleetManager({ initialFleetVehicles, vendorId, bookings }:
                     className="w-full rounded-lg border border-blue-900/60 bg-[#090d16] px-3 py-2 text-xs text-white placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 font-medium"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-blue-200 mb-1">
-                    City / Location <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    value={newVehicle.city}
-                    onChange={(event) => setNewVehicle((prev) => ({ ...prev, city: event.target.value }))}
-                    placeholder="e.g. Delhi"
-                    className="w-full rounded-lg border border-blue-900/60 bg-[#090d16] px-3 py-2 text-xs text-white placeholder-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 font-medium"
+                <div className="md:col-span-2">
+                  <IndiaStateCitySelector
+                    selectedState={newVehicle.state}
+                    selectedCity={newVehicle.city}
+                    onStateChange={(st) => setNewVehicle((prev) => ({ ...prev, state: st }))}
+                    onCityChange={(ct) => setNewVehicle((prev) => ({ ...prev, city: ct }))}
+                    showAirportHint={false}
                   />
                 </div>
                 <div>

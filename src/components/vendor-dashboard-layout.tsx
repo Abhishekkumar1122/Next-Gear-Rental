@@ -64,6 +64,7 @@ interface VendorDashboardLayoutProps {
     businessName: string;
     status: string;
     blacklistReason: string | null;
+    customMessage?: string | null;
     commissionRate: number;
     appealText?: string | null;
     blockCount?: number;
@@ -506,14 +507,19 @@ export function VendorDashboardLayout({
         {/* Blacklist Alert */}
         {isBlacklisted && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-red-500/20 bg-red-950/40 p-5 shadow-2xl flex items-start gap-3">
+            <div className="rounded-2xl border border-red-500/30 bg-red-950/40 p-5 shadow-2xl flex items-start gap-3.5">
               <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
-              <div>
-                <h2 className="text-sm font-bold text-red-400">Vendor Account Blacklisted</h2>
-                <p className="mt-1 text-xs text-red-300/80 leading-relaxed">
-                  Your account is currently disabled due to:{" "}
-                  <span className="font-semibold text-red-200">{vendor.blacklistReason ?? "Violation of platform policies"}</span>.
+              <div className="space-y-1.5 flex-1">
+                <h2 className="text-sm font-bold text-red-400">Vendor Account Suspended / Blacklisted</h2>
+                <p className="text-xs text-red-200/90 leading-relaxed font-semibold">
+                  Reason:{" "}
+                  <span className="text-white font-bold">{vendor.blacklistReason ?? "Violation of platform policies"}</span>
                 </p>
+                {vendor.customMessage && (
+                  <div className="rounded-xl border border-red-500/20 bg-black/40 p-3 text-xs text-red-200/80 leading-relaxed italic">
+                    "{vendor.customMessage}"
+                  </div>
+                )}
               </div>
             </div>
 

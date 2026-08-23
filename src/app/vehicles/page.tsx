@@ -322,7 +322,7 @@ function VehicleCatalogCard({
 }
 
 // Global client-side memory cache for instant 0ms vehicle catalog rendering
-let cachedVehiclesData: { vehicles: Vehicle[]; cities: string[]; timestamp: number } | null = null;
+let cachedVehiclesData: { vehicles: Vehicle[]; totalCount?: number; cities: string[]; timestamp: number } | null = null;
 const CITY_COORDINATES: Record<string, { lat: number; lng: number; displayName: string }> = {
   "delhi": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
   "delhi-ncr": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
@@ -360,6 +360,21 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
   return Math.round(R * c);
 }
 
+type ActiveHub = {
+  id: string;
+  name: string;
+  cityName: string;
+  stateName: string;
+  displayName: string;
+  airportName?: string;
+};
+
+const DEFAULT_ACTIVE_HUBS: ActiveHub[] = [
+  { id: "delhi", name: "Delhi", cityName: "Delhi", stateName: "Delhi", displayName: "Delhi, Delhi", airportName: "Indira Gandhi International Airport (DEL)" },
+  { id: "bengaluru", name: "Bengaluru", cityName: "Bengaluru", stateName: "Karnataka", displayName: "Bengaluru, Karnataka", airportName: "Kempegowda International Airport (BLR)" },
+  { id: "mumbai", name: "Mumbai", cityName: "Mumbai", stateName: "Maharashtra", displayName: "Mumbai, Maharashtra", airportName: "Chhatrapati Shivaji Maharaj Airport (BOM)" },
+];
+
 function VehiclesCatalogContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
@@ -368,7 +383,9 @@ function VehiclesCatalogContent() {
   const [fuel, setFuel] = useState("");
   const [transmission, setTransmission] = useState("");
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => cachedVehiclesData?.vehicles ?? fallbackVehicles);
+  const [totalCount, setTotalCount] = useState<number>(() => cachedVehiclesData?.totalCount ?? fallbackVehicles.length);
   const [cityOptions, setCityOptions] = useState<string[]>(() => cachedVehiclesData?.cities ?? []);
+  const [activeHubs, setActiveHubs] = useState<ActiveHub[]>(() => DEFAULT_ACTIVE_HUBS);
   const [status, setStatus] = useState<React.ReactNode>("");
   const [locationStatus, setLocationStatus] = useState<React.ReactNode | null>(null);
   const [detectedState, setDetectedState] = useState("");
@@ -582,7 +599,7 @@ function VehiclesCatalogContent() {
             return prevOptions;
           });
 
-          // 150 KM Distance Radius Calculation using Haversine formula
+          // Calculate distance to nearest hub
           let nearestHubName = "";
           let minDistanceKm = Infinity;
           let matchedCityName = "";
@@ -596,24 +613,38 @@ function VehiclesCatalogContent() {
             }
           }
 
-          const isWithin150Km = minDistanceKm <= 150;
+          // Check if direct active operating territory or within 150 km radius
+          const directMatchedHub = activeHubs.find((h) => {
+            const hCity = h.cityName.toLowerCase().trim();
+            const hState = h.stateName.toLowerCase().trim();
+            const cName = cityName.toLowerCase().trim();
+            const dist = district.toLowerCase().trim();
+            const stName = stateName.toLowerCase().trim();
+            return (
+              (cName && (hCity === cName || hCity.includes(cName) || cName.includes(hCity))) ||
+              (dist && (hCity === dist || dist.includes(hCity))) ||
+              (stName && hState && stName === hState && cName && hCity.includes(cName))
+            );
+          });
 
-          if (isWithin150Km && matchedCityName) {
-            setCity(fullDetailedLocation);
-            await fetchVehiclesWith({ city: fullDetailedLocation });
+          const isServiced = Boolean(directMatchedHub) || minDistanceKm <= 150;
+
+          setCity(fullDetailedLocation);
+          await fetchVehiclesWith({ city: fullDetailedLocation });
+
+          if (isServiced) {
             setOutOfRangeInfo(null);
+            const hubLabel = (directMatchedHub?.displayName || matchedCityName || "Operating Hub").split(",")[0].trim();
+            const distText = minDistanceKm < Infinity && minDistanceKm > 0 ? `${minDistanceKm} km from ` : "";
 
-            const displayMatched = matchedCityName.split(",")[0].trim();
             setLocationStatus(
               <span className="inline-flex items-center gap-1.5 font-sans font-bold text-xs tracking-wide text-emerald-400">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{fullDetailedLocation}</span>
-                <span className="text-white/60 font-medium">({minDistanceKm} km from {displayMatched} Hub - Serviced ✅)</span>
+                <span className="text-white/60 font-medium">({distText}{hubLabel} Hub - Serviced ✅)</span>
               </span>
             );
           } else {
-            setCity(fullDetailedLocation);
-            await fetchVehiclesWith({ city: fullDetailedLocation });
             setOutOfRangeInfo({
               areaName: fullDetailedLocation,
               nearestHub: matchedCityName || "Delhi NCR",
@@ -742,9 +773,12 @@ function VehiclesCatalogContent() {
       const loadedVehicles = data.vehicles ?? [];
       const loadedCities = data.cities ?? [];
 
+      const effectiveTotalCount = typeof data.totalCount === "number" ? data.totalCount : loadedVehicles.length;
+
       // Save to global client memory cache for instant future loads
       cachedVehiclesData = {
         vehicles: loadedVehicles,
+        totalCount: effectiveTotalCount,
         cities: loadedCities,
         timestamp: Date.now(),
       };
@@ -755,9 +789,15 @@ function VehiclesCatalogContent() {
         mergedCities.unshift(currentCity);
       }
 
+      const loadedActiveHubs = Array.isArray(data.activeHubs) && data.activeHubs.length > 0
+        ? data.activeHubs
+        : DEFAULT_ACTIVE_HUBS;
+
       setVehicles(loadedVehicles);
+      setTotalCount(effectiveTotalCount);
       setCityOptions(mergedCities);
-      setStatus(`Found ${loadedVehicles.length} vehicles.`);
+      setActiveHubs(loadedActiveHubs);
+      setStatus(`Found ${effectiveTotalCount} vehicles.`);
     } catch (err) {
       console.warn("Vehicles fetch warning:", err);
     } finally {
@@ -916,26 +956,48 @@ function VehiclesCatalogContent() {
           <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1 shrink-0 bg-red-950/50 border border-red-500/30 px-2.5 py-1.5 rounded-xl shadow-md">
             <Plane className="w-3 h-3 text-red-400 animate-pulse" /> Airport Hubs:
           </span>
-          {MAJOR_AIRPORT_HUBS.map((hub) => (
-            <button
-              key={hub.id}
-              type="button"
-              onClick={() => {
-                setCity(hub.cityName);
-                setLocationStatus(null);
-                setDetectedLocationLabel("");
-                setOutOfRangeInfo(null);
-              }}
-              className={`shrink-0 rounded-full border px-3.5 py-1 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                city.toLowerCase().includes(hub.cityName.split(",")[0].toLowerCase())
-                  ? "border-red-500 bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30 scale-105"
-                  : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <span>{hub.name.split("(")[0].trim()}</span>
-              <span className="text-[9px] font-mono bg-black/40 px-1.5 py-0.5 rounded text-red-300 font-bold">{hub.code}</span>
-            </button>
-          ))}
+          {(activeHubs.filter((h) => h.airportName && h.airportName.trim().length > 0).length > 0
+            ? activeHubs.filter((h) => h.airportName && h.airportName.trim().length > 0)
+            : MAJOR_AIRPORT_HUBS.map((h) => ({
+                id: h.id,
+                name: h.cityName,
+                cityName: h.cityName,
+                stateName: "",
+                displayName: h.cityName,
+                airportName: h.name,
+                code: h.code,
+              }))
+          ).map((hub) => {
+            const isAct =
+              city.toLowerCase().includes(hub.cityName.split(",")[0].toLowerCase()) ||
+              city.toLowerCase().includes(hub.name.toLowerCase());
+            const codeMatch = hub.airportName?.match(/\(([A-Z]{3})\)/);
+            const code = (hub as any).code || (codeMatch ? codeMatch[1] : hub.cityName.slice(0, 3).toUpperCase());
+            const cleanAirportName = (hub.airportName ?? hub.name).replace(/\s*\([A-Z]{3}\)/, "").trim();
+
+            return (
+              <button
+                key={hub.id}
+                type="button"
+                onClick={() => {
+                  setCity(hub.name);
+                  setLocationStatus(null);
+                  setDetectedLocationLabel("");
+                  setOutOfRangeInfo(null);
+                }}
+                className={`shrink-0 rounded-full border px-3.5 py-1 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isAct
+                    ? "border-red-500 bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30 scale-105"
+                    : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span>{cleanAirportName}</span>
+                {code && (
+                  <span className="text-[9px] font-mono bg-black/40 px-1.5 py-0.5 rounded text-red-300 font-bold">{code}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <form onSubmit={fetchVehicles} className="mt-3 relative z-10">

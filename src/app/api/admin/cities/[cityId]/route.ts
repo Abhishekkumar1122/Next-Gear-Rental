@@ -7,9 +7,10 @@ import { z } from "zod";
 import { revalidateTag } from "next/cache";
 
 const updateCitySchema = z.object({
-  cityName: z.string().min(2).max(80),
-  stateName: z.string().min(2).max(80),
+  cityName: z.string().min(2).max(80).optional(),
+  stateName: z.string().min(2).max(80).optional(),
   airportName: z.string().max(120).optional(),
+  isActive: z.boolean().optional(),
 });
 
 type Props = {
@@ -29,21 +30,27 @@ export async function PATCH(request: Request, { params }: Props) {
   }
 
   const payload = parsed.data;
-  const cityDisplayName = formatCityWithState(payload.cityName, payload.stateName);
 
-  const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
+  const existing = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true, name: true } });
   if (!existing) {
     return NextResponse.json({ error: "City not found" }, { status: 404 });
   }
 
+  const updateData: { name?: string; airportName?: string | null; isActive?: boolean } = {};
+  if (payload.cityName && payload.stateName) {
+    updateData.name = formatCityWithState(payload.cityName, payload.stateName);
+  }
+  if (payload.airportName !== undefined) {
+    updateData.airportName = payload.airportName.trim() || null;
+  }
+  if (payload.isActive !== undefined) {
+    updateData.isActive = payload.isActive;
+  }
+
   const updated = await prisma.city.update({
     where: { id: cityId },
-    data: {
-      name: cityDisplayName,
-      airportName: payload.airportName?.trim() || null,
-      isActive: true,
-    },
-    select: { id: true, name: true, airportName: true },
+    data: updateData,
+    select: { id: true, name: true, airportName: true, isActive: true },
   });
 
   try {

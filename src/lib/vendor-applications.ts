@@ -2,6 +2,7 @@ import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { runtimeUsers } from "@/lib/runtime-store";
 import { sendVendorApprovalEmailAndWhatsApp } from "@/lib/vendor-email-service";
+import { formatCityWithState, MAJOR_AIRPORT_HUBS } from "@/lib/india-locations";
 
 export type VendorApplicationStatus =
   | "new"
@@ -22,7 +23,9 @@ export type VendorApplication = {
   id: string;
   businessName: string;
   contactName: string;
+  email: string;
   phone: string;
+  state: string;
   city: string;
   fleetSize: string;
   status: VendorApplicationStatus;
@@ -41,7 +44,9 @@ export type VendorApplication = {
 type VendorApplicationCreateInput = {
   businessName: string;
   contactName: string;
+  email: string;
   phone: string;
+  state: string;
   city: string;
   fleetSize: string;
 };
@@ -50,7 +55,9 @@ type VendorApplicationRow = {
   id: string;
   business_name: string;
   contact_name: string;
+  email: string;
   phone: string;
+  state: string;
   city: string;
   fleet_size: string;
   status: string;
@@ -77,7 +84,9 @@ function toVendorApplication(row: VendorApplicationRow): VendorApplication {
     id: row.id,
     businessName: row.business_name,
     contactName: row.contact_name,
+    email: row.email || "",
     phone: row.phone,
+    state: row.state || "",
     city: row.city,
     fleetSize: row.fleet_size,
     status: (row.status as VendorApplicationStatus) || "new",
@@ -102,39 +111,49 @@ function toVendorApplication(row: VendorApplicationRow): VendorApplication {
 async function ensureTable() {
   if (ensuredTable || !process.env.DATABASE_URL) return;
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "VendorApplication" (
-      id TEXT PRIMARY KEY,
-      business_name TEXT NOT NULL,
-      contact_name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      city TEXT NOT NULL,
-      fleet_size TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'new',
-      kyc_identity BOOLEAN NOT NULL DEFAULT FALSE,
-      kyc_business BOOLEAN NOT NULL DEFAULT FALSE,
-      kyc_bank BOOLEAN NOT NULL DEFAULT FALSE,
-      kyc_agreement BOOLEAN NOT NULL DEFAULT FALSE,
-      admin_notes TEXT,
-      login_id TEXT,
-      temp_password TEXT,
-      vendor_user_id TEXT,
-      vendor_id TEXT,
-      onboarding_automated_at TIMESTAMP,
-      kyc_approved_at TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "VendorApplication" (
+        id TEXT PRIMARY KEY,
+        business_name TEXT NOT NULL,
+        contact_name TEXT NOT NULL,
+        email TEXT NOT NULL DEFAULT '',
+        phone TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL,
+        fleet_size TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'new',
+        kyc_identity BOOLEAN NOT NULL DEFAULT FALSE,
+        kyc_business BOOLEAN NOT NULL DEFAULT FALSE,
+        kyc_bank BOOLEAN NOT NULL DEFAULT FALSE,
+        kyc_agreement BOOLEAN NOT NULL DEFAULT FALSE,
+        admin_notes TEXT,
+        login_id TEXT,
+        temp_password TEXT,
+        vendor_user_id TEXT,
+        vendor_id TEXT,
+        onboarding_automated_at TIMESTAMP,
+        kyc_approved_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_identity BOOLEAN NOT NULL DEFAULT FALSE`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_business BOOLEAN NOT NULL DEFAULT FALSE`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_bank BOOLEAN NOT NULL DEFAULT FALSE`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_agreement BOOLEAN NOT NULL DEFAULT FALSE`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS onboarding_automated_at TIMESTAMP`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_approved_at TIMESTAMP`);
+    await Promise.allSettled([
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_identity BOOLEAN NOT NULL DEFAULT FALSE`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_business BOOLEAN NOT NULL DEFAULT FALSE`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_bank BOOLEAN NOT NULL DEFAULT FALSE`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_agreement BOOLEAN NOT NULL DEFAULT FALSE`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS onboarding_automated_at TIMESTAMP`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS kyc_approved_at TIMESTAMP`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`),
+      prisma.$executeRawUnsafe(`ALTER TABLE "VendorApplication" ADD COLUMN IF NOT EXISTS state TEXT NOT NULL DEFAULT ''`),
+    ]);
 
-  ensuredTable = true;
+    ensuredTable = true;
+  } catch (e) {
+    console.warn("ensureTable VendorApplication warning:", e);
+  }
 }
 
 function buildLoginId(input: { businessName: string; phone: string }) {
@@ -181,7 +200,9 @@ export async function createVendorApplication(input: VendorApplicationCreateInpu
       id,
       businessName: input.businessName,
       contactName: input.contactName,
+      email: input.email,
       phone: input.phone,
+      state: input.state,
       city: input.city,
       fleetSize: input.fleetSize,
       status: "new",
@@ -202,14 +223,16 @@ export async function createVendorApplication(input: VendorApplicationCreateInpu
   await ensureTable();
   const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
     `
-      INSERT INTO "VendorApplication" (id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, 'new', FALSE, FALSE, FALSE, FALSE, NOW(), NOW())
-      RETURNING id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      INSERT INTO "VendorApplication" (id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new', FALSE, FALSE, FALSE, FALSE, NOW(), NOW())
+      RETURNING id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
     `,
     id,
     input.businessName,
     input.contactName,
+    input.email,
     input.phone,
+    input.state,
     input.city,
     input.fleetSize
   );
@@ -245,7 +268,7 @@ export async function getVendorApplications(params?: {
 
   const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
     `
-      SELECT id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      SELECT id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
       FROM "VendorApplication"
       WHERE ($1 = 'all' OR status = $1)
       AND (
@@ -254,6 +277,7 @@ export async function getVendorApplications(params?: {
         OR LOWER(contact_name) LIKE '%' || $2 || '%'
         OR LOWER(phone) LIKE '%' || $2 || '%'
         OR LOWER(city) LIKE '%' || $2 || '%'
+        OR LOWER(email) LIKE '%' || $2 || '%'
       )
       ORDER BY created_at DESC
       LIMIT $3
@@ -294,7 +318,7 @@ export async function updateVendorApplication(
         admin_notes = COALESCE($3, admin_notes),
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      RETURNING id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
     `,
     id,
     patch.status ?? null,
@@ -333,11 +357,7 @@ export async function updateVendorKycChecklist(
 
     existing.updatedAt = new Date().toISOString();
 
-    if (existing.status === "kyc-complete") {
-      const automated = await generateVendorCredentials(id);
-      return automated;
-    }
-
+    // Do NOT auto-generate credentials. Return updated application.
     return existing;
   }
 
@@ -372,7 +392,7 @@ export async function updateVendorKycChecklist(
         END,
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      RETURNING id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
     `,
     id,
     typeof checklistPatch.identityVerified === "boolean" ? checklistPatch.identityVerified : null,
@@ -384,15 +404,13 @@ export async function updateVendorKycChecklist(
 
   if (!rows.length) return null;
 
-  const updated = toVendorApplication(rows[0]);
-  if (updated.status === "kyc-complete") {
-    return generateVendorCredentials(id);
-  }
-
-  return updated;
+  return toVendorApplication(rows[0]);
 }
 
-export async function generateVendorCredentials(applicationId: string): Promise<VendorApplication | null> {
+export async function generateVendorCredentials(
+  applicationId: string,
+  commissionRate: number = 15
+): Promise<VendorApplication | null> {
   if (!process.env.DATABASE_URL) {
     const existing = runtimeVendorApplications.find((item) => item.id === applicationId);
     if (!existing) return null;
@@ -429,7 +447,7 @@ export async function generateVendorCredentials(applicationId: string): Promise<
 
   const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
     `
-      SELECT id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      SELECT id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
       FROM "VendorApplication"
       WHERE id = $1
       LIMIT 1
@@ -441,6 +459,15 @@ export async function generateVendorCredentials(applicationId: string): Promise<
   const application = rows[0];
 
   if (application.login_id && application.temp_password) {
+    // Re-dispatch if already generated
+    void sendVendorApprovalEmailAndWhatsApp({
+      businessName: application.business_name,
+      contactName: application.contact_name,
+      email: application.email || application.login_id,
+      phone: application.phone,
+      tempPassword: application.temp_password,
+      commissionRate,
+    });
     return toVendorApplication(application);
   }
 
@@ -472,10 +499,15 @@ export async function generateVendorCredentials(applicationId: string): Promise<
       data: {
         businessName: application.business_name,
         contactPhone: application.phone,
-        commissionRate: 12,
+        commissionRate,
         ownerUserId: user.id,
       },
       select: { id: true },
+    });
+  } else {
+    await prisma.vendor.update({
+      where: { id: vendor.id },
+      data: { commissionRate },
     });
   }
 
@@ -491,7 +523,7 @@ export async function generateVendorCredentials(applicationId: string): Promise<
         onboarding_automated_at = NOW(),
         updated_at = NOW()
       WHERE id = $1
-      RETURNING id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      RETURNING id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
     `,
     applicationId,
     loginId,
@@ -500,13 +532,51 @@ export async function generateVendorCredentials(applicationId: string): Promise<
     vendor.id
   );
 
+  // Auto-provision operational territory in Locations & Cities Hub if state & city are present
+  if (application.city && application.state) {
+    try {
+      const cityDisplayName = formatCityWithState(application.city, application.state);
+      const existingCity = await prisma.city.findFirst({
+        where: {
+          OR: [
+            { name: cityDisplayName },
+            { name: application.city },
+          ],
+        },
+      });
+
+      if (!existingCity) {
+        const knownAirport = MAJOR_AIRPORT_HUBS.find(
+          (h) => h.cityName.toLowerCase().includes(application.city.toLowerCase()) || h.name.toLowerCase().includes(application.city.toLowerCase())
+        );
+
+        await prisma.city.create({
+          data: {
+            name: cityDisplayName,
+            airportName: knownAirport ? knownAirport.name : undefined,
+            isActive: true,
+          },
+        });
+        console.log(`[Auto-Territory] Auto-registered new operational hub: "${cityDisplayName}" for vendor "${application.business_name}"`);
+      } else if (!existingCity.isActive) {
+        await prisma.city.update({
+          where: { id: existingCity.id },
+          data: { isActive: true },
+        });
+        console.log(`[Auto-Territory] Re-activated operational hub: "${existingCity.name}" for vendor "${application.business_name}"`);
+      }
+    } catch (cityErr) {
+      console.warn("[Auto-Territory Provisioning Warning]:", cityErr);
+    }
+  }
+
   void sendVendorApprovalEmailAndWhatsApp({
     businessName: application.business_name,
     contactName: application.contact_name,
-    email: loginId,
+    email: application.email || loginId,
     phone: application.phone,
     tempPassword,
-    commissionRate: 15,
+    commissionRate,
   });
 
   return toVendorApplication(updatedRows[0]);
@@ -527,7 +597,7 @@ export async function getVendorApplicationByIdAndPhone(
 
   const rows = await prisma.$queryRawUnsafe<VendorApplicationRow[]>(
     `
-      SELECT id, business_name, contact_name, phone, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
+      SELECT id, business_name, contact_name, email, phone, state, city, fleet_size, status, kyc_identity, kyc_business, kyc_bank, kyc_agreement, admin_notes, login_id, temp_password, vendor_user_id, vendor_id, onboarding_automated_at, kyc_approved_at, created_at, updated_at
       FROM "VendorApplication"
       WHERE LOWER(id) = LOWER($1) AND phone = $2
       LIMIT 1

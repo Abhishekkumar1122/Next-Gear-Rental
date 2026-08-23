@@ -22,7 +22,6 @@ import { AdminCommandPalette } from "@/components/admin-command-palette";
 import { AdminActivityFeed } from "@/components/admin-activity-feed";
 import { formatBookingId } from "@/lib/pricing-tiers";
 import { getDeliveryJobs, getDrivers } from "@/lib/delivery-data";
-import { AdminApprovalsPanel } from "@/components/admin-approvals-panel";
 import { AdminPaymentsPanel } from "@/components/admin-payments-panel";
 import { AdminSupportTicketsPanel } from "@/components/admin-support-tickets-panel";
 import { AdminDeliveriesPanel } from "@/components/admin-deliveries-panel";
@@ -30,6 +29,12 @@ import { AdminUsersPanel } from "@/components/admin-users-panel";
 import { AdminJobsPanel } from "@/components/admin-jobs-panel";
 import { AdminEmailTemplatesPanel } from "@/components/admin-email-templates-panel";
 import { AdminMailInboxPanel } from "@/components/admin-mail-inbox-panel";
+import { AdminAttentionCenter } from "@/components/admin-attention-center";
+import { AdminCitiesPanel } from "@/components/admin-cities-panel";
+import { AdminInspectionsPanel } from "@/components/admin-inspections-panel";
+import { AdminOverviewKpis } from "@/components/admin-overview-kpis";
+import { getCachedAttentionCenterData } from "@/lib/attention-center";
+import { getCachedAdminKpiAggregates } from "@/lib/admin-kpi-aggregates";
 
 export const revalidate = 120; // Cache dashboard for 2 minutes
 
@@ -115,17 +120,36 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
   const daysParam = typeof params.days === "string" ? params.days : "30";
   const sectionParam = typeof params.section === "string" ? params.section : "overview";
 
-  const allowedSections = ["overview", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "contact-requests", "alerts", "mail-inbox", "email-templates", "footer", "support", "webhooks", "approvals", "deliveries", "careers-jobs"] as const;
+  const allowedSections = ["overview", "attention-center", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "cities", "inspections", "contact-requests", "alerts", "mail-inbox", "email-templates", "footer", "support", "webhooks", "deliveries", "careers-jobs"] as const;
   const activeSection = allowedSections.includes(sectionParam as (typeof allowedSections)[number])
     ? (sectionParam as (typeof allowedSections)[number])
     : "overview";
 
-  const [history, webhookAudit, opsReport, deliveryJobs, driversList] = await Promise.all([
+  const [history, webhookAudit, opsReport, deliveryJobs, driversList, attentionData, kpiAggregates] = await Promise.all([
     getCachedAdminHistory(provider, status),
     getCachedWebhookAuditLogs(whProvider, whStatus, whPage),
     getCachedOpsReport(hours),
     getDeliveryJobs({ limit: 50 }).catch(() => []),
     getDrivers().catch(() => []),
+    getCachedAttentionCenterData().catch(() => ({
+      totalPendingCount: 0,
+      criticalCount: 0,
+      warningCount: 0,
+      infoCount: 0,
+      items: [],
+      lastRefreshedAt: new Date().toISOString(),
+    })),
+    getCachedAdminKpiAggregates().catch(() => ({
+      totalUsers: 0,
+      totalVendors: 0,
+      totalVehicles: 0,
+      activeBookings: 0,
+      todayBookings: 0,
+      pendingPayments: 0,
+      revenue: { today: 0, thisWeek: 0, thisMonth: 0, allTime: 0 },
+      todayRefunds: 0,
+      lastRefreshedAt: new Date().toISOString(),
+    })),
   ]);
   const webhookLogs = webhookAudit.items;
 
@@ -224,7 +248,12 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
 
   const sectionTabs = [
     { id: "overview", label: "Overview", icon: "📊" },
-    { id: "approvals", label: "Approvals", icon: "✅" },
+    {
+      id: "attention-center",
+      label: "Attention Center",
+      icon: "🔥",
+      badge: attentionData.totalPendingCount > 0 ? String(attentionData.totalPendingCount) : undefined,
+    },
     { id: "finance", label: "Payments", icon: "💰" },
     { id: "deliveries", label: "Deliveries", icon: "🚚" },
     { id: "bookings", label: "Bookings", icon: "📅" },
@@ -233,6 +262,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     { id: "users-fleet", label: "Users & Vendors", icon: "👤" },
     { id: "vendor-applications", label: "Vendor Applications", icon: "📝" },
     { id: "vehicles", label: "Vehicle List", icon: "🏍️" },
+    { id: "cities", label: "Locations & Cities", icon: "🏙️" },
+    { id: "inspections", label: "Inspections & Damages", icon: "🔍" },
     { id: "careers-jobs", label: "Jobs & Careers", icon: "💼" },
     { id: "contact-requests", label: "Contact Requests", icon: "✉️" },
     { id: "alerts", label: "Alerts", icon: "⚠️" },
@@ -481,8 +512,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
           {/* Quick Header Actions */}
           <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0">
             <div className="hidden md:flex gap-2 text-[10px] uppercase font-black tracking-wider">
-              <Link href={buildSectionHref("approvals")} className="rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 px-3.5 py-2 transition duration-300">
-                Approvals
+              <Link href={buildSectionHref("attention-center")} className="rounded-xl border border-red-500/20 bg-red-950/30 hover:bg-red-950/50 text-red-400 px-3.5 py-2 transition duration-300">
+                Attention Hub
               </Link>
               <Link href={buildSectionHref("support")} className="rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 px-3.5 py-2 transition duration-300">
                 Tickets
@@ -555,7 +586,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
                 </div>
               </div>
 
-              {/* KPI Stat Cards Grid */}
+              {/* KPI Stat Cards Grid with dynamic sparklines */}
               <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
                 <StatCard
                   label="Paid Revenue"
@@ -915,6 +946,12 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             </div>
           )}
 
+          {activeSection === "attention-center" && (
+            <div className="space-y-6">
+              <AdminAttentionCenter initialData={attentionData} />
+            </div>
+          )}
+
           {activeSection === "ops" && (
             <section className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl space-y-6">
               <div className="border-b border-white/5 pb-4 flex flex-wrap items-center justify-between gap-4">
@@ -1077,19 +1114,6 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             </section>
           )}
 
-          {activeSection === "approvals" && (
-            <section className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl space-y-6">
-              <div className="border-b border-white/5 pb-4">
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Approvals</p>
-                <h2 className="text-base font-black uppercase tracking-wider text-white mt-1">KYC & Vendor Approvals</h2>
-                <p className="text-xs text-white/60 leading-relaxed mt-1">Audit verification requests, upload user document logs, and block violating accounts.</p>
-              </div>
-              <div>
-                <AdminApprovalsPanel />
-              </div>
-            </section>
-          )}
-
           {activeSection === "deliveries" && (
             <section className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl space-y-6">
               <div className="border-b border-white/5 pb-4">
@@ -1139,6 +1163,14 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
                 <AdminVehicleInventoryPanel />
               </div>
             </section>
+          )}
+
+          {activeSection === "cities" && (
+            <AdminCitiesPanel />
+          )}
+
+          {activeSection === "inspections" && (
+            <AdminInspectionsPanel />
           )}
 
           {activeSection === "vendor-applications" && (

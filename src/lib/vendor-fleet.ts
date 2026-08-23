@@ -19,6 +19,7 @@ export type VendorContext = {
   commissionRate: number;
   status: VendorModerationStatus;
   blacklistReason?: string;
+  customMessage?: string;
   blockCount: number;
   appealText?: string;
 };
@@ -81,6 +82,7 @@ export async function resolveVendorContext(user: SessionUser): Promise<VendorCon
       commissionRate: Number(byOwnerEmail.commissionRate),
       status: moderation.status,
       blacklistReason: moderation.reason,
+      customMessage: moderation.customMessage,
       blockCount: moderation.blockCount,
       appealText: moderation.appealText,
     };
@@ -95,6 +97,7 @@ export async function resolveVendorContext(user: SessionUser): Promise<VendorCon
       commissionRate: foundByEmail.commissionRate,
       status: moderation.status,
       blacklistReason: moderation.reason,
+      customMessage: moderation.customMessage,
       blockCount: moderation.blockCount,
       appealText: moderation.appealText,
     };

@@ -7,14 +7,16 @@ export type VendorModerationStatus = "pending" | "approved" | "rejected" | "blac
 export type VendorModerationDetails = {
   status: VendorModerationStatus;
   reason?: string;
+  customMessage?: string;
   blockCount: number;
   appealText?: string;
 };
 
-const DEFAULT_BLACKLIST_REASON = "Violation of privacy policy";
+const DEFAULT_BLACKLIST_REASON = "Violation of platform policies";
 
 const inMemoryOverrides = new Map<string, VendorModerationStatus>();
 const inMemoryReasons = new Map<string, string>();
+const inMemoryCustomMessages = new Map<string, string>();
 const inMemoryBlockCounts = new Map<string, number>();
 const inMemoryAppeals = new Map<string, string>();
 let hasEnsuredTable = false;
@@ -24,18 +26,22 @@ async function ensureVendorModerationTable() {
     return;
   }
 
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "VendorModerationStatus" (
-      vendor_id TEXT PRIMARY KEY REFERENCES "Vendor"(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'approved',
-      reason TEXT,
-      block_count INTEGER DEFAULT 0,
-      appeal_text TEXT,
-      updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "VendorModerationStatus" (
+        vendor_id TEXT PRIMARY KEY REFERENCES "Vendor"(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'approved',
+        reason TEXT,
+        custom_message TEXT,
+        block_count INTEGER DEFAULT 0,
+        appeal_text TEXT,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "VendorModerationStatus" ADD COLUMN IF NOT EXISTS custom_message TEXT;
+    `);
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "VendorModerationStatus" ADD COLUMN IF NOT EXISTS block_count INTEGER DEFAULT 0;
     `);
@@ -60,6 +66,7 @@ type ModerationRow = {
   vendor_id: string;
   status: string;
   reason: string | null;
+  custom_message: string | null;
   block_count: number | null;
   appeal_text: string | null;
 };
@@ -71,6 +78,7 @@ export async function getVendorModerationDetails(vendorId: string, fallback: Ven
       return {
         status: override,
         reason: inMemoryReasons.get(vendorId) || undefined,
+        customMessage: inMemoryCustomMessages.get(vendorId) || undefined,
         blockCount: inMemoryBlockCounts.get(vendorId) || 0,
         appealText: inMemoryAppeals.get(vendorId) || undefined,
       };
@@ -81,29 +89,38 @@ export async function getVendorModerationDetails(vendorId: string, fallback: Ven
     return {
       status,
       reason: status === "blacklisted" ? inMemoryReasons.get(vendorId) || DEFAULT_BLACKLIST_REASON : undefined,
+      customMessage: status === "blacklisted" ? inMemoryCustomMessages.get(vendorId) : undefined,
       blockCount: inMemoryBlockCounts.get(vendorId) || 0,
       appealText: inMemoryAppeals.get(vendorId) || undefined,
     };
   }
 
-  const rows = await prisma.$queryRaw<ModerationRow[]>(Prisma.sql`
-    SELECT vendor_id, status, reason, block_count, appeal_text
-    FROM "VendorModerationStatus"
-    WHERE vendor_id = ${vendorId}
-    LIMIT 1
-  `);
+  await ensureVendorModerationTable();
 
-  if (!rows.length) {
+  try {
+    const rows = await prisma.$queryRaw<ModerationRow[]>(Prisma.sql`
+      SELECT vendor_id, status, reason, custom_message, block_count, appeal_text
+      FROM "VendorModerationStatus"
+      WHERE vendor_id = ${vendorId}
+      LIMIT 1
+    `);
+
+    if (!rows.length) {
+      return { status: fallback, blockCount: 0 };
+    }
+
+    const status = normalizeStatus(rows[0].status);
+    return {
+      status,
+      reason: status === "blacklisted" ? rows[0].reason ?? DEFAULT_BLACKLIST_REASON : undefined,
+      customMessage: status === "blacklisted" ? rows[0].custom_message ?? undefined : undefined,
+      blockCount: rows[0].block_count ?? 0,
+      appealText: rows[0].appeal_text ?? undefined,
+    };
+  } catch (e) {
+    console.warn("getVendorModerationDetails fallback:", e);
     return { status: fallback, blockCount: 0 };
   }
-
-  const status = normalizeStatus(rows[0].status);
-  return {
-    status,
-    reason: status === "blacklisted" ? rows[0].reason ?? DEFAULT_BLACKLIST_REASON : undefined,
-    blockCount: rows[0].block_count ?? 0,
-    appealText: rows[0].appeal_text ?? undefined,
-  };
 }
 
 export async function getVendorModerationStatus(vendorId: string, fallback: VendorModerationStatus = "approved") {
@@ -138,21 +155,31 @@ export async function getVendorModerationMap(vendorIds: string[], fallback: Vend
 
   await ensureVendorModerationTable();
 
-  const rows = await prisma.$queryRaw<ModerationRow[]>(Prisma.sql`
-    SELECT vendor_id, status, reason, block_count, appeal_text
-    FROM "VendorModerationStatus"
-    WHERE vendor_id IN (${Prisma.join(vendorIds)})
-  `);
+  try {
+    const rows = await prisma.$queryRaw<ModerationRow[]>(Prisma.sql`
+      SELECT vendor_id, status, reason, custom_message, block_count, appeal_text
+      FROM "VendorModerationStatus"
+      WHERE vendor_id IN (${Prisma.join(vendorIds)})
+    `);
 
-  for (const row of rows) {
-    map.set(row.vendor_id, normalizeStatus(row.status));
+    for (const row of rows) {
+      map.set(row.vendor_id, normalizeStatus(row.status));
+    }
+  } catch (e) {
+    console.warn("getVendorModerationMap fallback:", e);
   }
 
   return map;
 }
 
-export async function setVendorModerationStatus(vendorId: string, status: VendorModerationStatus, reason?: string) {
+export async function setVendorModerationStatus(
+  vendorId: string,
+  status: VendorModerationStatus,
+  reason?: string,
+  customMessage?: string
+) {
   const normalizedReason = status === "blacklisted" ? (reason?.trim() || DEFAULT_BLACKLIST_REASON) : undefined;
+  const normalizedMessage = status === "blacklisted" ? customMessage?.trim() : undefined;
   const isBlacklist = status === "blacklisted";
 
   if (!process.env.DATABASE_URL) {
@@ -161,6 +188,11 @@ export async function setVendorModerationStatus(vendorId: string, status: Vendor
       inMemoryReasons.set(vendorId, normalizedReason);
     } else {
       inMemoryReasons.delete(vendorId);
+    }
+    if (normalizedMessage) {
+      inMemoryCustomMessages.set(vendorId, normalizedMessage);
+    } else {
+      inMemoryCustomMessages.delete(vendorId);
     }
     if (isBlacklist) {
       inMemoryBlockCounts.set(vendorId, (inMemoryBlockCounts.get(vendorId) || 0) + 1);
@@ -175,25 +207,39 @@ export async function setVendorModerationStatus(vendorId: string, status: Vendor
 
   await ensureVendorModerationTable();
 
-  if (isBlacklist) {
-    await prisma.$executeRaw(
-      Prisma.sql`
-        INSERT INTO "VendorModerationStatus" (vendor_id, status, reason, block_count, appeal_text, updated_at)
-        VALUES (${vendorId}, ${status}, ${normalizedReason ?? null}, 1, NULL, NOW())
-        ON CONFLICT (vendor_id)
-        DO UPDATE SET status = EXCLUDED.status, reason = EXCLUDED.reason, block_count = "VendorModerationStatus".block_count + 1, appeal_text = NULL, updated_at = NOW()
-      `
-    );
-  } else {
-    // Unblocking or transitioning status
-    await prisma.$executeRaw(
-      Prisma.sql`
-        INSERT INTO "VendorModerationStatus" (vendor_id, status, reason, updated_at)
-        VALUES (${vendorId}, ${status}, NULL, NOW())
-        ON CONFLICT (vendor_id)
-        DO UPDATE SET status = EXCLUDED.status, reason = NULL, updated_at = NOW()
-      `
-    );
+  try {
+    if (isBlacklist) {
+      await prisma.$executeRaw(
+        Prisma.sql`
+          INSERT INTO "VendorModerationStatus" (vendor_id, status, reason, custom_message, block_count, appeal_text, updated_at)
+          VALUES (${vendorId}, ${status}, ${normalizedReason ?? null}, ${normalizedMessage ?? null}, 1, NULL, CURRENT_TIMESTAMP)
+          ON CONFLICT (vendor_id)
+          DO UPDATE SET
+            status = EXCLUDED.status,
+            reason = EXCLUDED.reason,
+            custom_message = EXCLUDED.custom_message,
+            block_count = "VendorModerationStatus".block_count + 1,
+            appeal_text = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      );
+    } else {
+      await prisma.$executeRaw(
+        Prisma.sql`
+          INSERT INTO "VendorModerationStatus" (vendor_id, status, reason, custom_message, block_count, appeal_text, updated_at)
+          VALUES (${vendorId}, ${status}, NULL, NULL, 0, NULL, CURRENT_TIMESTAMP)
+          ON CONFLICT (vendor_id)
+          DO UPDATE SET
+            status = EXCLUDED.status,
+            reason = NULL,
+            custom_message = NULL,
+            appeal_text = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      );
+    }
+  } catch (e) {
+    console.error("setVendorModerationStatus error:", e);
   }
 
   return status;
