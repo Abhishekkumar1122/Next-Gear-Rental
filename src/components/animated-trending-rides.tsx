@@ -22,7 +22,7 @@ interface AnimatedTrendingRidesProps {
 }
 
 export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
-  if (!rides || rides.length === 0) {
+  if (!rides || rides.length < 3) {
     return null;
   }
   // State for active center card index in circular carousel
