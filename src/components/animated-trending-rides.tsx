@@ -21,10 +21,44 @@ interface AnimatedTrendingRidesProps {
   rides: Ride[];
 }
 
+// Fallback demo rides shown when database has fewer than 3 real vehicles
+const FALLBACK_RIDES: Ride[] = [
+  {
+    icon: "🏍️",
+    image: "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
+    title: "Royal Enfield Hunter 350",
+    meta: "Delhi · Manual · 2 seats",
+    price: "INR 799/day",
+    rating: "4.9",
+    booked: "120+ booked this week",
+    badge: "Most Popular",
+  },
+  {
+    icon: "🏎️",
+    image: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?q=80&w=800&auto=format&fit=crop",
+    title: "Mahindra Thar 4x4",
+    meta: "Goa · Automatic · 4 seats",
+    price: "INR 2,899/day",
+    rating: "4.9",
+    booked: "95+ booked this week",
+    badge: "Best Value",
+  },
+  {
+    icon: "🛵",
+    image: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    title: "Honda Activa 6G",
+    meta: "Bengaluru · Automatic · 2 seats",
+    price: "INR 399/day",
+    rating: "4.8",
+    booked: "210+ booked this week",
+    badge: "Eco-Friendly",
+  },
+];
+
 export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
-  if (!rides || rides.length < 3) {
-    return null;
-  }
+  // Use real rides if we have at least 3; otherwise fall back to demo data
+  const displayRides = rides && rides.length >= 3 ? rides : FALLBACK_RIDES;
+
   // State for active center card index in circular carousel
   const [centerIndex, setCenterIndex] = useState(1);
   const [isSpread, setIsSpread] = useState(false);
@@ -32,7 +66,7 @@ export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
   const [isAutoSwapping, setIsAutoSwapping] = useState(true);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const total = rides.length > 0 ? rides.length : 3;
+  const total = displayRides.length;
 
   // Trigger fan-out reveal animation when section scrolls into view
   useEffect(() => {
@@ -91,9 +125,9 @@ export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
 
   // Ordered list of items for 3-slot rendering
   const activeSlots = [
-    { item: rides[leftIdx] || rides[0], position: "left", realIndex: leftIdx },
-    { item: rides[centerIndex] || rides[1], position: "center", realIndex: centerIndex },
-    { item: rides[rightIdx] || rides[2], position: "right", realIndex: rightIdx },
+    { item: displayRides[leftIdx] || displayRides[0], position: "left", realIndex: leftIdx },
+    { item: displayRides[centerIndex] || displayRides[1], position: "center", realIndex: centerIndex },
+    { item: displayRides[rightIdx] || displayRides[2], position: "right", realIndex: rightIdx },
   ];
 
   return (
