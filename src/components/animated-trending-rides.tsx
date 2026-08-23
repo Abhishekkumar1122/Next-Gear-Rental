@@ -22,6 +22,9 @@ interface AnimatedTrendingRidesProps {
 }
 
 export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
+  if (!rides || rides.length === 0) {
+    return null;
+  }
   // State for active center card index in circular carousel
   const [centerIndex, setCenterIndex] = useState(1);
   const [isSpread, setIsSpread] = useState(false);
