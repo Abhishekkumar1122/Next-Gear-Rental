@@ -325,6 +325,14 @@ Bank Account: ${record.bankAccountMasked}
 Transaction Ref: ${record.settlementTxnRef}
 
 Thank you for being a valued Next Gear Fleet Partner!`,
+      templateName: "vendor_payout_processed",
+      templateParams: [
+        record.vendorName,
+        record.period || "Settlement Cycle",
+        record.netPayoutINR.toLocaleString("en-IN"),
+        record.bankAccountMasked || record.upiIdMasked || "Bank / UPI",
+        record.settlementTxnRef || "N/A",
+      ],
     });
   }
 

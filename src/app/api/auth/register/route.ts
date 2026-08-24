@@ -94,7 +94,15 @@ export async function POST(request: NextRequest) {
         await dispatchAlert({
           channel: "whatsapp",
           to: waPhone,
-          message: `🎉 *WELCOME TO NEXT GEAR RENTALS!* 🛵🚗\n\nHello *${name}*,\nWelcome to India's premier self-drive bike and car rental platform!\n\n🎁 *Special Welcome Offer:*\nUse coupon code *WELCOME10* on checkout for instant 10% OFF on your first ride.\n\n🌐 Explore Fleet: https://next-gear.app/vehicles\n📞 Support: support@next-gear.app\n\nHave a safe & thrilling journey! 🚀`,
+          message: `🎉 *WELCOME TO NEXT GEAR RENTALS!* 🛵🚗\n\nHello *${name}*,\nWelcome to India's premier self-drive bike and car rental platform!\n\n🎁 *Special Welcome Offer:*\nUse coupon code *FIRSTGEAR15* on checkout for instant 15% OFF on your first ride.\n\n🌐 Explore Fleet: https://next-gear.app/vehicles\n📞 Support: support@next-gear.app\n\nHave a safe & thrilling journey! 🚀`,
+          templateName: "welcome_first_ride_offer",
+          templateParams: [
+            name || "Valued Rider",
+            "15",
+            "FIRSTGEAR15",
+            "7",
+            `${origin}/vehicles`,
+          ],
         });
       }
     } catch (err) {

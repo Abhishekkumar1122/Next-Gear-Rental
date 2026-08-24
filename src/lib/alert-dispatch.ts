@@ -86,6 +86,27 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
         const recipientPhone = normalizePhone(to).replace("+", "");
         console.log(`[Meta WhatsApp] Dispatching to recipientPhone: ${recipientPhone}...`);
 
+        const templateLang = input.templateLang || "en";
+        let components: Array<{ type: string; parameters?: Array<{ type: string; text?: string; [key: string]: unknown }>; sub_type?: string; index?: string }> | undefined = undefined;
+
+        if (input.templateParams && input.templateParams.length > 0) {
+          components = [
+            {
+              type: "body",
+              parameters: input.templateParams.map((val) => ({ type: "text", text: val })),
+            },
+          ];
+
+          if (input.templateName?.startsWith("auth_")) {
+            components.push({
+              type: "button",
+              sub_type: "url",
+              index: "0",
+              parameters: [{ type: "text", text: input.templateParams[0] }],
+            });
+          }
+        }
+
         const requestBody = input.templateName
           ? {
               messaging_product: "whatsapp",
@@ -94,15 +115,8 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
               type: "template",
               template: {
                 name: input.templateName,
-                language: { code: input.templateLang || "en_US" },
-                components: input.templateParams && input.templateParams.length > 0
-                  ? [
-                      {
-                        type: "body",
-                        parameters: input.templateParams.map((val) => ({ type: "text", text: val })),
-                      },
-                    ]
-                  : undefined,
+                language: { code: templateLang },
+                components,
               },
             }
           : {

@@ -8,6 +8,7 @@ interface VendorApplicationReceivedInput {
   contactName: string;
   email: string;
   phone: string;
+  cityName?: string;
   applicationId: string;
   baseUrl?: string;
 }
@@ -92,6 +93,14 @@ _Save your Application ID to track status anytime at next-gear.app/vendor-regist
     channel: "whatsapp",
     to: input.phone,
     message: whatsappMessage,
+    templateName: "vendor_application_received",
+    templateParams: [
+      input.contactName,
+      input.businessName,
+      input.cityName || "Delhi NCR",
+      input.applicationId,
+      uploadUrl,
+    ],
   });
 
   await Promise.allSettled([emailPromise, whatsappPromise]);
@@ -206,6 +215,12 @@ Start adding your fleet to receive instant bookings on Next Gear!`;
     channel: "whatsapp",
     to: input.phone,
     message: whatsappMessage,
+    templateName: "vendor_account_approved",
+    templateParams: [
+      input.contactName,
+      input.businessName,
+      loginUrl,
+    ],
   });
 
   await Promise.allSettled([emailPromise, whatsappPromise]);

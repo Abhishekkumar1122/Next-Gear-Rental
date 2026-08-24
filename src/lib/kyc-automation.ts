@@ -199,6 +199,38 @@ export async function submitKycAutomation(input: {
     `,
   );
 
+  // Dispatch WhatsApp Notification using approved kyc_verification_update template
+  try {
+    const user = await prisma.user.findFirst({ where: { email: { equals: userEmail, mode: "insensitive" } } });
+    if (user?.phone) {
+      const { dispatchAlert } = await import("@/lib/alert-dispatch");
+      const statusText = entry.status === "approved" ? "APPROVED" : entry.status === "rejected" ? "ACTION REQUIRED" : "UNDER REVIEW";
+      const remarks = entry.status === "approved"
+        ? "Your documents have been verified. You are now eligible to book all vehicles."
+        : entry.status === "rejected"
+        ? `Verification unsuccessful: ${entry.flags.join(", ") || "Please upload a clear copy"}`
+        : "Your documents are currently under review by our operations team.";
+      const instruction = entry.status === "approved"
+        ? "You can now proceed with your self-drive bookings instantly!"
+        : "Please visit your dashboard to re-upload clear photos of your Driving Licence.";
+
+      void dispatchAlert({
+        channel: "whatsapp",
+        to: user.phone,
+        message: `📋 *KYC VERIFICATION UPDATE*\n\nHello *${entry.fullName}*,\nYour document verification status: *${statusText}*\n\n${remarks}\n\n${instruction}`,
+        templateName: "kyc_verification_update",
+        templateParams: [
+          entry.fullName || "Valued Rider",
+          statusText,
+          remarks,
+          instruction,
+        ],
+      });
+    }
+  } catch (e) {
+    console.error("[KYC WhatsApp Dispatch Error]", e);
+  }
+
   return entry;
 }
 

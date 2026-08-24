@@ -461,14 +461,46 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
   const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${bookingData.id}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
   if (bookingData.customerPhone) {
-    void dispatchAlert({ channel: "whatsapp", to: bookingData.customerPhone, message: customerWaMsg });
+    void dispatchAlert({
+      channel: "whatsapp",
+      to: bookingData.customerPhone,
+      message: customerWaMsg,
+      templateName: "booking_confirmed_receipt",
+      templateParams: [
+        bookingData.customerName,
+        bookingData.id,
+        bookingData.vehicleTitle,
+        bookingData.cityName,
+        bookingData.startDate,
+        bookingData.endDate,
+        bookingData.totalAmountINR.toLocaleString("en-IN"),
+        `https://maps.google.com/?q=Next+Gear+Rentals+${encodeURIComponent(bookingData.cityName)}`,
+        passLink,
+      ],
+    });
     void dispatchAlert({ channel: "sms", to: bookingData.customerPhone, message: customerWaMsg });
   }
 
   // 2. VENDOR ALERT (WhatsApp + SMS)
   if (bookingData.vendorPhone) {
     const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${bookingData.id}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
-    void dispatchAlert({ channel: "whatsapp", to: bookingData.vendorPhone, message: vendorWaMsg });
+    void dispatchAlert({
+      channel: "whatsapp",
+      to: bookingData.vendorPhone,
+      message: vendorWaMsg,
+      templateName: "vendor_new_booking_alert",
+      templateParams: [
+        bookingData.vendorName || "Fleet Partner",
+        bookingData.id,
+        bookingData.vehicleTitle,
+        bookingData.customerName,
+        bookingData.customerPhone || "N/A",
+        bookingData.cityName,
+        bookingData.startDate,
+        bookingData.endDate,
+        Math.round(bookingData.totalAmountINR * 0.8).toLocaleString("en-IN"),
+      ],
+    });
     void dispatchAlert({ channel: "sms", to: bookingData.vendorPhone, message: vendorWaMsg });
   }
 

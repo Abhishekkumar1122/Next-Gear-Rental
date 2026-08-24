@@ -46,6 +46,8 @@ export async function sendWhatsAppOtp(input: {
     channel: "whatsapp",
     to: phone,
     message,
+    templateName: input.purpose === "password_reset" ? "auth_password_reset" : "auth_otp_login",
+    templateParams: [input.otp],
   });
 
   return {
@@ -109,6 +111,18 @@ export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptIn
     channel: "whatsapp",
     to: phone,
     message,
+    templateName: "booking_confirmed_receipt",
+    templateParams: [
+      input.customerName,
+      input.bookingId,
+      input.vehicleTitle,
+      input.cityName,
+      input.startDate,
+      input.endDate,
+      formattedTotal.replace("₹", ""),
+      mapsLink,
+      passLink,
+    ],
   });
 
   return {
@@ -159,6 +173,18 @@ export async function sendVendorBookingNotification(input: VendorBookingNotifica
     channel: "whatsapp",
     to: phone,
     message,
+    templateName: "vendor_new_booking_alert",
+    templateParams: [
+      vName,
+      input.bookingId,
+      input.vehicleTitle,
+      input.customerName,
+      input.customerPhone || "N/A",
+      input.cityName,
+      input.startDate,
+      input.endDate,
+      payoutStr.replace("₹", ""),
+    ],
   });
 
   return {
