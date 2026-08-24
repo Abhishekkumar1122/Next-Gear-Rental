@@ -534,16 +534,22 @@ function LoginContent() {
   const [loginIdentifier, setLoginIdentifier] = useState("");
 
   function isPhoneInput(val: string) {
+    if (!val || val.includes("@")) return false;
     const clean = val.replace(/\D/g, "");
-    return clean.length === 10 && !val.includes("@");
+    return clean.length >= 10;
+  }
+
+  function extractCleanPhone(val: string) {
+    const clean = val.replace(/\D/g, "");
+    return clean.length >= 10 ? clean.slice(-10) : clean;
   }
 
   const getOtpButtonText = () => {
     const contact = loginIdentifier.trim();
-    if (!contact) return "Send OTP";
-    if (isPhoneInput(contact)) return "Send OTP via WhatsApp";
-    if (contact.includes("@")) return "Send OTP via Email";
-    return "Send OTP";
+    if (!contact) return "Send OTP via WhatsApp";
+    if (isPhoneInput(contact)) return "Send OTP via WhatsApp 📲";
+    if (contact.includes("@")) return "Send OTP via Email ✉️";
+    return "Send OTP via WhatsApp 📲";
   };
 
   async function handleSignup(event: FormEvent) {
@@ -552,7 +558,7 @@ function LoginContent() {
       setStatus("Please enter your full name");
       return;
     }
-    if (!phone.trim() || phone.replace(/\D/g, "").length !== 10) {
+    if (!phone.trim() || phone.replace(/\D/g, "").length < 10) {
       setStatus("Please enter a valid 10-digit phone number");
       return;
     }
@@ -565,7 +571,7 @@ function LoginContent() {
     setStatus("Creating account...");
 
     try {
-      const cleanPhone = phone.replace(/\D/g, "").slice(-10);
+      const cleanPhone = extractCleanPhone(phone);
       const payload = {
         name: name.trim(),
         phone: cleanPhone,
@@ -588,7 +594,7 @@ function LoginContent() {
       } else {
         setStatus(data.error ?? "Registration failed");
       }
-    } catch (error) {
+    } catch {
       setStatus("Network error. Please try again.");
     } finally {
       setIsLoading(false);
@@ -609,7 +615,7 @@ function LoginContent() {
     try {
       const isPhone = isPhoneInput(inputVal);
       const payload = isPhone
-        ? { phone: inputVal.replace(/\D/g, "").slice(-10), password }
+        ? { phone: extractCleanPhone(inputVal), password }
         : { email: inputVal.toLowerCase(), password };
       
       const response = await fetch("/api/auth/login", {
@@ -627,7 +633,7 @@ function LoginContent() {
       } else {
         setStatus(data.error ?? "Login failed");
       }
-    } catch (error) {
+    } catch {
       setStatus("Network error. Please try again.");
     } finally {
       setIsLoading(false);
@@ -637,48 +643,18 @@ function LoginContent() {
   async function requestOtp(via: "sms" | "whatsapp" = "whatsapp") {
     const contact = loginIdentifier.trim() || phone.trim() || email.trim();
     if (!contact) {
-      setStatus("Please enter your email or phone number");
+      setStatus("Please enter your email or 10-digit mobile number");
       return;
     }
 
     const isPhone = isPhoneInput(contact);
-    const cleanPhone = isPhone ? contact.replace(/\D/g, "").slice(-10) : "";
+    const cleanPhone = isPhone ? extractCleanPhone(contact) : "";
 
     setIsLoading(true);
-    setStatus(via === "sms" ? "Sending SMS OTP..." : "Sending WhatsApp OTP...");
+    setStatus(isPhone ? "Sending WhatsApp OTP to +91 " + cleanPhone + "..." : "Sending OTP via Email...");
 
     try {
-      if (isPhone && via === "sms" && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-        try {
-          const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
-          const { firebaseAuth } = await import("@/lib/firebase");
-
-          if ((window as any).recaptchaVerifier) {
-            try {
-              (window as any).recaptchaVerifier.clear();
-            } catch {}
-            (window as any).recaptchaVerifier = null;
-          }
-
-          const appVerifier = new RecaptchaVerifier(firebaseAuth, "recaptcha-container", {
-            size: "invisible",
-            callback: () => {},
-          });
-          (window as any).recaptchaVerifier = appVerifier;
-
-          const formattedPhone = `+91${cleanPhone}`;
-          console.log("[Firebase Phone Auth] Triggering SMS to:", formattedPhone);
-          const confirmationResult = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier);
-          setFirebaseConfirmationResult(confirmationResult);
-          setOtpRequested(true);
-          setStatus(`Firebase SMS OTP sent to ${formattedPhone}! Please check your phone.`);
-          return;
-        } catch (fbErr: any) {
-          console.warn("Firebase Auth SMS Error, triggering server SMS dispatch:", fbErr?.code || fbErr?.message);
-        }
-      }
-
-      const payload = isPhone ? { phone: cleanPhone, channel: via } : { email: contact.toLowerCase() };
+      const payload = isPhone ? { phone: cleanPhone } : { email: contact.toLowerCase() };
       const response = await fetch("/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -689,9 +665,9 @@ function LoginContent() {
       
       if (response.ok) {
         setOtpRequested(true);
-        setStatus(data.message ?? `OTP sent to ${contact}`);
+        setStatus(data.message ?? `OTP sent successfully to ${contact}`);
       } else {
-        setStatus(data.error ?? "Failed to send OTP");
+        setStatus(data.error ?? "Failed to send OTP. Please try again.");
       }
     } catch (error: any) {
       console.error("OTP Request Error:", error);
