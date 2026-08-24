@@ -29,35 +29,37 @@ export async function POST(request: Request) {
   let matched = false;
 
   if (hasDatabase) {
-    const user = email
-      ? await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, role: true } })
-      : await prisma.user.findFirst({ where: { phone }, select: { id: true, email: true, role: true } });
-    
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    try {
+      const user = email
+        ? await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, role: true } })
+        : await prisma.user.findFirst({ where: { phone }, select: { id: true, email: true, role: true } });
+      
+      if (user) {
+        userId = user.id;
+        userEmail = user.email || email || "";
+        role = user.role;
+
+        const latestCode = await prisma.otpCode.findFirst({
+          where: { userId: user.id, usedAt: null },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (latestCode && latestCode.expiresAt.getTime() >= Date.now()) {
+          matched = await verifyOtp(otp, latestCode.codeHash);
+          if (matched) {
+            await prisma.otpCode.update({
+              where: { id: latestCode.id },
+              data: { usedAt: new Date() },
+            });
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.warn("[Verify OTP Database Reconnecting]", dbErr);
     }
+  }
 
-    userId = user.id;
-    userEmail = user.email || email || "";
-    role = user.role;
-
-    const latestCode = await prisma.otpCode.findFirst({
-      where: { userId: user.id, usedAt: null },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!latestCode || latestCode.expiresAt.getTime() < Date.now()) {
-      return NextResponse.json({ error: "OTP expired" }, { status: 400 });
-    }
-
-    matched = await verifyOtp(otp, latestCode.codeHash);
-    if (matched) {
-      await prisma.otpCode.update({
-        where: { id: latestCode.id },
-        data: { usedAt: new Date() },
-      });
-    }
-  } else {
+  if (!matched) {
     const user = email
       ? runtimeUsers.find((entry) => entry.email.toLowerCase() === email.toLowerCase())
       : runtimeUsers.find((entry) => entry.phone === phone);

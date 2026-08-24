@@ -31,49 +31,56 @@ export async function POST(request: Request) {
 
   const hasDatabase = Boolean(process.env.DATABASE_URL);
 
+  let dbSaved = false;
   if (hasDatabase) {
-    let user = email
-      ? await prisma.user.findUnique({ where: { email }, select: { id: true } })
-      : await prisma.user.findFirst({ where: { phone }, select: { id: true } });
-    
-    if (!user) {
-      user = await prisma.user.create({
+    try {
+      let user = email
+        ? await prisma.user.findUnique({ where: { email }, select: { id: true } })
+        : await prisma.user.findFirst({ where: { phone }, select: { id: true } });
+      
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            name: email ? email.split("@")[0] : "Mobile User",
+            ...(email && { email }),
+            ...(phone && { phone }),
+            role: "CUSTOMER",
+          },
+          select: { id: true },
+        });
+      }
+
+      await prisma.otpCode.create({
         data: {
-          name: email ? email.split("@")[0] : "Mobile User",
-          ...(email && { email }),
-          ...(phone && { phone }),
-          role: "CUSTOMER",
+          userId: user.id,
+          codeHash,
+          expiresAt,
         },
-        select: { id: true },
       });
+      dbSaved = true;
+    } catch (dbErr) {
+      console.warn("[Database Reconnecting / Offline Fallback]", dbErr);
     }
-
-    await prisma.otpCode.create({
-      data: {
-        userId: user.id,
-        codeHash,
-        expiresAt,
-      },
-    });
-  } else {
-    const identifier = email || phone || "";
-    const existing = email
-      ? runtimeUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
-      : runtimeUsers.find((u) => u.phone === phone);
-    
-    if (!existing) {
-      runtimeUsers.push({
-        id: `usr-${runtimeUsers.length + 1}`,
-        name: email ? email.split("@")[0] : "Phone User",
-        email: email || "",
-        phone: phone || "",
-        passwordHash: "",
-        role: "CUSTOMER",
-      });
-    }
-
-    runtimeOtps.push({ email: identifier, codeHash, expiresAt, used: false });
   }
+
+  // Always store in runtime memory as fallback/instant cache
+  const identifier = email || phone || "";
+  const existing = email
+    ? runtimeUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
+    : runtimeUsers.find((u) => u.phone === phone);
+  
+  if (!existing) {
+    runtimeUsers.push({
+      id: `usr-${runtimeUsers.length + 1}`,
+      name: email ? email.split("@")[0] : "Phone User",
+      email: email || "",
+      phone: phone || "",
+      passwordHash: "",
+      role: "CUSTOMER",
+    });
+  }
+
+  runtimeOtps.push({ email: identifier, codeHash, expiresAt, used: false });
 
   const apiKey = process.env.RESEND_API_KEY;
   if (apiKey && email) {

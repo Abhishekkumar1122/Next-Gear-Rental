@@ -1,15 +1,23 @@
 import { dispatchAlert } from "@/lib/alert-dispatch";
 
 export function normalizeWhatsAppPhone(phone: string): string {
-  const digitsOnly = phone.replace(/[^\d+]/g, "").trim();
+  let digitsOnly = phone.replace(/[^\d+]/g, "").trim();
   if (!digitsOnly) return "";
   
   if (digitsOnly.startsWith("+")) {
-    return digitsOnly;
+    digitsOnly = digitsOnly.replace(/^\+/, "");
+  }
+  
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 11) {
+    digitsOnly = digitsOnly.slice(1);
   }
   
   if (digitsOnly.length === 10) {
     return `+91${digitsOnly}`;
+  }
+  
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+    return `+${digitsOnly}`;
   }
   
   return `+${digitsOnly}`;

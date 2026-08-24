@@ -17,10 +17,20 @@ export type AlertDispatchResult = {
 };
 
 function normalizePhone(phone: string) {
-  const digitsOnly = phone.replace(/[^\d+]/g, "").trim();
+  let digitsOnly = phone.replace(/[^\d+]/g, "").trim();
   if (!digitsOnly) return "";
-  if (digitsOnly.startsWith("+")) return digitsOnly;
-  if (digitsOnly.length === 10) return `+91${digitsOnly}`;
+  if (digitsOnly.startsWith("+")) {
+    digitsOnly = digitsOnly.replace(/^\+/, "");
+  }
+  if (digitsOnly.startsWith("0") && digitsOnly.length === 11) {
+    digitsOnly = digitsOnly.slice(1);
+  }
+  if (digitsOnly.length === 10) {
+    return `+91${digitsOnly}`;
+  }
+  if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+    return `+${digitsOnly}`;
+  }
   return `+${digitsOnly}`;
 }
 
