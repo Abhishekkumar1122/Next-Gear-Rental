@@ -205,7 +205,12 @@ export async function POST(request: NextRequest) {
   const durationDiscountMinDays = Number(settings.durationDiscountMinDays || 4);
   const durationDiscountFreeDays = Number(settings.durationDiscountFreeDays || 1);
 
-  if (!vehicleId || !userName || !userEmail || !city || !startDate || !endDate) {
+  const cleanPhone = phone ? String(phone).replace(/\D/g, "").slice(-10) : "";
+  const effectiveEmail = userEmail && userEmail.trim().includes("@") && !userEmail.endsWith("@example.com")
+    ? userEmail.trim().toLowerCase()
+    : (cleanPhone ? `${cleanPhone}@guest.next-gear.app` : "");
+
+  if (!vehicleId || !userName || (!effectiveEmail && !cleanPhone) || !city || !startDate || !endDate) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -214,7 +219,7 @@ export async function POST(request: NextRequest) {
     const fifteenSecondsAgo = new Date(Date.now() - 15 * 1000);
     const existingPending = await prisma.booking.findFirst({
       where: {
-        user: { email: { equals: userEmail, mode: "insensitive" } },
+        ...(effectiveEmail ? { user: { email: { equals: effectiveEmail, mode: "insensitive" } } } : {}),
         vehicleId,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
@@ -229,7 +234,7 @@ export async function POST(request: NextRequest) {
           id: existingPending.id,
           vehicleId: existingPending.vehicleId,
           userName,
-          userEmail,
+          userEmail: effectiveEmail,
           city: existingPending.cityName,
           startDate: existingPending.startDate.toISOString().slice(0, 10),
           endDate: existingPending.endDate.toISOString().slice(0, 10),
@@ -294,17 +299,37 @@ export async function POST(request: NextRequest) {
           throw new Error("AV_CONFLICT");
         }
 
-        userResult = await tx.user.upsert({
-          where: { email: userEmail },
-          update: {
-            name: userName,
-          },
-          create: {
-            name: userName,
-            email: userEmail,
-            role: "CUSTOMER",
-          },
-        });
+        // Link with existing user by phone or email
+        if (cleanPhone) {
+          userResult = await tx.user.findFirst({
+            where: { phone: cleanPhone },
+          });
+        }
+        if (!userResult && effectiveEmail) {
+          userResult = await tx.user.findUnique({
+            where: { email: effectiveEmail },
+          });
+        }
+
+        if (!userResult) {
+          userResult = await tx.user.create({
+            data: {
+              name: userName,
+              email: effectiveEmail || `${cleanPhone}@guest.next-gear.app`,
+              phone: cleanPhone || undefined,
+              role: "CUSTOMER",
+            },
+          });
+        } else {
+          userResult = await tx.user.update({
+            where: { id: userResult.id },
+            data: {
+              name: userName,
+              ...(cleanPhone ? { phone: cleanPhone } : {}),
+              ...(effectiveEmail && !userResult.email?.includes("@guest.") ? { email: effectiveEmail } : {}),
+            },
+          });
+        }
 
         // Compute price details (safe inside transaction since it's just JS calculations)
         units = useHourly
@@ -447,19 +472,21 @@ export async function POST(request: NextRequest) {
           console.error("[PDF Generation Error]", pdfErr);
         }
 
-        await dispatchHtmlEmail({
-          to: userEmail,
-          subject: `🚗 Booking Confirmed #${booking.id} - ${vehicle.title}`,
-          html: emailHtml,
-          attachments: pdfBuffer
-            ? [
-                {
-                  filename: `NextGear-Booking-Receipt-${booking.id}.pdf`,
-                  content: pdfBuffer,
-                },
-              ]
-            : undefined,
-        });
+        if (effectiveEmail && !effectiveEmail.includes("@guest.") && !effectiveEmail.endsWith("@example.com")) {
+          await dispatchHtmlEmail({
+            to: effectiveEmail,
+            subject: `🚗 Booking Confirmed #${booking.id} - ${vehicle.title}`,
+            html: emailHtml,
+            attachments: pdfBuffer
+              ? [
+                  {
+                    filename: `NextGear-Booking-Receipt-${booking.id}.pdf`,
+                    content: pdfBuffer,
+                  },
+                ]
+              : undefined,
+          });
+        }
       } catch (err) {
         console.error("[Booking Confirmation HTML Email Error]", err);
       }
@@ -467,9 +494,9 @@ export async function POST(request: NextRequest) {
       try {
         await sendBookingAlert({
           bookingId: booking.id,
-          userEmail,
+          userEmail: effectiveEmail,
           eventType: "booking_confirmed",
-          phone,
+          phone: cleanPhone || phone,
           message: confirmMsg,
           dedupeKey: `booking-confirmed-${booking.id}`,
         });

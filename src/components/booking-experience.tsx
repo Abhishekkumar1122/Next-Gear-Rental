@@ -1074,9 +1074,13 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
     setBookingVehicleId(vehicleId);
     try {
       const errors: string[] = [];
+      const cleanPhone = phone.replace(/\D/g, "");
       if (!fullName.trim()) errors.push("Full Name is required.");
-      if (!email.trim() || !email.includes("@")) errors.push("A valid Email Address is required.");
-      if (!phone.trim()) errors.push("Phone Number is required.");
+      if (!phone.trim()) {
+        errors.push("Phone Number is required.");
+      } else if (cleanPhone.length < 10) {
+        errors.push("Valid 10-digit Phone Number is required.");
+      }
 
       if (!isDigiLockerVerified) {
         if (verificationMode === "digilocker") {
@@ -1108,10 +1112,15 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
       if (selectHelmet) submissionAddons.push("extra_helmet");
       if (selectGps) submissionAddons.push("anti_theft_gps");
 
+      const effectiveEmail = email.trim() && email.includes("@") && !email.endsWith("@example.com")
+        ? email.trim().toLowerCase()
+        : (cleanPhone.length >= 10 ? `${cleanPhone.slice(-10)}@guest.next-gear.app` : "guest@next-gear.app");
+
       const currentBody = JSON.stringify({
         vehicleId,
-        userName: fullName,
-        userEmail: email,
+        userName: fullName.trim(),
+        userEmail: effectiveEmail,
+        phone: cleanPhone.slice(-10),
         city,
         startDate,
         endDate,
@@ -1128,7 +1137,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
         paymentProvider,
         paymentOption,
         kyc: {
-          phone,
+          phone: cleanPhone.slice(-10),
           drivingLicenseNo,
           governmentIdNo,
           drivingLicenseFileName: drivingLicenseFile?.name || "dl_verified.pdf",
@@ -2217,7 +2226,21 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                 required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="Phone number"
+                placeholder="10-digit mobile number"
+                className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-white placeholder-white/30 interactive-input focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-white/60 uppercase">Email Address (Optional)</label>
+                <span className="text-[10px] text-white/40">For digital tax invoice</span>
+              </div>
+              <input
+                type="email"
+                value={email === "user@example.com" || email.endsWith("@guest.next-gear.app") ? "" : email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. yourname@gmail.com (Optional)"
                 className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-white placeholder-white/30 interactive-input focus:outline-none"
               />
             </div>
