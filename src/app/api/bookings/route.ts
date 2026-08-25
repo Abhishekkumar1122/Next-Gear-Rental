@@ -74,13 +74,13 @@ export async function GET(request: NextRequest) {
   if (user?.role === "ADMIN") {
     // Admin sees ALL bookings by default, or specific customer if queried
     if (requestedEmail) {
-      whereClause = { user: { email: { equals: requestedEmail, mode: "insensitive" } } };
+      whereClause = { user: { email: { equals: requestedEmail, mode: "insensitive" as const } } };
     } else if (requestedPhone) {
       const cleanReqPhone = requestedPhone.replace(/\D/g, "").slice(-10);
       whereClause = {
         OR: [
           { user: { phone: cleanReqPhone } },
-          { user: { email: { equals: `${cleanReqPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+          { user: { email: { equals: `${cleanReqPhone}@guest.next-gear.app`, mode: "insensitive" as const } } },
         ],
       };
     }
@@ -96,11 +96,11 @@ export async function GET(request: NextRequest) {
     whereClause = {
       OR: [
         ...(userId ? [{ userId }] : []),
-        ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" } } }] : []),
+        ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" as const } } }] : []),
         ...(searchPhone
           ? [
               { user: { phone: searchPhone } },
-              { user: { email: { equals: `${searchPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+              { user: { email: { equals: `${searchPhone}@guest.next-gear.app`, mode: "insensitive" as const } } },
             ]
           : []),
       ],

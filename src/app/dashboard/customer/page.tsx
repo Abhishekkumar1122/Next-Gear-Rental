@@ -19,11 +19,11 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
       where: {
         OR: [
           ...(userId ? [{ userId }] : []),
-          ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" } } }] : []),
+          ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" as const } } }] : []),
           ...(cleanPhone
             ? [
                 { user: { phone: cleanPhone } },
-                { user: { email: { equals: `${cleanPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+                { user: { email: { equals: `${cleanPhone}@guest.next-gear.app`, mode: "insensitive" as const } } },
               ]
             : []),
         ],
