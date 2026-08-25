@@ -137,7 +137,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const isDownload = request.nextUrl.searchParams.get("download") === "1";
     const disposition = isDownload ? "attachment" : "inline";
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
