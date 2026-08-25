@@ -165,8 +165,15 @@ export async function GET(request: NextRequest) {
 
   const promotionMap = await getBookingPromotionsByBookingIds(bookingsStore.map((booking) => booking.id));
 
-  const bookings = filterEmail
-    ? bookingsStore.filter((booking) => booking.userEmail.toLowerCase() === filterEmail.toLowerCase()).map((booking) => ({
+  const filterEmail = requestedEmail || (user?.email && !user.email.endsWith("@guest.next-gear.app") ? user.email : null);
+  const filterPhone = requestedPhone?.replace(/\D/g, "").slice(-10) || (user?.phone ? user.phone.replace(/\D/g, "").slice(-10) : null);
+
+  const bookings = (filterEmail || filterPhone) && user?.role !== "ADMIN"
+    ? bookingsStore.filter((booking) => {
+        const emailMatch = filterEmail && booking.userEmail.toLowerCase() === filterEmail.toLowerCase();
+        const phoneMatch = filterPhone && ((booking as any).customerPhone?.includes(filterPhone) || booking.userEmail.startsWith(filterPhone));
+        return emailMatch || phoneMatch;
+      }).map((booking) => ({
         ...booking,
         ...(promotionMap.get(booking.id)
           ? {
