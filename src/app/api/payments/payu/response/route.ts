@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         const customerPhone = confirmedBooking.user?.phone || confirmedBooking.phone || params.phone || "";
         const vehicleTitle = confirmedBooking.vehicle?.title || confirmedBooking.vehicleTitle || params.productinfo || "Rental Vehicle";
         const vehicleType = confirmedBooking.vehicle?.type || confirmedBooking.vehicleType || "Bike";
-        const cityName = confirmedBooking.city || "Delhi NCR";
+        const cityName = confirmedBooking.cityName || confirmedBooking.city || params.city || "Delhi NCR";
         const startDateStr = confirmedBooking.startDate instanceof Date
           ? confirmedBooking.startDate.toISOString().split("T")[0]
           : String(confirmedBooking.startDate);

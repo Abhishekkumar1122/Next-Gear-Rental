@@ -62,40 +62,61 @@ function getHourlyAvailability(vehicle: { availabilitySlots?: { date: string; sl
 
 export async function GET(request: NextRequest) {
   const requestedEmail = request.nextUrl.searchParams.get("email");
+  const requestedPhone = request.nextUrl.searchParams.get("phone");
   const user = await getServerSessionUser();
 
-  if (!user && !requestedEmail) {
+  if (!user && !requestedEmail && !requestedPhone) {
     return NextResponse.json({ error: "Access denied. Authentication required." }, { status: 401 });
   }
 
-  // Non-admin users are strictly locked to their own email/session
-  const filterEmail = user && user.role !== "ADMIN"
-    ? user.email
-    : (requestedEmail || (user ? user.email : null));
+  let whereClause: any = undefined;
 
-  if (!user && requestedEmail) {
-    // If no session cookie, still require email matching
-  } else if (user && user.role !== "ADMIN" && requestedEmail && requestedEmail.toLowerCase() !== user.email.toLowerCase()) {
-    return NextResponse.json({ error: "Access denied. You can only access your own bookings." }, { status: 403 });
+  if (user?.role === "ADMIN") {
+    // Admin sees ALL bookings by default, or specific customer if queried
+    if (requestedEmail) {
+      whereClause = { user: { email: { equals: requestedEmail, mode: "insensitive" } } };
+    } else if (requestedPhone) {
+      const cleanReqPhone = requestedPhone.replace(/\D/g, "").slice(-10);
+      whereClause = {
+        OR: [
+          { user: { phone: cleanReqPhone } },
+          { user: { email: { equals: `${cleanReqPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+        ],
+      };
+    }
+    // If no requestedEmail/requestedPhone, whereClause remains undefined => returns ALL bookings!
+  } else {
+    // Customer query: Strictly matches user's own identity (id, email, or verified phone)
+    const sessionEmail = user?.email && !user.email.endsWith("@guest.next-gear.app") ? user.email : null;
+    const sessionPhone = user?.phone ? user.phone.replace(/\D/g, "").slice(-10) : null;
+    const searchEmail = requestedEmail || sessionEmail;
+    const searchPhone = requestedPhone ? requestedPhone.replace(/\D/g, "").slice(-10) : sessionPhone;
+    const userId = user?.id;
+
+    whereClause = {
+      OR: [
+        ...(userId ? [{ userId }] : []),
+        ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" } } }] : []),
+        ...(searchPhone
+          ? [
+              { user: { phone: searchPhone } },
+              { user: { email: { equals: `${searchPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+            ]
+          : []),
+      ],
+    };
   }
 
   if (process.env.DATABASE_URL) {
     const bookings = await prisma.booking.findMany({
-      where: filterEmail
-        ? {
-            OR: [
-              { user: { email: { equals: filterEmail, mode: "insensitive" } } },
-              { userId: user?.id },
-            ],
-          }
-        : undefined,
+      where: whereClause,
       include: {
         user: true,
         payments: true,
         vehicle: {
           include: {
             vendor: true,
-          }
+          },
         },
       },
       orderBy: {

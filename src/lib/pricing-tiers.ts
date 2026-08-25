@@ -29,16 +29,31 @@ export function formatBookingId(id: string, city?: string, dateStr?: string | Da
     return id;
   }
 
-  // Resolve state abbreviation based on city
+  // Resolve state abbreviation dynamically based on city / state across Pan-India
   let stateCode = "DL"; // Default to Delhi
   if (city) {
     const c = city.toLowerCase();
-    if (c.includes("noida") || c.includes("uttar pradesh") || c.includes("up")) stateCode = "UP";
-    else if (c.includes("mumbai") || c.includes("maharashtra") || c.includes("mh")) stateCode = "MH";
-    else if (c.includes("bengaluru") || c.includes("bangalore") || c.includes("karnataka") || c.includes("ka")) stateCode = "KA";
-    else if (c.includes("gurgaon") || c.includes("haryana") || c.includes("hr")) stateCode = "HR";
-    else if (c.includes("punjab") || c.includes("pb")) stateCode = "PB";
-    else if (c.includes("delhi")) stateCode = "DL";
+    if (c.includes("delhi") || c.includes("new delhi") || c.includes("dl")) stateCode = "DL";
+    else if (c.includes("noida") || c.includes("greater noida") || c.includes("ghaziabad") || c.includes("lucknow") || c.includes("kanpur") || c.includes("varanasi") || c.includes("agra") || c.includes("uttar pradesh") || c.includes("up")) stateCode = "UP";
+    else if (c.includes("mumbai") || c.includes("pune") || c.includes("nagpur") || c.includes("nashik") || c.includes("thane") || c.includes("maharashtra") || c.includes("mh")) stateCode = "MH";
+    else if (c.includes("bengaluru") || c.includes("bangalore") || c.includes("mysore") || c.includes("mangalore") || c.includes("karnataka") || c.includes("ka")) stateCode = "KA";
+    else if (c.includes("gurgaon") || c.includes("gurugram") || c.includes("faridabad") || c.includes("panipat") || c.includes("haryana") || c.includes("hr")) stateCode = "HR";
+    else if (c.includes("chandigarh") || c.includes("punjab") || c.includes("amritsar") || c.includes("ludhiana") || c.includes("jalandhar") || c.includes("pb")) stateCode = "PB";
+    else if (c.includes("jaipur") || c.includes("udaipur") || c.includes("jodhpur") || c.includes("kota") || c.includes("rajasthan") || c.includes("rj")) stateCode = "RJ";
+    else if (c.includes("hyderabad") || c.includes("secunderabad") || c.includes("telangana") || c.includes("ts") || c.includes("tg")) stateCode = "TS";
+    else if (c.includes("chennai") || c.includes("coimbatore") || c.includes("madurai") || c.includes("tamil nadu") || c.includes("tn")) stateCode = "TN";
+    else if (c.includes("kolkata") || c.includes("howrah") || c.includes("siliguri") || c.includes("west bengal") || c.includes("wb")) stateCode = "WB";
+    else if (c.includes("goa") || c.includes("panaji") || c.includes("margao") || c.includes("ga")) stateCode = "GA";
+    else if (c.includes("ahmedabad") || c.includes("surat") || c.includes("vadodara") || c.includes("rajkot") || c.includes("gujarat") || c.includes("gj")) stateCode = "GJ";
+    else if (c.includes("bhopal") || c.includes("indore") || c.includes("gwalior") || c.includes("madhya pradesh") || c.includes("mp")) stateCode = "MP";
+    else if (c.includes("patna") || c.includes("gaya") || c.includes("muzaffarpur") || c.includes("bihar") || c.includes("br")) stateCode = "BR";
+    else if (c.includes("ranchi") || c.includes("jamshedpur") || c.includes("dhanbad") || c.includes("jharkhand") || c.includes("jh")) stateCode = "JH";
+    else if (c.includes("dehradun") || c.includes("rishikesh") || c.includes("haridwar") || c.includes("uttarakhand") || c.includes("uk")) stateCode = "UK";
+    else if (c.includes("shimla") || c.includes("manali") || c.includes("dharamshala") || c.includes("himachal") || c.includes("hp")) stateCode = "HP";
+    else if (c.includes("kochi") || c.includes("thiruvananthapuram") || c.includes("calicut") || c.includes("kerala") || c.includes("kl")) stateCode = "KL";
+    else if (c.includes("guwahati") || c.includes("assam") || c.includes("as")) stateCode = "AS";
+    else if (c.includes("bhubaneswar") || c.includes("cuttack") || c.includes("puri") || c.includes("odisha") || c.includes("or") || c.includes("od")) stateCode = "OD";
+    else if (c.includes("srinagar") || c.includes("jammu") || c.includes("jk")) stateCode = "JK";
   }
 
   // Resolve date format (DDMMYY)

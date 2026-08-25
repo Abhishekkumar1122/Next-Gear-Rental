@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { VendorDashboardLayout } from "@/components/vendor-dashboard-layout";
 
-export const revalidate = 120; // Cache dashboard for 2 minutes
+export const dynamic = "force-dynamic";
 
 // Cache vendor financials to avoid repeated expensive database queries
 const getCachedVendorFinancials = unstable_cache(

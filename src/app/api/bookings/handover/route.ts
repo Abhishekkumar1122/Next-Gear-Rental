@@ -90,8 +90,12 @@ export async function GET(request: Request) {
         );
       }
 
-      const kycEntries = await listKycAutomationByEmail(booking.user.email);
-      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : "unverified";
+      let kycEntries = booking.user.email ? await listKycAutomationByEmail(booking.user.email) : [];
+      if (kycEntries.length === 0 && booking.user.phone) {
+        const cleanP = booking.user.phone.replace(/\D/g, "").slice(-10);
+        kycEntries = await listKycAutomationByEmail(`${cleanP}@guest.next-gear.app`);
+      }
+      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : (booking.user.drivingLicenseUrl || booking.user.govtIdUrl ? "approved" : "unverified");
 
       bookingData = {
         id: booking.id,

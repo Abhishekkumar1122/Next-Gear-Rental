@@ -15,13 +15,25 @@ const kycSchema = z.object({
 export async function GET(request: NextRequest) {
   const user = await getServerSessionUser();
   const queryEmail = request.nextUrl.searchParams.get("email")?.trim();
-  const email = user?.email?.trim() || queryEmail;
+  const queryPhone = request.nextUrl.searchParams.get("phone")?.replace(/\D/g, "").slice(-10);
 
-  if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  const cleanSessionPhone = user?.phone ? user.phone.replace(/\D/g, "").slice(-10) : "";
+  const phone = queryPhone || cleanSessionPhone;
+
+  let email = user?.email?.trim() || queryEmail;
+  if (!email && phone) {
+    email = `${phone}@guest.next-gear.app`;
   }
 
-  const entries = await listKycAutomationByEmail(email);
+  if (!email && !phone) {
+    return NextResponse.json({ error: "Email or phone number is required" }, { status: 400 });
+  }
+
+  let entries = email ? await listKycAutomationByEmail(email) : [];
+  if (entries.length === 0 && phone) {
+    entries = await listKycAutomationByEmail(`${phone}@guest.next-gear.app`);
+  }
+
   return NextResponse.json({ entries });
 }
 

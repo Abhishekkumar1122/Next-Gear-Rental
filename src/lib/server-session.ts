@@ -12,6 +12,7 @@ export async function getServerSessionUser() {
     return {
       id: String(payload.sub ?? ""),
       email: String(payload.email ?? ""),
+      phone: String(payload.phone ?? ""),
       role: String(payload.role ?? "CUSTOMER"),
     };
   } catch {

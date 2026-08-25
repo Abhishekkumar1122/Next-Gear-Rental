@@ -7,16 +7,25 @@ import { CustomerDashboardClient } from "@/components/customer-dashboard-client"
 
 export const dynamic = "force-dynamic";
 
-async function fetchUserBookingsDirect(userId: string, email: string) {
+async function fetchUserBookingsDirect(userId: string, email: string, phone?: string) {
   if (!process.env.DATABASE_URL) {
     return [];
   }
   try {
+    const cleanPhone = phone ? phone.replace(/\D/g, "").slice(-10) : "";
+    const searchEmail = email && !email.endsWith("@guest.next-gear.app") ? email : null;
+
     const bookings = await prisma.booking.findMany({
       where: {
         OR: [
-          { userId: userId },
-          { user: { email: { equals: email, mode: "insensitive" } } },
+          ...(userId ? [{ userId }] : []),
+          ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" } } }] : []),
+          ...(cleanPhone
+            ? [
+                { user: { phone: cleanPhone } },
+                { user: { email: { equals: `${cleanPhone}@guest.next-gear.app`, mode: "insensitive" } } },
+              ]
+            : []),
         ],
       },
       include: {
@@ -70,15 +79,16 @@ export default async function CustomerDashboardPage() {
   }
 
   const [bookings, moderation] = await Promise.all([
-    fetchUserBookingsDirect(user.id, user.email),
+    fetchUserBookingsDirect(user.id, user.email, user.phone),
     getUserModerationDetails(user.id, "approved").catch(() => ({ status: "approved", reason: null, customMessage: null })),
   ]);
 
   return (
     <CustomerDashboardClient 
       userId={user.id}
-      email={user.email} 
-      name={dbUser?.name || user.email.split("@")[0]} 
+      email={user.email}
+      phone={user.phone}
+      name={dbUser?.name || user.phone || user.email.split("@")[0]} 
       initialBookings={bookings}
       isBlocked={moderation.status === "blacklisted"}
       blockReason={moderation.reason}

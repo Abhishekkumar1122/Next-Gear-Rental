@@ -117,7 +117,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   if (process.env.DATABASE_URL) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { payments: true },
+      include: { payments: true, user: true },
     });
 
     if (!booking) {
@@ -166,6 +166,28 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         })
       )
     );
+
+    const customerPhone = booking.user?.phone;
+    if (customerPhone) {
+      try {
+        const { dispatchAlert } = await import("@/lib/alert-dispatch");
+        void dispatchAlert({
+          channel: "whatsapp",
+          to: customerPhone,
+          message: `Booking #${booking.id} cancelled. Refund of ₹${refundAmount.toLocaleString("en-IN")} has been initiated.`,
+          templateName: "booking_cancelled_refund",
+          templateParams: [
+            booking.user?.name || "Rider",
+            booking.id,
+            refundAmount.toLocaleString("en-IN"),
+            refundPercent > 0 ? "3-5 business days" : "N/A",
+            reason,
+          ],
+        });
+      } catch (alertErr) {
+        console.error("[Cancel WhatsApp Alert Failed]", alertErr);
+      }
+    }
 
     return NextResponse.json({
       message: "Booking cancelled and refund processed",

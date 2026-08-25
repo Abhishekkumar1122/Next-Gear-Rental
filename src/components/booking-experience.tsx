@@ -1146,24 +1146,12 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
         },
       });
 
-      // Use pre-warmed response if params match (user didn't change anything)
-      let response: Response;
-      if (preWarmRef.current && preWarmParamsRef.current === currentBody) {
-        setMessage("Opening payment gateway...");
-        response = await preWarmRef.current;
-        // Clone so we can read the body (Response body can only be consumed once)
-        response = response.clone();
-        preWarmRef.current = null;
-        preWarmParamsRef.current = null;
-      } else {
-        // Params changed (user switched provider/option after step 2) — fresh call
-        preWarmRef.current = null;
-        response = await fetch("/api/bookings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: currentBody,
-        });
-      }
+      setMessage("Confirming your booking...");
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: currentBody,
+      });
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({})) as { error?: string };
@@ -3145,46 +3133,6 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
 
                 setCheckoutStep(3);
                 window.scrollTo({ top: 0, behavior: "smooth" });
-
-                // 🚀 PRE-WARM: Start booking API call in background immediately
-                // so when user clicks Pay Now, response is already ready
-                const submissionAddonsPrewarm = [...addons];
-                if (selectHelmet) submissionAddonsPrewarm.push("extra_helmet");
-                if (selectGps) submissionAddonsPrewarm.push("anti_theft_gps");
-                const preWarmBody = JSON.stringify({
-                  vehicleId: selectedVehicle?.id,
-                  userName: fullName,
-                  userEmail: email,
-                  city,
-                  startDate,
-                  endDate,
-                  startTime,
-                  endTime,
-                  addons: submissionAddonsPrewarm,
-                  currency: "INR",
-                  timezone,
-                  couponCode: promoCode.trim() || undefined,
-                  referralCode: promoCode.trim() || undefined,
-                  isNri: isNriMode,
-                  internationalCardPreferred: isNriMode,
-                  quantity,
-                  paymentProvider,
-                  paymentOption,
-                  kyc: {
-                    phone,
-                    drivingLicenseNo,
-                    governmentIdNo,
-                    drivingLicenseFileName: drivingLicenseFile?.name || "dl_verified.pdf",
-                    governmentIdFileName: governmentIdFile?.name || "gov_verified.pdf",
-                    governmentIdBackFileName: governmentIdBackFile?.name || "gov_back_verified.pdf",
-                  },
-                });
-                preWarmParamsRef.current = preWarmBody;
-                preWarmRef.current = fetch("/api/bookings", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: preWarmBody,
-                });
               }}
               className="flex-1 rounded-2xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-4.5 py-3.5 flex items-center justify-between text-white shadow-xl shadow-red-500/20 active:scale-[0.99] transition-all duration-300 cursor-pointer"
             >

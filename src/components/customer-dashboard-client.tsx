@@ -56,6 +56,7 @@ type Booking = {
 type CustomerDashboardClientProps = {
   userId: string;
   email: string;
+  phone?: string;
   name: string;
   initialBookings?: Booking[];
   isBlocked?: boolean;
@@ -66,6 +67,7 @@ type CustomerDashboardClientProps = {
 export function CustomerDashboardClient({
   userId,
   email,
+  phone,
   name,
   initialBookings = [],
   isBlocked = false,
@@ -88,7 +90,9 @@ export function CustomerDashboardClient({
 
   // Fetch KYC status
   useEffect(() => {
-    fetch(`/api/kyc?email=${encodeURIComponent(email)}`)
+    const kycParam = email && !email.endsWith("@guest.next-gear.app") ? `email=${encodeURIComponent(email)}` : (phone ? `phone=${encodeURIComponent(phone)}` : "");
+    if (!kycParam) return;
+    fetch(`/api/kyc?${kycParam}`)
       .then((res) => res.json())
       .then((data) => {
         const entries = data.entries ?? [];
@@ -100,11 +104,13 @@ export function CustomerDashboardClient({
         }
       })
       .catch((err) => console.error("Error fetching KYC status:", err));
-  }, [email]);
+  }, [email, phone]);
 
   // Fetch Referral Info
   useEffect(() => {
-    fetch(`/api/referrals?email=${encodeURIComponent(email)}`)
+    const refParam = email && !email.endsWith("@guest.next-gear.app") ? `email=${encodeURIComponent(email)}` : (phone ? `phone=${encodeURIComponent(phone)}` : "");
+    if (!refParam) return;
+    fetch(`/api/referrals?${refParam}`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.referral) {
@@ -114,20 +120,24 @@ export function CustomerDashboardClient({
         }
       })
       .catch((err) => console.error("Error fetching referral:", err));
-  }, [email]);
+  }, [email, phone]);
 
   // Format Currency
   const formatCurrency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
   // Poll bookings status every 10 seconds with smart browser visibility change listener
   useEffect(() => {
-    if (!email) return;
+    if (!email && !phone) return;
 
     let intervalId: NodeJS.Timeout | null = null;
     let isMounted = true;
 
     const fetchUpdatedBookings = () => {
-      fetch(`/api/bookings?email=${encodeURIComponent(email)}`)
+      const params = new URLSearchParams();
+      if (email && !email.endsWith("@guest.next-gear.app")) params.set("email", email);
+      if (phone) params.set("phone", phone);
+
+      fetch(`/api/bookings?${params.toString()}`)
         .then((res) => res.json())
         .then((data) => {
           if (isMounted && data?.bookings) {
@@ -171,7 +181,7 @@ export function CustomerDashboardClient({
       stopPolling();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [email]);
+  }, [email, phone]);
 
   // Find latest active/confirmed booking for QR Code display
   const latestConfirmedBooking = useMemo(() => {

@@ -25,7 +25,7 @@ export async function verifyOtp(otp: string, hash: string) {
   return bcrypt.compare(otp, hash);
 }
 
-export async function createSessionToken(payload: { sub: string; email: string; role: string }) {
+export async function createSessionToken(payload: { sub: string; email: string; role: string; phone?: string }) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

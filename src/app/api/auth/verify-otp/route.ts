@@ -90,7 +90,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid OTP" }, { status: 401 });
   }
 
-  const token = await createSessionToken({ sub: userId, email: userEmail, role });
+  const userPhone = phone || (contactIdentifier && !contactIdentifier.includes("@") ? contactIdentifier : "");
+  const token = await createSessionToken({ sub: userId, email: userEmail, phone: userPhone, role });
   const response = NextResponse.json({ message: "OTP verified" });
   response.cookies.set(authCookieName, token, {
     httpOnly: true,

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dispatchAlert, type AlertChannel } from "@/lib/alert-dispatch";
+import { formatBookingId } from "@/lib/pricing-tiers";
 
 export type BookingAlertEvent = "booking_confirmed" | "payment_success" | "pickup_reminder" | "return_reminder";
 
@@ -305,12 +306,14 @@ export async function sendPaymentSuccessAlertByProviderPaymentId(providerPayment
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://next-gear.app";
   const passLink = `${baseUrl.replace(/\/$/, "")}/api/bookings/${booking.id}/pass`;
 
+  const prettyId = formatBookingId(booking.id, booking.cityName, booking.startDate);
+
   // Send rich HTML Booking Confirmation & QR Pass Email
   try {
     const { generateBookingConfirmationEmailHtml } = await import("@/lib/email-templates");
     const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
     const html = generateBookingConfirmationEmailHtml({
-      bookingId: booking.id,
+      bookingId: prettyId,
       customerName: booking.user?.name || "Valued Customer",
       vehicleTitle,
       cityName: booking.cityName,
@@ -321,14 +324,14 @@ export async function sendPaymentSuccessAlertByProviderPaymentId(providerPayment
     });
     void dispatchHtmlEmail({
       to: userEmail,
-      subject: `Booking Confirmed #${booking.id} - ${vehicleTitle}`,
+      subject: `Booking Confirmed #${prettyId} - ${vehicleTitle}`,
       html,
     });
   } catch (err) {
     console.error("[Booking Confirmation Email Failed]", err);
   }
 
-  const message = `💳 *NEXT GEAR RENTALS - PAYMENT & BOOKING CONFIRMED* ✅\n\nHello *${booking.user?.name || "Rider"}*,\nYour payment & rental booking have been confirmed!\n\n📌 *Booking ID:* \`${booking.id}\`\n🚘 *Vehicle:* *${vehicleTitle}*\n📍 *City:* ${booking.cityName}\n🗓️ *Dates:* ${booking.startDate.toISOString().slice(0, 10)} to ${booking.endDate.toISOString().slice(0, 10)}\n💰 *Total Paid:* *₹${booking.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
+  const message = `💳 *NEXT GEAR RENTALS - PAYMENT & BOOKING CONFIRMED* ✅\n\nHello *${booking.user?.name || "Rider"}*,\nYour payment & rental booking have been confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${vehicleTitle}*\n📍 *City:* ${booking.cityName}\n🗓️ *Dates:* ${booking.startDate.toISOString().slice(0, 10)} to ${booking.endDate.toISOString().slice(0, 10)}\n💰 *Total Paid:* *₹${booking.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
   await sendBookingAlert({
     bookingId: booking.id,
@@ -435,11 +438,13 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
   const { dispatchHtmlEmail, dispatchAlert } = await import("@/lib/alert-dispatch");
   const { generateBookingConfirmationEmailHtml } = await import("@/lib/email-templates");
 
+  const prettyId = formatBookingId(bookingData.id, bookingData.cityName, bookingData.startDate);
+
   // 1. CUSTOMER ALERTS (Email + WhatsApp + SMS)
   if (bookingData.customerEmail) {
     try {
       const html = generateBookingConfirmationEmailHtml({
-        bookingId: bookingData.id,
+        bookingId: prettyId,
         customerName: bookingData.customerName,
         vehicleTitle: bookingData.vehicleTitle,
         cityName: bookingData.cityName,
@@ -450,7 +455,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       });
       void dispatchHtmlEmail({
         to: bookingData.customerEmail,
-        subject: `Booking Confirmed #${bookingData.id} - ${bookingData.vehicleTitle}`,
+        subject: `Booking Confirmed #${prettyId} - ${bookingData.vehicleTitle}`,
         html,
       });
     } catch (err) {
@@ -458,7 +463,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
     }
   }
 
-  const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${bookingData.id}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
+  const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
   if (bookingData.customerPhone) {
     void dispatchAlert({
@@ -468,7 +473,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       templateName: "booking_confirmed_receipt",
       templateParams: [
         bookingData.customerName,
-        bookingData.id,
+        prettyId,
         bookingData.vehicleTitle,
         bookingData.cityName,
         bookingData.startDate,
@@ -483,7 +488,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
 
   // 2. VENDOR ALERT (WhatsApp + SMS)
   if (bookingData.vendorPhone) {
-    const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${bookingData.id}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
+    const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
     void dispatchAlert({
       channel: "whatsapp",
       to: bookingData.vendorPhone,
@@ -491,7 +496,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       templateName: "vendor_new_booking_alert",
       templateParams: [
         bookingData.vendorName || "Fleet Partner",
-        bookingData.id,
+        prettyId,
         bookingData.vehicleTitle,
         bookingData.customerName,
         bookingData.customerPhone || "N/A",
@@ -506,7 +511,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
 
   // 3. SUPER ADMIN ALERT (WhatsApp + SMS to 9523765172 & admin@next-gear.app)
   const adminPhone = process.env.ADMIN_ALERT_PHONE || "9523765172";
-  const adminWaMsg = `⚡ *NEXT GEAR ADMIN ALERT - NEW PLATFORM BOOKING!* 🚀\n\n📌 *Booking ID:* \`${bookingData.id}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerEmail})\n🏢 *Vendor:* ${bookingData.vendorName}\n💰 *Revenue:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}`;
+  const adminWaMsg = `⚡ *NEXT GEAR ADMIN ALERT - NEW PLATFORM BOOKING!* 🚀\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerEmail})\n🏢 *Vendor:* ${bookingData.vendorName}\n💰 *Revenue:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}`;
 
   void dispatchAlert({ channel: "whatsapp", to: adminPhone, message: adminWaMsg });
   void dispatchAlert({ channel: "sms", to: adminPhone, message: adminWaMsg });
