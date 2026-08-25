@@ -95,7 +95,7 @@ export async function GET(request: Request) {
         const cleanP = booking.user.phone.replace(/\D/g, "").slice(-10);
         kycEntries = await listKycAutomationByEmail(`${cleanP}@guest.next-gear.app`);
       }
-      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : (booking.user.drivingLicenseUrl || booking.user.govtIdUrl ? "approved" : "unverified");
+      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : ((booking.user as any).drivingLicenseUrl || (booking.user as any).govtIdUrl ? "approved" : "unverified");
 
       bookingData = {
         id: booking.id,
