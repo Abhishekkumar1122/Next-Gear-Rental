@@ -182,295 +182,271 @@ export function VehicleVideoShowcase({
   };
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/15 bg-neutral-950/80 p-4 shadow-2xl backdrop-blur-xl">
-      {/* Navigation Tabs Header */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setActiveTab("showcase")}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-              activeTab === "showcase"
-                ? "bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-lg shadow-red-900/40 ring-1 ring-white/20"
-                : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <Sparkles className="h-4 w-4 animate-pulse text-amber-300" />
-            <span>10s Video Showcase</span>
-            <span className="rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] uppercase font-semibold text-amber-200">
-              3D AI View
-            </span>
-          </button>
-
-          {hasVideo && (
-            <button
-              onClick={() => setActiveTab("video")}
-              className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-                activeTab === "video"
-                  ? "bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-red-900/40 ring-1 ring-white/20"
-                  : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <Film className="h-4 w-4 text-rose-300" />
-              <span>HD Video</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setActiveTab("photos")}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-              activeTab === "photos"
-                ? "bg-white/20 text-white shadow-md ring-1 ring-white/20"
-                : "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            <ImageIcon className="h-4 w-4" />
-            <span>Photos ({displayPhotos.length})</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-white/60">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          <span>Next Gear Verified 3D Media</span>
-        </div>
-      </div>
-
-      {/* 3D CAMERA ANGLE SELECTION BAR (When in 10s Showcase Mode) */}
-      {activeTab === "showcase" && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/[0.03] p-2 border border-white/5">
-          <div className="flex items-center gap-1.5 text-xs text-white/70">
-            <Compass className="h-3.5 w-3.5 text-amber-400" />
-            <span className="font-semibold text-white/90">3D Camera Angle:</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              onClick={() => setCameraAngle("auto")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                cameraAngle === "auto"
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              🔄 Multi-Angle Loop
-            </button>
-
-            <button
-              onClick={() => setCameraAngle("orbit")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                cameraAngle === "orbit"
-                  ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                  : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              📐 3D Orbit View
-            </button>
-
-            <button
-              onClick={() => setCameraAngle("sweep")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                cameraAngle === "sweep"
-                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                  : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              🏎️ Angle Sweep
-            </button>
-
-            <button
-              onClick={() => setCameraAngle("hero")}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                cameraAngle === "hero"
-                  ? "bg-orange-500/20 text-orange-300 border border-orange-500/40"
-                  : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              🔍 Low Hero Angle
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 1: 10-SECOND AUTOMATED VIDEO SHOWCASE WITH 3D PERSPECTIVE ANGLES */}
-      {activeTab === "showcase" && (
-        <div
-          ref={showcaseContainerRef}
-          className="relative h-[250px] sm:h-[320px] md:h-[340px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black group shadow-2xl"
-          style={{ perspective: "1200px" }}
-        >
-          {/* Animated 3D Vehicle Image Canvas */}
-          <div className="absolute inset-0 overflow-hidden flex items-center justify-center">
-            <img
-              src={displayPhotos[activePhotoIndex]}
-              alt={`${title} 3D angle animation`}
-              className="h-full w-full object-cover transition-transform ease-linear"
-              style={{
-                transform: getCameraTransform(),
-                transformOrigin: "center center",
-                transition: "transform 100ms linear",
-                backfaceVisibility: "hidden",
-                filter: isPlaying ? "brightness(1.04) contrast(1.05)" : "brightness(1)",
-              }}
-            />
-
-            {/* Specular 3D Lens Flare Sweep & Gradient Vignette */}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/60" />
-            
-            {/* Dynamic Metallic Light Beam Sweep */}
-            {isPlaying && (
-              <div
-                className="pointer-events-none absolute inset-0 opacity-25 bg-gradient-to-r from-transparent via-amber-400 to-transparent"
+    <div className="relative w-full overflow-hidden rounded-3xl border border-white/15 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+      {/* 🌟 CINEMATIC STAGE: SINGLE UNIFIED THEATER (NO NESTED BOXES) */}
+      <div
+        ref={showcaseContainerRef}
+        className="relative h-[320px] sm:h-[380px] md:h-[420px] w-full overflow-hidden bg-black group"
+        style={{ perspective: "1200px" }}
+      >
+        {/* ========================================== */}
+        {/* VIEW 1: 10-SECOND 3D AI VIDEO SHOWCASE     */}
+        {/* ========================================== */}
+        {activeTab === "showcase" && (
+          <>
+            {/* Animated 3D Vehicle Image Canvas */}
+            <div className="absolute inset-0 overflow-hidden flex items-center justify-center">
+              <img
+                src={displayPhotos[activePhotoIndex]}
+                alt={`${title} 3D angle animation`}
+                className="h-full w-full object-cover transition-transform ease-linear"
                 style={{
-                  transform: `translateX(${(progress / 100) * 220 - 110}%) skewX(-30deg)`,
+                  transform: getCameraTransform(),
+                  transformOrigin: "center center",
                   transition: "transform 100ms linear",
+                  backfaceVisibility: "hidden",
+                  filter: isPlaying ? "brightness(1.04) contrast(1.05)" : "brightness(1)",
                 }}
               />
-            )}
-          </div>
 
-          {/* TOP HUD BAR */}
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none">
-            {/* Live Rec & Active Angle Badge */}
-            <div className="flex items-center gap-2 rounded-full border border-red-500/30 bg-black/70 px-3 py-1 text-xs font-semibold backdrop-blur-md">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
-              </span>
-              <span className="text-white uppercase tracking-wider text-[11px]">
-                10s 3D {cameraAngle.toUpperCase()} ANGLE
-              </span>
-            </div>
-
-            {/* Price Badge */}
-            <div className="rounded-full border border-amber-500/40 bg-black/80 px-3 py-1 text-xs font-bold text-amber-400 backdrop-blur-md shadow-lg">
-              ₹{pricePerDayINR.toLocaleString("en-IN")} / day
-            </div>
-          </div>
-
-          {/* CENTER OVERLAY ON PAUSE */}
-          {!isPlaying && (
-            <button
-              onClick={() => setIsPlaying(true)}
-              className="absolute inset-0 flex items-center justify-center bg-black/40 z-30 transition hover:bg-black/20"
-            >
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-2xl shadow-red-600/50 hover:scale-110 transition">
-                <Play className="h-8 w-8 ml-1" />
-              </div>
-            </button>
-          )}
-
-          {/* BOTTOM HUD OVERLAY & CONTROLS */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 z-20 bg-gradient-to-t from-black via-black/80 to-transparent">
-            {/* Vehicle Title HUD info */}
-            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
-                  {type} · {city} · {seats} Seats
-                </span>
-                <h3 className="text-lg font-bold text-white leading-tight drop-shadow-md">
-                  {title}
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsMuted(!isMuted)}
-                  className="rounded-lg border border-white/20 bg-black/60 p-2 text-white hover:bg-white/20 transition"
-                  title={isMuted ? "Enable Sound" : "Mute Sound"}
-                >
-                  {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-amber-400" />}
-                </button>
-
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="rounded-lg border border-white/20 bg-black/60 p-2 text-white hover:bg-white/20 transition"
-                >
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 text-red-400" />}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setProgress(0);
-                    setIsPlaying(true);
-                  }}
-                  className="rounded-lg border border-white/20 bg-black/60 p-2 text-white hover:bg-white/20 transition"
-                  title="Replay 3D Animation"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-
-                <button
-                  onClick={toggleFullscreen}
-                  className="rounded-lg border border-white/20 bg-black/60 p-2 text-white hover:bg-white/20 transition"
-                  title="Fullscreen"
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* 10-Second Progress Bar */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] font-mono text-white/70">
-                <span>0:0{Math.floor(Number(formattedSeconds))}s</span>
-                <span className="text-amber-400 font-bold tracking-wider">3D ANGLE CAMERA SHOWCASE</span>
-                <span>0:10s</span>
-              </div>
-
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+              {/* Specular 3D Lens Flare Sweep & Gradient Vignette */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-black/70" />
+              
+              {/* Dynamic Metallic Light Beam Sweep */}
+              {isPlaying && (
                 <div
-                  className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-red-500 transition-all ease-linear"
-                  style={{ width: `${progress}%` }}
+                  className="pointer-events-none absolute inset-0 opacity-25 bg-gradient-to-r from-transparent via-amber-400 to-transparent"
+                  style={{
+                    transform: `translateX(${(progress / 100) * 220 - 110}%) skewX(-30deg)`,
+                    transition: "transform 100ms linear",
+                  }}
                 />
+              )}
+            </div>
+
+            {/* CENTER OVERLAY ON PAUSE */}
+            {!isPlaying && (
+              <button
+                onClick={() => setIsPlaying(true)}
+                className="absolute inset-0 flex items-center justify-center bg-black/40 z-30 transition hover:bg-black/20"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-2xl shadow-red-600/50 hover:scale-110 transition">
+                  <Play className="h-8 w-8 ml-1" />
+                </div>
+              </button>
+            )}
+
+            {/* BOTTOM HUD OVERLAY & CONTROLS */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 z-20 bg-gradient-to-t from-black via-black/80 to-transparent">
+              {/* Vehicle Title HUD info */}
+              <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                    {type} · {city} · {seats} Seats
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black text-white leading-tight drop-shadow-md mt-0.5">
+                    {title}
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="rounded-xl border border-white/20 bg-black/70 backdrop-blur-md p-2 text-white hover:bg-white/20 transition cursor-pointer"
+                    title={isMuted ? "Enable Sound" : "Mute Sound"}
+                  >
+                    {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-amber-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="rounded-xl border border-white/20 bg-black/70 backdrop-blur-md p-2 text-white hover:bg-white/20 transition cursor-pointer"
+                  >
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 text-red-400" />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setProgress(0);
+                      setIsPlaying(true);
+                    }}
+                    className="rounded-xl border border-white/20 bg-black/70 backdrop-blur-md p-2 text-white hover:bg-white/20 transition cursor-pointer"
+                    title="Replay 3D Animation"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={toggleFullscreen}
+                    className="rounded-xl border border-white/20 bg-black/70 backdrop-blur-md p-2 text-white hover:bg-white/20 transition cursor-pointer"
+                    title="Fullscreen"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 10-Second Progress Bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-white/70">
+                  <span>0:0{Math.floor(Number(formattedSeconds))}s</span>
+                  <span className="text-amber-400 font-bold tracking-wider">3D ANGLE CAMERA SHOWCASE</span>
+                  <span>0:10s</span>
+                </div>
+
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-red-500 transition-all ease-linear"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
             </div>
+          </>
+        )}
+
+        {/* ========================================== */}
+        {/* VIEW 2: NATIVE HD VIDEO PLAYER             */}
+        {/* ========================================== */}
+        {activeTab === "video" && hasVideo && (
+          <div className="relative h-full w-full bg-black">
+            <video
+              src={videoUrls[0]}
+              controls
+              autoPlay
+              loop
+              className="h-full w-full object-cover"
+            />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 2: NATIVE HD VIDEO PLAYER */}
-      {activeTab === "video" && hasVideo && (
-        <div className="relative h-[250px] sm:h-[320px] md:h-[340px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
-          <video
-            src={videoUrls[0]}
-            controls
-            autoPlay
-            loop
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
-
-      {/* TAB 3: PHOTO GALLERY */}
-      {activeTab === "photos" && (
-        <div className="space-y-3">
-          <div className="relative h-[250px] sm:h-[320px] md:h-[340px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
+        {/* ========================================== */}
+        {/* VIEW 3: PHOTO GALLERY                      */}
+        {/* ========================================== */}
+        {activeTab === "photos" && (
+          <div className="relative h-full w-full bg-black">
             <img
               src={displayPhotos[selectedPhotoIndex]}
               alt={`${title} view ${selectedPhotoIndex + 1}`}
               className="h-full w-full object-cover"
             />
+
+            {/* Bottom thumbnail selector inside the theater */}
+            {displayPhotos.length > 1 && (
+              <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-center gap-2 overflow-x-auto p-2 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10">
+                {displayPhotos.map((url, idx) => (
+                  <button
+                    key={`thumb-${idx}`}
+                    onClick={() => setSelectedPhotoIndex(idx)}
+                    className={`relative h-12 w-16 sm:h-14 sm:w-20 flex-shrink-0 overflow-hidden rounded-xl border transition cursor-pointer ${
+                      selectedPhotoIndex === idx
+                        ? "border-red-500 ring-2 ring-red-500/50 scale-105"
+                        : "border-white/10 opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <img src={url} alt="thumbnail" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================== */}
+        {/* FLOATING TOP GLASSMORPHIC HUD CONTROLS     */}
+        {/* ========================================== */}
+        <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex flex-wrap items-center justify-between gap-2 z-30">
+          {/* Main Media Tabs */}
+          <div className="flex items-center gap-1 bg-black/75 backdrop-blur-xl border border-white/15 p-1 rounded-2xl shadow-xl">
+            <button
+              onClick={() => setActiveTab("showcase")}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                activeTab === "showcase"
+                  ? "bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-md shadow-red-900/40"
+                  : "text-white/70 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 animate-pulse text-amber-300" />
+              <span>3D Showcase</span>
+            </button>
+
+            {hasVideo && (
+              <button
+                onClick={() => setActiveTab("video")}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  activeTab === "video"
+                    ? "bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-900/40"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Film className="h-3.5 w-3.5 text-rose-300" />
+                <span>HD Video</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setActiveTab("photos")}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                activeTab === "photos"
+                  ? "bg-white/20 text-white shadow-md"
+                  : "text-white/70 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              <span>Photos ({displayPhotos.length})</span>
+            </button>
           </div>
 
-          {/* Photo Thumbnails */}
-          {displayPhotos.length > 1 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {displayPhotos.map((url, idx) => (
-                <button
-                  key={`thumb-${idx}`}
-                  onClick={() => setSelectedPhotoIndex(idx)}
-                  className={`relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-xl border transition ${
-                    selectedPhotoIndex === idx
-                      ? "border-red-500 ring-2 ring-red-500/50 scale-105"
-                      : "border-white/10 opacity-60 hover:opacity-100"
-                  }`}
-                >
-                  <img src={url} alt="thumbnail" className="h-full w-full object-cover" />
-                </button>
-              ))}
+          {/* 3D Camera Angle Selector (Floats top right) */}
+          {activeTab === "showcase" && (
+            <div className="flex items-center gap-1 bg-black/75 backdrop-blur-xl border border-white/15 p-1 rounded-2xl shadow-xl">
+              <button
+                onClick={() => setCameraAngle("auto")}
+                className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                  cameraAngle === "auto"
+                    ? "bg-amber-500/30 text-amber-300 border border-amber-500/50 shadow-sm"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                🔄 Auto
+              </button>
+
+              <button
+                onClick={() => setCameraAngle("orbit")}
+                className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                  cameraAngle === "orbit"
+                    ? "bg-red-500/30 text-red-300 border border-red-500/50 shadow-sm"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                📐 Orbit
+              </button>
+
+              <button
+                onClick={() => setCameraAngle("sweep")}
+                className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                  cameraAngle === "sweep"
+                    ? "bg-rose-500/30 text-rose-300 border border-rose-500/50 shadow-sm"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                🏎️ Sweep
+              </button>
+
+              <button
+                onClick={() => setCameraAngle("hero")}
+                className={`rounded-xl px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                  cameraAngle === "hero"
+                    ? "bg-orange-500/30 text-orange-300 border border-orange-500/50 shadow-sm"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                🔍 Hero
+              </button>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -29,29 +29,45 @@ const mockTemplates = [
   { category: "VEHICLE" as const, message: "Suzuki Access 125 (KA-05-JK-1922) returned at Indiranagar Hub. Status set to AVAILABLE." }
 ];
 
-export function AdminActivityFeed() {
+export function AdminActivityFeed({ isRealMode = true }: { isRealMode?: boolean }) {
   const [logs, setLogs] = useState<ActivityLog[]>(preseededLogs);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const randomTemplate = mockTemplates[Math.floor(Math.random() * mockTemplates.length)];
-      const now = new Date();
-      const timeString = now.toTimeString().split(" ")[0];
-      const newLog: ActivityLog = {
-        id: Math.random().toString(),
-        time: timeString,
-        category: randomTemplate.category,
-        message: randomTemplate.message
-      };
+    if (!isRealMode) {
+      const interval = setInterval(() => {
+        const randomTemplate = mockTemplates[Math.floor(Math.random() * mockTemplates.length)];
+        const now = new Date();
+        const timeString = now.toTimeString().split(" ")[0];
+        const newLog: ActivityLog = {
+          id: Math.random().toString(),
+          time: timeString,
+          category: randomTemplate.category,
+          message: randomTemplate.message,
+        };
 
-      setLogs((prev) => {
-        const next = [newLog, ...prev];
-        return next.slice(0, 7); // keep last 7 items
-      });
-    }, 7000);
+        setLogs((prev) => [newLog, ...prev].slice(0, 8));
+      }, 7000);
 
+      return () => clearInterval(interval);
+    }
+
+    // Real Mode: Fetch actual database activity stream
+    const fetchRealLogs = async () => {
+      try {
+        const res = await fetch("/api/admin/activity-stream", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.events && Array.isArray(data.events) && data.events.length > 0) {
+            setLogs(data.events);
+          }
+        }
+      } catch {}
+    };
+
+    void fetchRealLogs();
+    const interval = setInterval(fetchRealLogs, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isRealMode]);
 
   const categoryBadges = {
     PAYMENT: "text-emerald-400 border-emerald-950/40 bg-emerald-950/20",

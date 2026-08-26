@@ -241,36 +241,36 @@ export function VendorApplicationStatusPanel() {
   const canUpload = application && application.status !== "rejected" && application.status !== "credentials-generated";
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl sm:p-8 accent-border hover:border-white/20 transition-all duration-300">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="rounded-2xl sm:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-8 shadow-2xl accent-border hover:border-white/20 transition-all duration-300">
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Already applied?</p>
-          <h2 className="text-xl font-bold tracking-tight text-white mb-2 uppercase tracking-wider text-[var(--brand-red-soft)] mt-1">
+          <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-white/50">Already applied?</p>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mb-1.5 sm:mb-2 uppercase tracking-wider text-[var(--brand-red-soft)] mt-0.5 sm:mt-1">
             Check application status
           </h2>
-          <p className="text-xs text-white/60 leading-relaxed mb-6">
+          <p className="text-[11px] sm:text-xs text-white/60 leading-relaxed mb-3 sm:mb-6">
             Enter your application ID and registered phone number to track approval and upload KYC documents.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+      <div className="grid gap-2.5 sm:gap-4 md:grid-cols-[1fr_1fr_auto]">
         <div>
-          <label className="mb-2 block text-xs font-semibold text-white/70">Application ID</label>
+          <label className="mb-1 sm:mb-2 block text-[11px] sm:text-xs font-semibold text-white/70">Application ID</label>
           <input
             value={applicationId}
             onChange={(e) => setApplicationId(e.target.value)}
             placeholder="e.g. SHOP1234"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/30 transition-all duration-300 focus:border-[var(--brand-red)] focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white placeholder-white/30 transition-all duration-300 focus:border-[var(--brand-red)] focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-red-500/20"
           />
         </div>
         <div>
-          <label className="mb-2 block text-xs font-semibold text-white/70">Phone Number</label>
+          <label className="mb-1 sm:mb-2 block text-[11px] sm:text-xs font-semibold text-white/70">Phone Number</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Registered phone number"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/30 transition-all duration-300 focus:border-[var(--brand-red)] focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white placeholder-white/30 transition-all duration-300 focus:border-[var(--brand-red)] focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-red-500/20"
           />
         </div>
         <div className="flex items-end">
@@ -278,7 +278,7 @@ export function VendorApplicationStatusPanel() {
             type="button"
             onClick={() => void checkStatus()}
             disabled={loading}
-            className="w-full md:w-auto rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-red-600/50 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full md:w-auto rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 px-5 py-2.5 sm:px-6 sm:py-3 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-red-600/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-red-600/50 hover:shadow-xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? "Checking..." : "Check Status"}
           </button>

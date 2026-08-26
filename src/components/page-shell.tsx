@@ -19,14 +19,14 @@ export function PageShell({ title, subtitle, children, variant = "light", plainH
       <div className={`sticky top-0 z-50 ${isDark ? "bg-[var(--brand-ink)]" : "bg-white"}`}>
         <SiteHeader variant={isDark ? "dark" : "light"} />
       </div>
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 md:px-10 md:py-12">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:gap-6 px-3.5 sm:px-6 md:px-10 py-3 sm:py-10 md:py-12">
         {title ? (
           plainHeader ? (
-            <div className="relative z-10 px-2">
-              <h1 className={isDark ? "text-3xl sm:text-4xl font-semibold text-white md:text-5xl" : "text-2xl sm:text-3xl font-semibold"}>
+            <div className="relative z-10 px-1 sm:px-2">
+              <h1 className={isDark ? "text-2xl sm:text-4xl font-semibold text-white md:text-5xl" : "text-xl sm:text-3xl font-semibold"}>
                 {title}
               </h1>
-              <p className={isDark ? "mt-3 text-base text-white/70" : "mt-2 text-sm text-black/70"}>{subtitle}</p>
+              <p className={isDark ? "mt-1 text-xs sm:text-base text-white/70" : "mt-1 text-xs sm:text-sm text-black/70"}>{subtitle}</p>
             </div>
           ) : (
             <section className={isDark ? "relative rounded-3xl border border-white/15 bg-gradient-to-br from-white/12 via-white/5 to-white/3 p-8 shadow-2xl shadow-red-500/15 md:p-10" : "rounded-2xl border border-black/10 bg-white p-6 shadow-sm"}>

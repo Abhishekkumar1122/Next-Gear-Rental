@@ -90,6 +90,8 @@ export type SiteSettings = {
   faq1Question: string; faq1Answer: string;
   faq2Question: string; faq2Answer: string;
   faq3Question: string; faq3Answer: string;
+  // Vehicle Card Theme
+  vehicleCardStyle: "classic" | "glassmorphism" | "cyberpunk" | "platinum" | "boldsport" | "holographic";
 };
 
 export const defaultSiteSettings: SiteSettings = {
@@ -107,6 +109,7 @@ export const defaultSiteSettings: SiteSettings = {
   durationDiscountMinDays: "4",
   durationDiscountFreeDays: "1",
   shuffleAvailableListings: "true",
+  vehicleCardStyle: "classic",
   receiptFooterText: "Thank you for renting with Next Gear. Ride safe!",
   receiptTaxPercent: "18",
   receiptLogoUrl: "/next-gear-full-transparent-badge-v2.png",

@@ -71,8 +71,28 @@ export async function POST(request: Request) {
   const extension = resolveExtension(file.type);
   const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
   const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // 🤖 Run Gemini 2.0 / 1.5 Flash Vision OCR on the document in parallel
+  let ocrNote = "";
+  let ocrData = null;
+  if (file.type.startsWith("image/")) {
+    try {
+      const { performGeminiOcr } = await import("@/lib/gemini-ocr");
+      const ocr = await performGeminiOcr(buffer, file.type);
+      ocrData = ocr;
+      if (ocr && ocr.documentNumber) {
+        ocrNote = `🤖 Gemini OCR: ${ocr.documentType.toUpperCase()} verified (${ocr.fullName || "Name detected"}, ID: ${ocr.documentNumber}) [Confidence: ${ocr.confidenceScore}%]`;
+      } else if (ocr && ocr.notes) {
+        ocrNote = `🤖 Gemini OCR: ${ocr.notes}`;
+      }
+    } catch (e) {
+      console.warn("[Document Upload OCR Error]:", e);
+    }
+  }
+
   const upload = await uploadBufferToCloudinary({
-    buffer: Buffer.from(arrayBuffer),
+    buffer,
     folder: `nextgear/vendor-applications/${application.id}/kyc`,
     resourceType: file.type === "application/pdf" ? "raw" : "image",
     publicId: safeName.replace(/\.[^.]+$/, ""),
@@ -86,9 +106,10 @@ export async function POST(request: Request) {
     fileUrl: upload.url,
     mimeType: file.type,
     sizeBytes: file.size,
+    reviewNote: ocrNote || undefined,
     geoLat: formData.get("geoLat") ? Number(formData.get("geoLat")) : undefined,
     geoLng: formData.get("geoLng") ? Number(formData.get("geoLng")) : undefined,
   });
 
-  return NextResponse.json({ document }, { status: 201 });
+  return NextResponse.json({ document, ocr: ocrData }, { status: 201 });
 }

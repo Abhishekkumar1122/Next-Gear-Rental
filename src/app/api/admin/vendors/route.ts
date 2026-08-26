@@ -11,26 +11,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const status = request.nextUrl.searchParams.get("status") as VendorModerationStatus | null;
+  const url = request.nextUrl;
+  const status = url.searchParams.get("status") as VendorModerationStatus | null;
+  const search = url.searchParams.get("search")?.trim();
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit")) || 25));
 
   if (process.env.DATABASE_URL) {
-    const dbVendors = await prisma.vendor.findMany({
-      include: {
-        ownerUser: {
-          select: { email: true },
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { businessName: { contains: search, mode: "insensitive" as const } },
+        { contactPhone: { contains: search } },
+      ];
+    }
+
+    const [totalCount, dbVendors] = await Promise.all([
+      prisma.vendor.count({ where }),
+      prisma.vendor.findMany({
+        where,
+        select: {
+          id: true,
+          businessName: true,
+          contactPhone: true,
+          commissionRate: true,
+          createdAt: true,
+          ownerUser: {
+            select: { email: true },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
     const moderationMap = await getVendorModerationMap(dbVendors.map((item) => item.id), "approved");
-    const moderationDetails = await Promise.all(
-      dbVendors.map(async (item) => {
-        const details = await getVendorModerationDetails(item.id, "approved");
-        return [item.id, details.reason] as const;
-      })
-    );
-    const moderationReasonMap = new Map(moderationDetails);
 
     const mapped = dbVendors.map((item) => ({
       id: item.id,
@@ -38,13 +54,22 @@ export async function GET(request: NextRequest) {
       phone: item.contactPhone,
       commissionRate: Number(item.commissionRate),
       status: moderationMap.get(item.id) ?? "approved",
-      reason: moderationReasonMap.get(item.id),
       adminEmail: item.ownerUser?.email ?? undefined,
       createdAt: item.createdAt.toISOString(),
     }));
 
     const filtered = status ? mapped.filter((vendor) => vendor.status === status) : mapped;
-    return NextResponse.json({ vendors: filtered });
+    return NextResponse.json({
+      vendors: filtered,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit) || 1,
+        hasNextPage: page < Math.ceil(totalCount / limit),
+        hasPrevPage: page > 1,
+      },
+    });
   }
 
   let filtered = vendors;

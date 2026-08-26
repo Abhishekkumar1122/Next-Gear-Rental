@@ -68,14 +68,50 @@ export async function GET(request: NextRequest) {
   }
 
   const roleFilter = request.nextUrl.searchParams.get("role");
+  const search = request.nextUrl.searchParams.get("search")?.trim();
+  const page = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
+  const limit = Math.min(100, Math.max(5, Number(request.nextUrl.searchParams.get("limit")) || 25));
 
   if (process.env.DATABASE_URL) {
     try {
-      const dbUsers = await prisma.user.findMany({
-        include: { managedVendor: true },
-        orderBy: { createdAt: "desc" },
-      });
+      // 1. Construct SQL WHERE clause for fast indexed DB search & filtering
+      const where: any = {};
 
+      if (roleFilter && roleFilter !== "all") {
+        if (roleFilter === "USER" || roleFilter === "CUSTOMER") {
+          where.role = "CUSTOMER";
+        } else if (roleFilter === "VENDOR") {
+          where.role = "VENDOR";
+        } else if (roleFilter === "ADMIN") {
+          where.role = "ADMIN";
+        }
+      }
+
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+          { phone: { contains: search } },
+        ];
+      }
+
+      // 2. Parallel Fast Aggregations & Paginated Fetch in one roundtrip
+      const [totalAccounts, customersCount, vendorsCount, adminsCount, totalFiltered, dbUsers] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { role: "CUSTOMER" } }),
+        prisma.user.count({ where: { role: "VENDOR" } }),
+        prisma.user.count({ where: { role: "ADMIN" } }),
+        prisma.user.count({ where }),
+        prisma.user.findMany({
+          where,
+          include: { managedVendor: true },
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+
+      // 3. Map only the paginated slice
       const mapped: SystemUserRecord[] = await Promise.all(
         dbUsers.map(async (u) => {
           const isVendor = u.role === "VENDOR" || !!u.managedVendor;
@@ -131,27 +167,58 @@ export async function GET(request: NextRequest) {
         })
       );
 
-      const filtered = roleFilter && roleFilter !== "all" 
-        ? mapped.filter(u => u.role === roleFilter) 
-        : mapped;
+      const totalPages = Math.ceil(totalFiltered / limit) || 1;
 
-      return NextResponse.json({ users: filtered });
+      return NextResponse.json({
+        users: mapped,
+        pagination: {
+          page,
+          limit,
+          totalCount: totalFiltered,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        counts: {
+          total: totalAccounts,
+          customers: customersCount,
+          vendors: vendorsCount,
+          admins: adminsCount,
+          blocked: 0,
+        },
+      });
     } catch (err) {
       console.error("Database fetch users list error:", err);
-      return NextResponse.json({ error: "Failed to load database users" }, { status: 500 });
     }
   }
 
-  const mappedWithTiers = mockUsers.map(u => ({
+  const mappedWithTiers = mockUsers.map((u) => ({
     ...u,
     vipTier: getUserVipTier(u.email || u.id),
   }));
 
   const filtered = roleFilter && roleFilter !== "all" 
-    ? mappedWithTiers.filter(u => u.role === roleFilter) 
+    ? mappedWithTiers.filter((u) => u.role === roleFilter) 
     : mappedWithTiers;
 
-  return NextResponse.json({ users: filtered });
+  return NextResponse.json({
+    users: filtered,
+    pagination: {
+      page: 1,
+      limit: 25,
+      totalCount: filtered.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+    counts: {
+      total: mockUsers.length,
+      customers: mockUsers.filter((u) => u.role === "USER").length,
+      vendors: mockUsers.filter((u) => u.role === "VENDOR").length,
+      admins: mockUsers.filter((u) => u.role === "ADMIN").length,
+      blocked: 0,
+    },
+  });
 }
 
 export async function PUT(request: NextRequest) {

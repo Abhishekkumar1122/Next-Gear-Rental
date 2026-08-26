@@ -29,8 +29,11 @@ export async function uploadBufferToCloudinary(params: {
   resourceType?: "image" | "raw" | "video" | "auto";
   publicId?: string;
   originalFilename?: string;
+  transformation?: any[];
 }) {
   ensureCloudinaryConfig();
+
+  const isImage = params.resourceType === "image" || !params.resourceType || params.resourceType === "auto";
 
   const result = await new Promise<UploadApiResponse>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -42,6 +45,7 @@ export async function uploadBufferToCloudinary(params: {
         unique_filename: true,
         filename_override: params.originalFilename,
         overwrite: false,
+        transformation: params.transformation ?? (isImage ? [{ quality: "auto:good", fetch_format: "auto" }] : undefined),
       },
       (error, uploadResult) => {
         if (error || !uploadResult) {

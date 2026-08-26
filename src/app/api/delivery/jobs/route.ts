@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         status: prismaStatus,
       },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
 
     if (jobs.length === 0 && bookingId) {

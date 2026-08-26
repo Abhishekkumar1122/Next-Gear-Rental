@@ -182,6 +182,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       faq2Answer: map.get("faq2Answer") || defaultSiteSettings.faq2Answer,
       faq3Question: map.get("faq3Question") || defaultSiteSettings.faq3Question,
       faq3Answer: map.get("faq3Answer") || defaultSiteSettings.faq3Answer,
+      vehicleCardStyle: (map.get("vehicleCardStyle") as any) || defaultSiteSettings.vehicleCardStyle,
     };
     cachedSettings = { data: result, timestamp: Date.now() };
     return result;

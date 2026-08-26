@@ -96,6 +96,9 @@ model User {
   documents     UserDocument[]
   managedVendor Vendor?
   notifications Notification[]
+
+  @@index([phone])
+  @@index([role, createdAt(sort: Desc)])
 }
 
 model UserDocument {
@@ -106,6 +109,8 @@ model UserDocument {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model City {
@@ -130,6 +135,8 @@ model Vendor {
   updatedAt      DateTime  @updatedAt
   vehicles       Vehicle[]
   ownerUser      User?     @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([contactPhone])
 }
 
 model Vehicle {
@@ -160,7 +167,7 @@ model Vehicle {
 
   @@index([cityId])
   @@index([cityId, type, pricePerDayINR])
-  @@index([vendorId])
+  @@index([vendorId, operationalStatus])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
@@ -199,6 +206,9 @@ model Booking {
 
   @@index([vehicleId, status, endDate])
   @@index([userId, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([cityName, status])
+  @@index([createdAt(sort: Desc)])
 }
 model Driver {
   id            String       @id @default(cuid())
@@ -262,6 +272,9 @@ model Payment {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, status])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model OtpCode {

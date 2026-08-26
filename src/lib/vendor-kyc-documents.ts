@@ -129,6 +129,7 @@ export async function addVendorKycDocument(input: {
   fileUrl: string;
   mimeType: string;
   sizeBytes: number;
+  reviewNote?: string;
   geoLat?: number;
   geoLng?: number;
 }): Promise<VendorKycDocument> {
@@ -143,6 +144,7 @@ export async function addVendorKycDocument(input: {
       sizeBytes: input.sizeBytes,
       uploadedAt: new Date().toISOString(),
       reviewStatus: "pending",
+      reviewNote: input.reviewNote,
       geoLat: input.geoLat,
       geoLng: input.geoLng,
     };
@@ -158,8 +160,8 @@ export async function addVendorKycDocument(input: {
   const id = `vdoc_${crypto.randomUUID()}`;
   const rows = await prisma.$queryRawUnsafe<VendorKycDocumentRow[]>(
     `
-      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, geo_lat, geo_lng)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending', $8, $9)
+      INSERT INTO "VendorKycDocument" (id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, geo_lat, geo_lng)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending', $8, $9, $10)
       RETURNING id, vendor_id, document_type, file_name, file_url, mime_type, size_bytes, uploaded_at, review_status, review_note, reviewed_at, geo_lat, geo_lng
     `,
     id,
@@ -169,6 +171,7 @@ export async function addVendorKycDocument(input: {
     input.fileUrl,
     input.mimeType,
     input.sizeBytes,
+    input.reviewNote || null,
     input.geoLat ?? null,
     input.geoLng ?? null
   );

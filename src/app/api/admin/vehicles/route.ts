@@ -8,7 +8,7 @@ import { getEffectiveDailyPrice } from "@/lib/pricing";
 import { getTrendingRideMap } from "@/lib/trending-rides";
 import { getVehicleNumberMap, setVehicleNumberForVehicle } from "@/lib/vendor-fleet-vehicle-number";
 import { getImageMapForVehicles, setImageUrlsForVehicle } from "@/lib/vendor-fleet-media";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -35,30 +35,88 @@ const createVehicleSchema = z.object({
   price12HrINR: z.number().int().nonnegative().nullable().optional(),
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const isAdmin = await assertAdminSession();
   if (!isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const dbVehicles = await prisma.vehicle.findMany({
-    include: {
-      city: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const url = request.nextUrl;
+  const search = url.searchParams.get("search")?.trim();
+  const cityId = url.searchParams.get("cityId");
+  const vendorId = url.searchParams.get("vendorId");
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit")) || 50));
 
+  const where: any = {};
+  if (cityId) where.cityId = cityId;
+  if (vendorId) where.vendorId = vendorId;
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" as const } },
+      { type: { contains: search, mode: "insensitive" as const } },
+    ];
+  }
+
+  const [totalCount, dbVehicles, cities, vendors] = await Promise.all([
+    prisma.vehicle.count({ where }),
+    prisma.vehicle.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        fuel: true,
+        transmission: true,
+        seats: true,
+        pricePerDayINR: true,
+        airportPickup: true,
+        operationalStatus: true,
+        cityId: true,
+        vendorId: true,
+        addonWaiverPrice: true,
+        addonRsaPrice: true,
+        addonHelmetPrice: true,
+        price1HrINR: true,
+        price3HrINR: true,
+        price6HrINR: true,
+        price12HrINR: true,
+        weekendSurgeActive: true,
+        createdAt: true,
+        city: { select: { id: true, name: true, airportName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.city.findMany({
+      select: { id: true, name: true, airportName: true },
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.vendor.findMany({
+      select: { id: true, businessName: true },
+      orderBy: { businessName: "asc" },
+    }),
+  ]);
+
+  const vehicleIds = dbVehicles.map((v) => v.id);
   const now = new Date();
-  const activeBookings = await prisma.booking.findMany({
-    where: {
-      status: "CONFIRMED",
-      endDate: { gte: now },
-    },
-    select: {
-      vehicleId: true,
-      endDate: true,
-    },
-  });
+
+  // Bounded Active Booking lookup ONLY for current vehicle IDs
+  const activeBookings = vehicleIds.length > 0
+    ? await prisma.booking.findMany({
+        where: {
+          vehicleId: { in: vehicleIds },
+          status: "CONFIRMED",
+          endDate: { gte: now },
+        },
+        select: {
+          vehicleId: true,
+          endDate: true,
+        },
+      })
+    : [];
 
   const activeVehicleIds = new Set(activeBookings.map((item) => item.vehicleId));
   const bookedUntilMap = new Map<string, string>();
@@ -72,21 +130,18 @@ export async function GET() {
     getVehicleAvailabilityOverrides(),
     getTrendingRideMap(),
   ]);
-  const vehicleNumberMap = await getVehicleNumberMap(dbVehicles.map((vehicle) => vehicle.id));
-  const imageMap = await getImageMapForVehicles(dbVehicles.map((vehicle) => vehicle.id));
-  
-  console.log(`[GET /api/admin/vehicles] Retrieved ${dbVehicles.length} vehicles`);
-  for (const vehicle of dbVehicles.slice(0, 3)) {
-    const images = imageMap.get(vehicle.id);
-    console.log(`  Vehicle ${vehicle.id}: ${images?.length ?? 0} images stored`, images);
-  }
-
+  const vehicleNumberMap = await getVehicleNumberMap(vehicleIds);
+  const imageMap = await getImageMapForVehicles(vehicleIds);
   return NextResponse.json({
-    cities: (await prisma.city.findMany({
-      select: { id: true, name: true, airportName: true },
-      where: { isActive: true },
-      orderBy: { name: "asc" },
-    })).map((city) => {
+    pagination: {
+      page,
+      limit,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit) || 1,
+      hasNextPage: page < Math.ceil(totalCount / limit),
+      hasPrevPage: page > 1,
+    },
+    cities: cities.map((city) => {
       const parsed = splitCityAndState(city.name);
       return {
         id: city.id,
@@ -96,10 +151,7 @@ export async function GET() {
         airportName: city.airportName || undefined,
       };
     }),
-    vendors: await prisma.vendor.findMany({
-      select: { id: true, businessName: true },
-      orderBy: { businessName: "asc" },
-    }),
+    vendors,
     vehicles: dbVehicles.map((vehicle) => {
       const hasActiveBooking = activeVehicleIds.has(vehicle.id);
       return {

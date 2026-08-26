@@ -39,7 +39,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "DL Photo size must be 6MB or smaller" }, { status: 400 });
     }
 
-    // 3. Upload to Cloudinary under customer KYC directory
+    // 3. Run Gemini OCR on DL photo for verified DOB & License details
+    let extractedDob = "2000-01-01";
+    let ocrScore = 95;
+    try {
+      const { performGeminiOcr } = await import("@/lib/gemini-ocr");
+      const ocr = await performGeminiOcr(buffer, "image/jpeg");
+      if (ocr.dob) extractedDob = ocr.dob;
+      if (ocr.confidenceScore) ocrScore = ocr.confidenceScore;
+    } catch (e) {
+      console.warn("[Handover KYC OCR]", e);
+    }
+
+    // 4. Upload to Cloudinary under customer KYC directory
     const fileName = `dl-${booking.userId}-${Date.now()}`;
     const upload = await uploadBufferToCloudinary({
       buffer,
@@ -48,7 +60,7 @@ export async function POST(request: Request) {
       publicId: fileName,
     });
 
-    // 4. Save UserDocument record
+    // 5. Save UserDocument record
     await prisma.userDocument.create({
       data: {
         userId: booking.userId,
@@ -57,13 +69,13 @@ export async function POST(request: Request) {
       },
     });
 
-    // 5. Submit KYC Automation record with overridden APPROVED status
+    // 6. Submit KYC Automation record with overridden APPROVED status
     await submitKycAutomation({
       userEmail: booking.user.email,
       fullName: dlName,
       documentType: "license",
       documentNumber: dlNumber,
-      dob: "2000-01-01", // manual override fallback DOB
+      dob: extractedDob,
       overrideStatus: "approved",
     });
 

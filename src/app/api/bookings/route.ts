@@ -107,26 +107,70 @@ export async function GET(request: NextRequest) {
     };
   }
 
+  const page = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
+  const limit = Math.min(100, Math.max(5, Number(request.nextUrl.searchParams.get("limit")) || 25));
+
   if (process.env.DATABASE_URL) {
-    const bookings = await prisma.booking.findMany({
-      where: whereClause,
-      include: {
-        user: true,
-        payments: true,
-        vehicle: {
-          include: {
-            vendor: true,
+    const [totalCount, bookings] = await Promise.all([
+      prisma.booking.count({ where: whereClause }),
+      prisma.booking.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          userId: true,
+          vehicleId: true,
+          cityName: true,
+          startDate: true,
+          endDate: true,
+          totalAmountINR: true,
+          currency: true,
+          timezone: true,
+          status: true,
+          handoverStatus: true,
+          startOdometer: true,
+          endOdometer: true,
+          startFuel: true,
+          endFuel: true,
+          startPhotos: true,
+          endPhotos: true,
+          extraChargesPaid: true,
+          extraChargesAmount: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          payments: true,
+          vehicle: {
+            include: {
+              vendor: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
     const promotionMap = await getBookingPromotionsByBookingIds(bookings.map((booking) => booking.id));
 
     return NextResponse.json({
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit) || 1,
+        hasNextPage: page < Math.ceil(totalCount / limit),
+        hasPrevPage: page > 1,
+      },
       bookings: bookings.map((booking) => ({
         ...(promotionMap.get(booking.id)
           ? {

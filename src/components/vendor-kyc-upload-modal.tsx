@@ -37,6 +37,13 @@ type DocState = {
   geoLat?: number;
   geoLng?: number;
   geoError?: string;
+  ocr?: {
+    documentType?: string;
+    fullName?: string | null;
+    documentNumber?: string | null;
+    confidenceScore?: number;
+    notes?: string;
+  };
 };
 
 export function VendorKycUploadModal({ applicationId, phone, onClose }: VendorKycUploadModalProps) {
@@ -102,7 +109,7 @@ export function VendorKycUploadModal({ applicationId, phone, onClose }: VendorKy
       const res = await fetch("/api/vendor-registration/status/documents", { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      setDocStates((prev) => ({ ...prev, [doc.id]: { ...prev[doc.id], status: "done" } }));
+      setDocStates((prev) => ({ ...prev, [doc.id]: { ...prev[doc.id], status: "done", ocr: data.ocr } }));
     } catch (err) {
       setDocStates((prev) => ({
         ...prev,
@@ -184,6 +191,15 @@ export function VendorKycUploadModal({ applicationId, phone, onClose }: VendorKy
                         <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">✓ Uploaded</span>
                       )}
                     </div>
+
+                    {isDone && state.ocr && (
+                      <div className="mt-1.5 flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-500/25 px-2.5 py-1 rounded-lg text-[11px] text-emerald-300">
+                        <span>🤖 Gemini OCR:</span>
+                        <span className="font-bold">{state.ocr.fullName || state.ocr.documentType?.toUpperCase()}</span>
+                        {state.ocr.documentNumber && <span className="font-mono text-white/90">({state.ocr.documentNumber})</span>}
+                        {state.ocr.confidenceScore && <span className="text-emerald-400/70 text-[10px] font-semibold">{state.ocr.confidenceScore}%</span>}
+                      </div>
+                    )}
 
                     {doc.isShopPhoto && !isDone && (
                       <div className={`mt-2 flex items-start gap-2 text-xs rounded-lg px-3 py-2 ${state.geoLat ? "bg-emerald-950/40 border border-emerald-500/20 text-emerald-400" : state.geoError ? "bg-red-950/40 border border-red-500/20 text-red-400" : "bg-amber-950/40 border border-amber-500/20 text-amber-400"}`}>

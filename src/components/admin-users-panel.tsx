@@ -126,6 +126,25 @@ export function AdminUsersPanel() {
   const [selectedDetailUser, setSelectedDetailUser] = useState<UserRecord | null>(null);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
 
+  // Pagination states
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(25);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [counts, setCounts] = useState<{
+    total: number;
+    customers: number;
+    vendors: number;
+    admins: number;
+    blocked: number;
+  }>({
+    total: 0,
+    customers: 0,
+    vendors: 0,
+    admins: 0,
+    blocked: 0,
+  });
+
   // Modal edit states
   const [modalVipTier, setModalVipTier] = useState<VipTier>("BRONZE");
   const [modalCommissionRate, setModalCommissionRate] = useState<number>(15);
@@ -138,13 +157,31 @@ export function AdminUsersPanel() {
   const [blockCustomMessage, setBlockCustomMessage] = useState<string>("");
   const [submittingBlock, setSubmittingBlock] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (
+    role = roleFilter,
+    search = searchTerm,
+    pageNumber = page,
+    pageSize = limit
+  ) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/users?role=${roleFilter}`);
+      const params = new URLSearchParams({
+        role,
+        search,
+        page: String(pageNumber),
+        limit: String(pageSize),
+      });
+      const res = await fetch(`/api/admin/users?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users ?? []);
+        if (data.pagination) {
+          setTotalCount(data.pagination.totalCount ?? 0);
+          setTotalPages(data.pagination.totalPages ?? 1);
+        }
+        if (data.counts) {
+          setCounts(data.counts);
+        }
       }
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -153,9 +190,14 @@ export function AdminUsersPanel() {
     }
   };
 
+  // Debounced server search
   useEffect(() => {
-    void fetchUsers();
-  }, [roleFilter]);
+    const timer = setTimeout(() => {
+      setPage(1);
+      void fetchUsers(roleFilter, searchTerm, 1, limit);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, roleFilter, limit]);
 
   const openDetailModal = (user: UserRecord) => {
     setSelectedDetailUser(user);
@@ -322,27 +364,6 @@ export function AdminUsersPanel() {
     setBlockCustomMessage(tpl.message);
   };
 
-  const filtered = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    return users.filter((u) => {
-      if (!query) return true;
-      return (
-        u.name?.toLowerCase().includes(query) ||
-        u.email?.toLowerCase().includes(query) ||
-        u.phone?.toLowerCase().includes(query)
-      );
-    });
-  }, [users, searchTerm]);
-
-  const stats = useMemo(() => {
-    return {
-      total: users.length,
-      users: users.filter((u) => u.role === "USER").length,
-      vendors: users.filter((u) => u.role === "VENDOR").length,
-      blocked: users.filter((u) => u.kycStatus === "blacklisted").length,
-    };
-  }, [users]);
-
   const getRoleColor = (role: UserRecord["role"]) => {
     switch (role) {
       case "ADMIN":
@@ -361,19 +382,19 @@ export function AdminUsersPanel() {
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center">
           <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Total Accounts</p>
-          <p className="text-2xl font-black text-white mt-0.5">{stats.total}</p>
+          <p className="text-2xl font-black text-white mt-0.5">{counts.total || totalCount || users.length}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center">
           <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Customers</p>
-          <p className="text-2xl font-black text-white/90 mt-0.5">{stats.users}</p>
+          <p className="text-2xl font-black text-white/90 mt-0.5">{counts.customers}</p>
         </div>
         <div className="rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4 text-center">
           <p className="text-[10px] font-bold text-blue-400/70 uppercase tracking-wider">Vendors</p>
-          <p className="text-2xl font-black text-blue-400 mt-0.5">{stats.vendors}</p>
+          <p className="text-2xl font-black text-blue-400 mt-0.5">{counts.vendors}</p>
         </div>
         <div className="rounded-2xl border border-red-500/20 bg-red-950/20 p-4 text-center">
           <p className="text-[10px] font-bold text-red-400/70 uppercase tracking-wider">Suspended / Blocked</p>
-          <p className="text-2xl font-black text-red-400 mt-0.5">{stats.blocked}</p>
+          <p className="text-2xl font-black text-red-400 mt-0.5">{counts.blocked}</p>
         </div>
       </div>
 
@@ -446,14 +467,14 @@ export function AdminUsersPanel() {
                     Loading accounts...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-14 text-white/40">
                     No accounts found matching search.
                   </td>
                 </tr>
               ) : (
-                filtered.map((user) => {
+                users.map((user) => {
                   const isBlocked = user.kycStatus === "blacklisted";
                   return (
                     <tr
@@ -583,6 +604,66 @@ export function AdminUsersPanel() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* 📄 Pagination Footer Toolbar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 border-t border-white/10 bg-white/[0.02]">
+          <div className="text-xs text-white/50">
+            Showing <span className="font-bold text-white">{(page - 1) * limit + 1}</span> to{" "}
+            <span className="font-bold text-white">{Math.min(page * limit, totalCount || users.length)}</span> of{" "}
+            <span className="font-bold text-white">{(totalCount || users.length).toLocaleString("en-IN")}</span> accounts
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-white/50">
+              <span>Show:</span>
+              <select
+                value={limit}
+                onChange={(e) => {
+                  const newL = Number(e.target.value);
+                  setLimit(newL);
+                  setPage(1);
+                  void fetchUsers(roleFilter, searchTerm, 1, newL);
+                }}
+                className="bg-black/80 border border-white/15 text-white rounded-lg px-2 py-1 text-xs outline-none cursor-pointer focus:border-red-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={page <= 1 || loading}
+                onClick={() => {
+                  const newP = page - 1;
+                  setPage(newP);
+                  void fetchUsers(roleFilter, searchTerm, newP, limit);
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 text-white transition cursor-pointer"
+              >
+                ◀ Prev
+              </button>
+              <span className="text-xs text-white/70 px-2 font-mono">
+                Page {page} of {Math.max(1, totalPages)}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages || loading}
+                onClick={() => {
+                  const newP = page + 1;
+                  setPage(newP);
+                  void fetchUsers(roleFilter, searchTerm, newP, limit);
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed border border-white/10 text-white transition cursor-pointer"
+              >
+                Next ▶
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

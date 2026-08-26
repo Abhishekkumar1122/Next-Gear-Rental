@@ -85,22 +85,48 @@ const getCachedVendorBookings = unstable_cache(
           vendorId,
         },
       },
-      include: {
+      select: {
+        id: true,
+        cityName: true,
+        startDate: true,
+        endDate: true,
+        totalAmountINR: true,
+        currency: true,
+        status: true,
+        handoverStatus: true,
+        startOdometer: true,
+        endOdometer: true,
+        startFuel: true,
+        endFuel: true,
+        createdAt: true,
         vehicle: {
-          include: {
-            city: true,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fuel: true,
+            transmission: true,
+            seats: true,
+            pricePerDayINR: true,
+            city: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         user: {
           select: {
             name: true,
             email: true,
+            phone: true,
           },
         },
       },
       orderBy: {
         startDate: "desc",
       },
+      take: 100,
     });
 
     return rawBookings.map((item) => ({

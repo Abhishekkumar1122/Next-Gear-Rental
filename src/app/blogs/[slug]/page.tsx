@@ -222,6 +222,45 @@ export default async function BlogDetailPage({ params }: PageProps) {
         {/* Article Body */}
         <RenderArticleBody content={post.content} />
 
+        {/* 🏍️ Interactive Embedded Road Trip Ride */}
+        {post.embeddedRide && (
+          <div className="my-8 rounded-3xl border border-red-500/30 bg-gradient-to-br from-[#121218] to-[#0c0c0f] p-5 sm:p-6 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-5 relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-white/10 shrink-0">
+                  <Image
+                    src={post.embeddedRide.image}
+                    alt={post.embeddedRide.title}
+                    fill
+                    className="object-cover group-hover:scale-105 transition duration-300"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-red-950/80 px-2.5 py-0.5 text-[10px] font-black uppercase text-red-400 border border-red-500/30">
+                    {post.embeddedRide.badge}
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black text-white">{post.embeddedRide.title}</h3>
+                  <p className="text-xs text-white/60">Recommended rental ride for this route in {post.embeddedRide.city}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-white/10 pt-3 sm:pt-0">
+                <div className="text-left sm:text-right">
+                  <p className="text-[10px] uppercase font-bold text-white/40">Daily Rental</p>
+                  <p className="text-lg font-black text-green-400">₹{post.embeddedRide.pricePerDay.toLocaleString("en-IN")}<span className="text-xs text-white/50 font-normal">/day</span></p>
+                </div>
+                <Link
+                  href={`/vehicles?city=${encodeURIComponent(post.embeddedRide.city)}`}
+                  className="rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 px-5 py-3 text-xs font-black text-white shadow-xl shadow-red-600/30 transition transform active:scale-95 whitespace-nowrap cursor-pointer"
+                >
+                  ⚡ Book This Ride
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Call-to-Action Booking Card */}
         <section className="my-8 sm:my-12 rounded-2xl sm:rounded-3xl border border-red-500/40 bg-gradient-to-r from-neutral-950 via-red-950/60 to-neutral-950 p-4 sm:p-10 text-center space-y-3 sm:space-y-4 shadow-2xl shadow-red-900/30">
           <span className="text-2xl sm:text-3xl">🏎️💨</span>

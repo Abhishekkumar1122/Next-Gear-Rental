@@ -367,7 +367,21 @@ function PaymentRedirectingCard({ message }: { message: string }) {
   );
 }
 
-export function BookingExperience({ userEmail: initialEmail, userName: initialName, addonWaiverActive = true, addonRsaActive = true, addonHelmetActive = true }: { userEmail?: string; userName?: string; addonWaiverActive?: boolean; addonRsaActive?: boolean; addonHelmetActive?: boolean } = {}) {
+export function BookingExperience({
+  userEmail: initialEmail = "",
+  userName: initialName = "",
+  userPhone: initialPhone = "",
+  addonWaiverActive = true,
+  addonRsaActive = true,
+  addonHelmetActive = true,
+}: {
+  userEmail?: string;
+  userName?: string;
+  userPhone?: string;
+  addonWaiverActive?: boolean;
+  addonRsaActive?: boolean;
+  addonHelmetActive?: boolean;
+} = {}) {
   const searchParams = useSearchParams();
   const prefilledCity = searchParams.get("city") ?? "Delhi";
   const isNriMode = searchParams.get("nri") === "1";
@@ -378,9 +392,15 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
   const [type, setType] = useState("");
-  const [email, setEmail] = useState(initialEmail ?? "user@example.com");
-  const [fullName, setFullName] = useState(initialName ?? "Riya Verma");
-  const [phone, setPhone] = useState("9876543210");
+
+  // Clean real customer credentials (only fill what the user actually registered with)
+  const cleanEmail = initialEmail && !initialEmail.endsWith("@guest.next-gear.app") && initialEmail !== "user@example.com" ? initialEmail : "";
+  const cleanName = initialName && initialName !== "Riya Verma" && initialName !== "user" ? initialName : "";
+  const cleanPhone = initialPhone && initialPhone !== "9876543210" ? initialPhone : "";
+
+  const [email, setEmail] = useState(cleanEmail);
+  const [fullName, setFullName] = useState(cleanName);
+  const [phone, setPhone] = useState(cleanPhone);
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>(isNriMode ? "stripe" : "payu");
   const [isDigiLockerActive, setIsDigiLockerActive] = useState(false);
   const [allowedGateways, setAllowedGateways] = useState<PaymentProvider[]>(["payu", "paypal"]);
@@ -443,6 +463,18 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
   // Pre-warm ref: fires booking API in background when user reaches payment step
   const preWarmRef = useRef<Promise<Response> | null>(null);
   const preWarmParamsRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (initialEmail && !initialEmail.endsWith("@guest.next-gear.app") && initialEmail !== "user@example.com") {
+      setEmail((prev) => (!prev || prev === "user@example.com" ? initialEmail : prev));
+    }
+    if (initialName && initialName !== "Riya Verma" && initialName !== "user") {
+      setFullName((prev) => (!prev || prev === "Riya Verma" ? initialName : prev));
+    }
+    if (initialPhone && initialPhone !== "9876543210") {
+      setPhone((prev) => (!prev || prev === "9876543210" ? initialPhone : prev));
+    }
+  }, [initialEmail, initialName, initialPhone]);
 
   useEffect(() => {
     function handleResize() {
@@ -1597,44 +1629,44 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
 
       {selectedVehicle ? (
         // Mode A: Vehicle Selected - Detailed Form Mode
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-6">
           {/* Mobile Step Progress Indicator */}
-          <div className="flex sm:hidden items-center justify-between px-1 py-1 mb-2">
-            <span className="text-[10px] text-white/40 uppercase font-black tracking-wider">Step {checkoutStep} of 3</span>
+          <div className="flex sm:hidden items-center justify-between px-1 py-0.5 mb-1">
+            <span className="text-[9.5px] text-white/40 uppercase font-black tracking-wider">Step {checkoutStep} of 3</span>
             <div className="flex items-center gap-1.5">
               {[1, 2, 3].map((stepNum) => (
                 <div
                   key={stepNum}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     stepNum === checkoutStep
-                      ? "w-8 bg-[var(--brand-red)]"
+                      ? "w-7 bg-[var(--brand-red)]"
                       : stepNum < checkoutStep
-                      ? "w-3 bg-green-500"
-                      : "w-3 bg-white/10"
+                      ? "w-2.5 bg-green-500"
+                      : "w-2.5 bg-white/10"
                   }`}
                 />
               ))}
             </div>
           </div>
 
-          <div className={`rounded-3xl bg-transparent sm:bg-black p-0 sm:p-6 shadow-none sm:shadow-xl relative overflow-visible sm:overflow-hidden ${
+          <div className={`rounded-2xl sm:rounded-3xl bg-transparent sm:bg-black p-0 sm:p-6 shadow-none sm:shadow-xl relative overflow-visible sm:overflow-hidden ${
             checkoutStep === 1 ? "block" : "hidden sm:block"
           }`}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start pb-4 border-b border-white/5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6 items-start pb-3 sm:pb-4 border-b border-white/5">
               {/* Left Column: Selected Vehicle details */}
               <div>
-                <span className="inline-block rounded-full bg-red-950/60 px-3 py-1 text-xs font-bold text-red-400 border border-red-800/30">
+                <span className="inline-block rounded-full bg-red-950/60 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-bold text-red-400 border border-red-800/30">
                   SELECTED VEHICLE
                 </span>
-                <h3 className="mt-2 text-xl font-bold font-display uppercase tracking-wide text-white">{selectedVehicle.title}</h3>
-                <p className="text-xs text-white/50 mt-1">
+                <h3 className="mt-1 sm:mt-2 text-lg sm:text-xl font-bold font-display uppercase tracking-wide text-white">{selectedVehicle.title}</h3>
+                <p className="text-[11px] sm:text-xs text-white/50 mt-0.5 sm:mt-1">
                   📍 {selectedVehicle.city} · ⛽ {selectedVehicle.fuel} · ⚙️ {selectedVehicle.transmission} · 👤 {selectedVehicle.seats} seats
                 </p>
               </div>
 
               {/* Middle Column: Add-ons (Optional) */}
               <div>
-                <p className="text-xs text-white/40 uppercase font-semibold">Add-ons (Optional)</p>
+                <p className="text-[10px] sm:text-xs text-white/40 uppercase font-semibold">Add-ons (Optional)</p>
                  {/* Desktop View: Original simple checkbox list */}
                  <div className="hidden md:flex flex-col gap-1.5 text-xs text-white/80 mt-2">
                    {addonWaiverActive && (
@@ -1680,8 +1712,8 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                    </button>
                  </div>
 
-                 {/* Mobile View: Premium Select Cards */}
-                 <div className="flex md:hidden flex-col gap-2.5 mt-2">
+                 {/* Mobile View: Compact Modern Select Cards */}
+                 <div className="flex md:hidden flex-col gap-1.5 mt-1.5">
                    {[
                      addonWaiverActive ? { id: "waiver", emoji: "🛡️", label: "Damage Waiver", price: `₹${selectedVehicle?.addonWaiverPrice ?? 99}/day` } : null,
                      addonRsaActive ? { id: "rsa", emoji: "🆘", label: "Roadside Assist", price: `₹${selectedVehicle?.addonRsaPrice ?? 49}/day` } : null,
@@ -1692,24 +1724,24 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                        <div
                          key={item.id}
                          onClick={() => toggleAddon(item.id)}
-                         className={`rounded-xl border p-3 flex items-center justify-between cursor-pointer transition-all duration-300 active:scale-95 select-none ${
+                         className={`rounded-xl border py-2 px-3 flex items-center justify-between cursor-pointer transition-all duration-300 active:scale-95 select-none ${
                            active
                              ? "bg-[var(--brand-red)]/10 border-[var(--brand-red)] shadow-[0_0_15px_rgba(225,29,72,0.15)] text-white"
                              : "bg-white/[0.02] border-white/10 text-white/70 hover:text-white"
                          }`}
                        >
-                         <div className="flex items-center gap-2.5">
-                           <span className="text-lg">{item.emoji}</span>
+                         <div className="flex items-center gap-2">
+                           <span className="text-base">{item.emoji}</span>
                            <div className="text-left">
-                             <p className="text-xs font-bold text-white">{item.label}</p>
-                             <p className="text-[10px] text-white/40 font-medium mt-0.5">{item.price}</p>
+                             <p className="text-xs font-bold text-white leading-tight">{item.label}</p>
+                             <p className="text-[9.5px] text-white/40 font-medium">{item.price}</p>
                            </div>
                          </div>
-                         <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+                         <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
                            active ? "border-[var(--brand-red)] bg-[var(--brand-red)]" : "border-white/20 bg-transparent"
                          }`}>
                            {active && (
-                             <span className="text-[10px] text-white font-bold">✓</span>
+                             <span className="text-[9px] text-white font-bold">✓</span>
                            )}
                          </div>
                        </div>
@@ -1719,7 +1751,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                    <button
                      type="button"
                      onClick={() => setShowAddGearModal(true)}
-                     className="w-full justify-center text-center text-xs font-bold text-red-400 hover:text-red-300 transition-colors duration-200 cursor-pointer flex items-center gap-1.5 bg-white/5 hover:bg-white/10 py-3 rounded-xl border border-white/10"
+                     className="w-full justify-center text-center text-[11px] font-bold text-red-400 hover:text-red-300 transition-colors duration-200 cursor-pointer flex items-center gap-1.5 bg-white/5 hover:bg-white/10 py-2 rounded-xl border border-white/10"
                    >
                      <span>➕ Add More Gear</span>
                    </button>
@@ -1727,15 +1759,15 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
 
                   {/* Selected extra gears list */}
                   {addons.some(id => !["waiver", "rsa", "helmet"].includes(id)) && (
-                    <div className="mt-2.5 pt-2 border-t border-white/5 space-y-1.5 max-h-36 overflow-y-auto no-scrollbar">
-                      <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Additional Gear Added:</p>
+                    <div className="mt-2 pt-1.5 border-t border-white/5 space-y-1 max-h-36 overflow-y-auto no-scrollbar">
+                      <p className="text-[8.5px] text-white/40 uppercase font-bold tracking-wider">Additional Gear Added:</p>
                       {addons.map((id) => {
                         if (["waiver", "rsa", "helmet"].includes(id)) return null;
                         const addOn = bookingAddOns.find(item => item.id === id);
                         if (!addOn) return null;
                         const isFlat = addOn.id === "mount" || addOn.id === "cam-mount";
                         return (
-                          <div key={id} className="flex items-center justify-between text-[10px] text-white/80 bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl px-2.5 py-1.5 transition">
+                          <div key={id} className="flex items-center justify-between text-[10px] text-white/80 bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl px-2.5 py-1 transition">
                             <span className="truncate pr-1">
                               {addOn.label} ({toCurrency(useHourly ? addOn.pricePerHourINR : addOn.pricePerDayINR, "INR")}{isFlat ? " flat" : useHourly ? "/hour" : "/day"})
                             </span>
@@ -1754,14 +1786,14 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
               </div>
 
               {/* Right Column: Daily rate & change vehicle */}
-              <div className="flex flex-col items-start md:items-end gap-1.5 text-left md:text-right">
-                <span className="font-extrabold text-white text-lg">
+              <div className="flex flex-col items-start md:items-end gap-1 text-left md:text-right">
+                <span className="font-extrabold text-white text-base sm:text-lg">
                   {useHourly ? hourlyRateLabel : `${toCurrency(selectedVehicle.pricePerDayINR, "INR")} / day`}
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedVehicle(null)}
-                  className="text-xs font-semibold text-red-400 hover:text-red-300 underline cursor-pointer"
+                  className="text-[11px] sm:text-xs font-semibold text-red-400 hover:text-red-300 underline cursor-pointer"
                 >
                   Change vehicle
                 </button>
@@ -1769,23 +1801,23 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
             </div>
 
 
-            <div className="mt-4 grid gap-6 grid-cols-1 md:grid-cols-2 text-sm">
+            <div className="mt-3 sm:mt-4 grid gap-3 sm:gap-6 grid-cols-1 md:grid-cols-2 text-sm">
               {/* Column 1: Dates & Location (Styled as a premium summary card on mobile) */}
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-3.5 sm:border-0 sm:bg-transparent sm:p-0 sm:space-y-4">
+              <div className="space-y-2.5 sm:space-y-4">
+                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 space-y-2 sm:space-y-3.5 sm:border-0 sm:bg-transparent sm:p-0">
                   <div>
-                    <p className="text-[10px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <p className="text-[9.5px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1">
                       <span>📅</span> DATES, TIMES & QUANTITY
                     </p>
-                    <p className="mt-1.5 text-xs sm:text-sm font-semibold text-white/85 leading-relaxed">
+                    <p className="mt-1 text-xs sm:text-sm font-semibold text-white/85 leading-snug">
                       {formatDateDisplay(startDate)} ({formatTimeDisplay(startTime)}) to {formatDateDisplay(endDate)} ({formatTimeDisplay(endTime)}) · <span className="text-[var(--brand-red-soft)] font-bold">{useHourly ? `${rentalHours} hrs` : `${rentalDays} days`}</span> · {quantity} {quantity === 1 ? "vehicle" : "vehicles"}
                     </p>
                   </div>
-                  <div className="border-t border-white/5 pt-3.5 sm:border-0 sm:pt-0">
-                    <p className="text-[10px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="border-t border-white/5 pt-2 sm:pt-3.5 sm:border-0 sm:pt-0">
+                    <p className="text-[9.5px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1">
                       <span>📍</span> BOOKING LOCATION
                     </p>
-                    <p className="mt-1.5 text-xs sm:text-sm font-semibold text-white/90">
+                    <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm font-semibold text-white/90">
                       {city || selectedVehicle.city}
                     </p>
                   </div>
@@ -1794,20 +1826,20 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
 
               {/* Column 2: Estimated Cost (Styled as a premium summary card on mobile) */}
               <div className="md:text-right">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 md:border-0 md:bg-transparent md:p-0">
-                  <p className="text-xs text-white/40 uppercase font-bold tracking-wider text-left md:text-right flex items-center gap-1.5 justify-start md:justify-end">
+                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 md:border-0 md:bg-transparent md:p-0">
+                  <p className="text-[10px] sm:text-xs text-white/40 uppercase font-bold tracking-wider text-left md:text-right flex items-center gap-1 justify-start md:justify-end">
                     <span>💰</span> ESTIMATED COST
                   </p>
-                  <div className="mt-3.5 space-y-2 text-xs">
+                  <div className="mt-2 sm:mt-3.5 space-y-1.5 sm:space-y-2 text-xs">
                     <div className="flex justify-between md:justify-end gap-2 text-white/70">
-                      <span>Base price:</span>
+                      <span>Base price ({toCurrency(useHourly ? (selectedVehicle.price1HrINR || Math.round(selectedVehicle.pricePerDayINR / 24)) : selectedVehicle.pricePerDayINR, "INR")} × {useHourly ? `${rentalHours} hrs` : `${rentalDays} ${rentalDays === 1 ? "day" : "days"}`}{quantity > 1 ? ` × ${quantity}` : ""}):</span>
                       <span className="font-bold text-white">{toCurrency(useHourly ? calculateHourlyBaseCost(selectedVehicle, rentalHours) * quantity : selectedVehicle.pricePerDayINR * rentalDays * quantity, "INR")}</span>
                     </div>
-                    <div className="flex justify-between md:justify-end gap-2 text-sm font-semibold text-white/80 border-t border-white/5 pt-2">
+                    <div className="flex justify-between md:justify-end gap-2 text-xs sm:text-sm font-semibold text-white/80 border-t border-white/5 pt-1.5 sm:pt-2">
                       <span>Total:</span>
                       <span className="text-white font-bold">{toCurrency(finalEstimatedPrice, "INR")}</span>
                     </div>
-                    <div className="mt-2.5 border-t border-white/5 pt-2.5 space-y-1.5 text-xs text-left md:text-right">
+                    <div className="mt-2 border-t border-white/5 pt-2 space-y-1 text-xs text-left md:text-right">
                       {paymentOption === "full" || finalEstimatedPrice < 400 ? (
                         <>
                           <div className="flex justify-between md:justify-end gap-2 text-green-400 font-bold">
@@ -1816,7 +1848,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                           </div>
                           <div className="flex justify-between md:justify-end gap-2 text-white/40 font-semibold">
                             <span>Pay at Pickup:</span>
-                            <span className="font-bold text-white/40">₹0.00</span>
+                            <span>₹0.00</span>
                           </div>
                         </>
                       ) : (
@@ -1827,7 +1859,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                           </div>
                           <div className="flex justify-between md:justify-end gap-2 text-amber-400 font-bold">
                             <span>Pay at Pickup:</span>
-                            <span className="text-amber-400 font-black">{toCurrency(Math.max(0, finalEstimatedPrice - calculateBookingAmount(finalEstimatedPrice)), "INR")}</span>
+                            <span className="text-amber-400 font-black">{toCurrency(finalEstimatedPrice - calculateBookingAmount(finalEstimatedPrice), "INR")}</span>
                           </div>
                         </>
                       )}
@@ -2967,12 +2999,40 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                 <p className="text-xs text-white/60 leading-relaxed">
                   Show this QR code to the vendor at the hub when you go to pick up your bike. You can also view it anytime in your dashboard.
                 </p>
-                <div className="pt-1 flex gap-3">
+                <div className="pt-2 flex flex-wrap items-center gap-2.5">
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(
+                      `🏍️ *NEXT GEAR RENTAL CONFIRMATION*\n` +
+                      `━━━━━━━━━━━━━━━━━━━━\n` +
+                      `📌 *Booking ID:* ${successBookingId}\n` +
+                      `🚗 *Vehicle:* ${selectedVehicle?.title || "Rental Ride"}\n` +
+                      `📍 *Pickup Hub:* ${city}\n` +
+                      `📅 *Rental Period:* ${startDate} to ${endDate}\n` +
+                      `🗺️ *Google Maps Directions:* https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(city + " Next Gear Rental Hub")}\n` +
+                      `━━━━━━━━━━━━━━━━━━━━\n` +
+                      `⚡ *24/7 Helpline:* +91 98765 43210\n` +
+                      `Show this digital voucher QR code at vehicle handover.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/30 transition hover:-translate-y-0.5"
+                  >
+                    <span>💬</span> Send to WhatsApp
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 px-4 py-2 text-xs font-bold text-white transition hover:-translate-y-0.5 cursor-pointer"
+                  >
+                    <span>🖨️</span> Print Voucher
+                  </button>
+
                   <a
                     href="/dashboard/customer"
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/15 px-4 py-2 text-xs font-bold text-white transition hover:-translate-y-0.5"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 text-xs font-bold text-white/80 hover:text-white transition hover:-translate-y-0.5"
                   >
-                    View in Dashboard →
+                    Dashboard →
                   </a>
                 </div>
               </div>
@@ -3008,7 +3068,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
         {showTaxDetails && (
           <div className="mb-3 rounded-2xl bg-white/[0.03] border border-white/10 p-3.5 space-y-1.5 text-xs text-white/70 animate-[fade-up_0.25s_ease_forwards] max-h-40 overflow-y-auto no-scrollbar">
             <div className="flex justify-between font-semibold border-b border-white/5 pb-1">
-              <span>Base price (Qty: {quantity})</span>
+              <span>Base Rental ({toCurrency(useHourly ? (selectedVehicle.price1HrINR || Math.round(selectedVehicle.pricePerDayINR / 24)) : selectedVehicle.pricePerDayINR, "INR")} × {useHourly ? `${rentalHours} hrs` : `${rentalDays} ${rentalDays === 1 ? "day" : "days"}`}{quantity > 1 ? ` × ${quantity}` : ""})</span>
               <span>{toCurrency(useHourly ? calculateHourlyBaseCost(selectedVehicle, rentalHours) * quantity : selectedVehicle.pricePerDayINR * rentalDays * quantity, "INR")}</span>
             </div>
             {durationDiscount > 0 && (
@@ -3081,7 +3141,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
               setCheckoutStep(2);
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className="w-full rounded-2xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-4.5 py-3.5 flex items-center justify-between text-white shadow-xl shadow-red-500/20 active:scale-[0.99] transition-all duration-300 cursor-pointer"
+            className="w-full rounded-xl sm:rounded-2xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-4 py-2.5 sm:py-3.5 flex items-center justify-between text-white shadow-xl shadow-red-500/20 active:scale-[0.99] transition-all duration-300 cursor-pointer"
           >
             <span className="w-full text-center font-black uppercase text-xs sm:text-sm flex items-center justify-center gap-1">
               Next: Customer Details ➔
@@ -3097,7 +3157,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                 setCheckoutStep(1);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
-              className="px-4 py-3.5 rounded-xl border border-white/10 bg-white/5 text-xs font-bold text-white transition active:scale-95 cursor-pointer"
+              className="px-3.5 sm:px-4 py-2.5 sm:py-3.5 rounded-xl border border-white/10 bg-white/5 text-xs font-bold text-white transition active:scale-95 cursor-pointer"
             >
               Back
             </button>
@@ -3134,7 +3194,7 @@ export function BookingExperience({ userEmail: initialEmail, userName: initialNa
                 setCheckoutStep(3);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
-              className="flex-1 rounded-2xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-4.5 py-3.5 flex items-center justify-between text-white shadow-xl shadow-red-500/20 active:scale-[0.99] transition-all duration-300 cursor-pointer"
+              className="flex-1 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-4 py-2.5 sm:py-3.5 flex items-center justify-between text-white shadow-xl shadow-red-500/20 active:scale-[0.99] transition-all duration-300 cursor-pointer"
             >
               <span className="w-full text-center font-black uppercase text-xs sm:text-sm flex items-center justify-center gap-1">
                 Next: Payment Details ➔

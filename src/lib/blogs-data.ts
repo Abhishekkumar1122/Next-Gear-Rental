@@ -12,6 +12,14 @@ export interface BlogPost {
   featuredImageUrl: string;
   content: string;
   faqSchema: { question: string; answer: string }[];
+  embeddedRide?: {
+    title: string;
+    type: "bike" | "car" | "scooty";
+    pricePerDay: number;
+    city: string;
+    badge: string;
+    image: string;
+  };
 }
 
 export const BLOG_POSTS: BlogPost[] = [
@@ -274,6 +282,130 @@ NRIs and foreign tourists require a valid **International Driving Permit (IDP)**
       {
         question: "How long does security deposit refund take?",
         answer: "Refunds are processed automatically to your bank account within 24 hours of vehicle inspection upon return."
+      }
+    ]
+  },
+  {
+    slug: "delhi-to-leh-ladakh-bike-trip-guide-itinerary",
+    title: "Delhi to Leh Ladakh 7-Day Ultimate Bike Expedition: Itinerary, Routes & Himalayan Rentals",
+    excerpt: "Planning the legendary motorcycle trip from Delhi or Manali to Leh Ladakh? Get the complete day-by-day itinerary, high-altitude pass guide, Rohtang & Khardung La tips, and Royal Enfield Himalayan rental packages.",
+    category: "Travel Guide",
+    author: "Next Gear Adventure Desk",
+    publishedAt: "2026-08-25",
+    readTime: "9 min read",
+    city: "Delhi",
+    targetKeywords: [
+      "Delhi to Leh Ladakh bike trip",
+      "Manali to Ladakh bike rental",
+      "Royal Enfield Himalayan rent Delhi",
+      "Ladakh bike trip itinerary 7 days",
+      "Khardung La bike ride guide"
+    ],
+    metaDescription: "Ultimate Delhi to Leh Ladakh bike road trip guide. 7-day route map, Atal Tunnel tips, packing checklist, and verified Royal Enfield Himalayan 450 rentals.",
+    featuredImageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=1200&q=80",
+    embeddedRide: {
+      title: "Royal Enfield Himalayan 450",
+      type: "bike",
+      pricePerDay: 1499,
+      city: "Delhi",
+      badge: "⭐ Top Ladakh Choice",
+      image: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=600&q=80"
+    },
+    content: `
+# Delhi to Leh Ladakh 7-Day Ultimate Bike Expedition
+
+The ride from **Delhi to Leh Ladakh via Manali and Atal Tunnel** is every Indian rider's dream pilgrimage. Covering over **1,000 km of rugged Himalayan passes, glacial river crossings, and breathtaking moonscapes**, this guide covers everything you need to execute a flawless journey.
+
+---
+
+## 🗺️ Day-by-Day Expedition Itinerary
+
+* **Day 1 (Delhi to Manali - 540 km)**: Early morning cruise via NH44 and Kiratpur-Manali four-lane highway. Overnight rest in Old Manali.
+* **Day 2 (Manali to Jispa via Atal Tunnel - 95 km)**: Cross the world's longest highway tunnel above 10,000 ft into Lahaul Valley. Acclimatize in Jispa beside Bhaga River.
+* **Day 3 (Jispa to Sarchu / Padum - 85 km)**: Traverse Baralacha La (16,040 ft) with stunning views of Suraj Tal lake.
+* **Day 4 (Sarchu to Leh - 250 km)**: Cross the famous Gata Loops (21 hairpin bends), Nakee La, and Tanglang La (17,480 ft) descending into Leh City.
+* **Day 5 (Leh to Nubra Valley via Khardung La - 125 km)**: Conquer one of the world's highest motorable passes at 17,982 ft and explore Hunder sand dunes.
+* **Day 6 (Nubra to Pangong Tso Lake - 160 km)**: Ride along the turquoise waters of Pangong Tso on the Indo-Tibetan border.
+* **Day 7 (Pangong to Leh via Chang La - 225 km)**: Final scenic return loop into Leh for celebration and souvenir shopping.
+
+---
+
+## 🏍️ Best Motorcycle for Ladakh
+
+For tackling rocky river beds and low-oxygen high passes, the **Royal Enfield Himalayan 450** and **Classic 350** are the gold standard. Next Gear provides high-altitude tuned Himalayans complete with luggage carriers, crash guards, and mobile chargers directly in Delhi and Manali.
+    `,
+    faqSchema: [
+      {
+        question: "Can I rent a Royal Enfield Himalayan in Delhi and return in Leh or Manali?",
+        answer: "Yes, Next Gear supports flexible multi-city pickup and drop options across Delhi, Chandigarh, and Manali."
+      },
+      {
+        question: "Is security deposit required for Ladakh bike rentals?",
+        answer: "Next Gear provides verified zero-deposit rental plans with complimentary ISI helmets and tool kits."
+      }
+    ]
+  },
+  {
+    slug: "goa-coastal-beach-circuit-thar-4x4-guide",
+    title: "Goa Coastal Beach Circuit by 4x4 Thar: North to South Goa Hidden Routes",
+    excerpt: "Ditch the crowded taxi stands. Discover the top coastal driving routes in Goa with a convertible Mahindra Thar 4x4, from Vagator cliffs to pristine Palolem shores with airport delivery.",
+    category: "Travel Guide",
+    author: "Next Gear Goa Bureau",
+    publishedAt: "2026-08-25",
+    readTime: "7 min read",
+    city: "Goa",
+    targetKeywords: [
+      "Goa Thar rental near me",
+      "self drive 4x4 Thar Goa airport",
+      "best driving routes in Goa",
+      "North to South Goa road trip",
+      "convertible car rental Goa"
+    ],
+    metaDescription: "Experience Goa like never before in an open-top Mahindra Thar 4x4. Secret scenic coastal drives, sunset view points, and direct airport delivery at MOPA & Dabolim.",
+    featuredImageUrl: "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=1200&q=80",
+    embeddedRide: {
+      title: "Mahindra Thar 4x4 Convertible",
+      type: "car",
+      pricePerDay: 2499,
+      city: "Goa",
+      badge: "🔥 #1 Trend in Goa",
+      image: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=600&q=80"
+    },
+    content: `
+# Goa Coastal Beach Circuit: The Ultimate 4x4 Thar Self-Drive Guide
+
+There is no better feeling than cruising down the palm-shaded avenues of Goa with the top down in an open-roof **Mahindra Thar 4x4**. From sunset viewpoints over Portuguese forts to hidden white-sand beaches, this road trip guide covers the ultimate North-to-South Goa circuit.
+
+---
+
+## 🌊 The Scenic Coastal Driving Routes
+
+1. **The Chapora & Vagator Cliff Trail (North Goa)**:
+   * Cruise past iconic red-laterite cliffs overlooking the Arabian Sea.
+   * Stop by Morjim and Ashwem for serene beachside cafes.
+2. **Old Goa & Divar Island Ferry Crossing (Central Goa)**:
+   * Drive your Thar directly onto the Mandovi River ferry to explore ancient heritage churches and emerald paddy fields.
+3. **Cabo de Rama & Cola Beach Lagoon (South Goa)**:
+   * Dramatic cliffside ocean views followed by a drive down to South Goa's freshwater blue lagoon.
+4. **Palolem & Agonda Golden Hour Drive**:
+   * Smooth coastal highways lined with coconut groves, perfect for cruising at sunset.
+
+---
+
+## 🚗 Why Rent a Self-Drive Thar with Next Gear in Goa?
+
+* **Doorstep Airport Handover**: Land at Goa MOPA or Dabolim Airport and drive straight out without waiting in taxi queues.
+* **Convertible & Hardtop Options**: Choose between soft-top open air adventure or air-conditioned hardtop luxury.
+* **Unlimited Kilometers**: Explore both North and South Goa without worrying about meter charges.
+    `,
+    faqSchema: [
+      {
+        question: "Where can I receive Thar delivery in Goa?",
+        answer: "We deliver 24/7 across Goa MOPA Airport, Dabolim Airport, Madgaon Railway Station, Calangute, and Panaji."
+      },
+      {
+        question: "Is fuel included in self-drive car rentals in Goa?",
+        answer: "Vehicles are provided on a like-to-like fuel policy, allowing maximum freedom to refuel at your convenience."
       }
     ]
   }

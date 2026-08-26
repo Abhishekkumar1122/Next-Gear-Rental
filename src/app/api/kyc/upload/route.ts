@@ -80,14 +80,41 @@ export async function POST(request: NextRequest) {
       fileUrl = `https://res.cloudinary.com/nextgear-rentals/image/upload/v1234567890/mock_kyc_${docTypeRaw}_${safeName}`;
     }
 
-    const documentNumber = docTypeRaw === "aadhaar-back" ? "N/A" : generateMockDocumentNo(docTypeRaw as "aadhaar" | "license");
+    // 🤖 Run Real Google Gemini Flash AI OCR on the customer document
+    let extractedNumber = "";
+    let extractedName: string | null = null;
+    let extractedDob: string | null = null;
+    let extractedExpiry: string | null = null;
+    let confidenceScore = 95;
+
+    if (file.type.startsWith("image/")) {
+      try {
+        const { performGeminiOcr } = await import("@/lib/gemini-ocr");
+        const ocr = await performGeminiOcr(bytes, file.type);
+        if (ocr.documentNumber) extractedNumber = ocr.documentNumber;
+        if (ocr.fullName) extractedName = ocr.fullName;
+        if (ocr.dob) extractedDob = ocr.dob;
+        if (ocr.expiryDate) extractedExpiry = ocr.expiryDate;
+        if (ocr.confidenceScore) confidenceScore = ocr.confidenceScore;
+      } catch (e) {
+        console.warn("[Customer KYC OCR Error]:", e);
+      }
+    }
+
+    if (!extractedNumber) {
+      extractedNumber = docTypeRaw === "aadhaar-back" ? "N/A" : generateMockDocumentNo(docTypeRaw as "aadhaar" | "license");
+    }
 
     return NextResponse.json({
       success: true,
       url: fileUrl,
       fileName: file.name || safeName,
       extractedData: {
-        documentNumber,
+        documentNumber: extractedNumber,
+        fullName: extractedName,
+        dob: extractedDob,
+        expiryDate: extractedExpiry,
+        confidenceScore,
       }
     }, { status: 200 });
 

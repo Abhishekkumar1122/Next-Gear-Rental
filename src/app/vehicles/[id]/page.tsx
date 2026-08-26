@@ -188,19 +188,17 @@ export default async function VehicleDetailPage({ params }: Props) {
           
           {/* LEFT COLUMN: Media Showcase, Specs, Weather & Reviews */}
           <div className="space-y-8 min-w-0">
-            {/* Compact Mobile-Friendly Showcase Container */}
-            <div className="rounded-3xl border border-white/15 bg-neutral-950 p-3 shadow-2xl overflow-hidden hover:border-red-500/40 transition-colors duration-500">
-              <VehicleVideoShowcase
-                title={vehicle.title}
-                type={vehicle.type}
-                city={vehicle.city}
-                seats={vehicle.seats}
-                pricePerDayINR={vehicle.pricePerDayINR}
-                availabilityStatus={vehicle.availabilityStatus}
-                imageUrls={vehicle.imageUrls || []}
-                fallbackImage={fallbackImg}
-              />
-            </div>
+            {/* Cinematic 3D Media Showcase */}
+            <VehicleVideoShowcase
+              title={vehicle.title}
+              type={vehicle.type}
+              city={vehicle.city}
+              seats={vehicle.seats}
+              pricePerDayINR={vehicle.pricePerDayINR}
+              availabilityStatus={vehicle.availabilityStatus}
+              imageUrls={vehicle.imageUrls || []}
+              fallbackImage={fallbackImg}
+            />
 
             {/* Vehicle Specifications Grid */}
             <div className="rounded-3xl border border-white/15 bg-neutral-900/90 p-6 backdrop-blur-xl shadow-xl space-y-4">

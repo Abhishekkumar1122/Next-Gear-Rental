@@ -90,9 +90,20 @@ type SiteSettingsForm = {
   faq1Question: string; faq1Answer: string;
   faq2Question: string; faq2Answer: string;
   faq3Question: string; faq3Answer: string;
+  vehicleCardStyle: string;
 };
 
-type FooterSettingsSection = "brand" | "description" | "contact" | "social" | "discounts" | "fairness" | "receipt" | "integrations" | "operational" | "promotions" | "homepage" | "seo";
+type SiteSettingsSection = "cardTheme" | "brand" | "description" | "contact" | "social" | "discounts" | "fairness" | "receipt" | "integrations" | "operational" | "promotions" | "homepage" | "seo";
+
+const themesList = [
+  { id: "red", hex: "#dc2626", label: "Ferrari Red", soft: "#fca5a5", glow: "rgba(220, 38, 38, 0.15)" },
+  { id: "teal", hex: "#0d9488", label: "Teal Emerald", soft: "#99f6e4", glow: "rgba(13, 148, 136, 0.15)" },
+  { id: "rose", hex: "#e11d48", label: "Rose Crimson", soft: "#fecdd3", glow: "rgba(225, 29, 72, 0.15)" },
+  { id: "blue", hex: "#2563eb", label: "Royal Blue", soft: "#bfdbfe", glow: "rgba(37, 99, 235, 0.15)" },
+  { id: "amber", hex: "#d97706", label: "Amber Gold", soft: "#fde68a", glow: "rgba(217, 119, 6, 0.15)" },
+  { id: "purple", hex: "#7c3aed", label: "Neon Violet", soft: "#ddd6fe", glow: "rgba(124, 58, 237, 0.15)" },
+  { id: "slate", hex: "#64748b", label: "Slate Titanium", soft: "#cbd5e1", glow: "rgba(100, 116, 139, 0.15)" },
+];
 
 const initialForm: SiteSettingsForm = {
   brandName: "",
@@ -109,6 +120,7 @@ const initialForm: SiteSettingsForm = {
   durationDiscountMinDays: "4",
   durationDiscountFreeDays: "1",
   shuffleAvailableListings: "true",
+  vehicleCardStyle: "classic",
   receiptFooterText: "Thank you for renting with Next Gear. Ride safe!",
   receiptTaxPercent: "18",
   receiptLogoUrl: "/Logo1.png",
@@ -188,7 +200,7 @@ export function AdminSiteSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [message, setMessage] = useState("");
-  const [activeSection, setActiveSection] = useState<FooterSettingsSection>("brand");
+  const [activeSection, setActiveSection] = useState<SiteSettingsSection>("cardTheme");
   const [dashboardTheme, setDashboardTheme] = useState<"red" | "teal" | "rose" | "blue" | "amber" | "purple" | "slate">("red");
   const [toast, setToast] = useState<{ show: boolean; message: string; type: "success" | "error" | "info" }>({ show: false, message: "", type: "info" });
 
@@ -204,7 +216,7 @@ export function AdminSiteSettingsPanel() {
   function handleUnauthorized() {
     setAuthRequired(true);
     showToast("Admin session required. Redirecting to login...", "error");
-    const next = encodeURIComponent("/dashboard/admin?section=footer");
+    const next = encodeURIComponent("/dashboard/admin?section=settings");
     setTimeout(() => {
       router.push(`/login?next=${next}`);
     }, 1250);
@@ -213,9 +225,15 @@ export function AdminSiteSettingsPanel() {
   useEffect(() => {
     let mounted = true;
 
-    const savedTheme = localStorage.getItem("ng_admin_theme") as any;
+    const savedTheme = (localStorage.getItem("admin-dashboard-theme") || localStorage.getItem("ng_admin_theme")) as any;
     if (savedTheme && ["red", "teal", "rose", "blue", "amber", "purple", "slate"].includes(savedTheme)) {
       setDashboardTheme(savedTheme);
+      const found = themesList.find((t) => t.id === savedTheme);
+      if (found && typeof document !== "undefined") {
+        document.documentElement.style.setProperty("--brand-red", found.hex);
+        document.documentElement.style.setProperty("--brand-red-soft", found.soft);
+        document.documentElement.style.setProperty("--brand-red-glow", found.glow);
+      }
     }
 
     async function load() {
@@ -311,69 +329,55 @@ export function AdminSiteSettingsPanel() {
   const taxAmount = (sampleRate * taxRate) / 100;
   const totalBill = sampleRate + taxAmount;
 
-  const themesList = [
-    { id: "red", hex: "#dc2626", label: "Red Default" },
-    { id: "teal", hex: "#0d9488", label: "Teal Emerald" },
-    { id: "rose", hex: "#e11d48", label: "Rose Pink" },
-    { id: "blue", hex: "#2563eb", label: "Royal Blue" },
-    { id: "amber", hex: "#d97706", label: "Amber Orange" },
-    { id: "purple", hex: "#7c3aed", label: "Violet Purple" },
-    { id: "slate", hex: "#64748b", label: "Slate Silver" },
-  ];
-
   function changeTheme(themeId: typeof dashboardTheme) {
     setDashboardTheme(themeId);
+    localStorage.setItem("admin-dashboard-theme", themeId);
     localStorage.setItem("ng_admin_theme", themeId);
+
+    const found = themesList.find((t) => t.id === themeId) || themesList[0];
+    if (typeof document !== "undefined") {
+      document.documentElement.style.setProperty("--brand-red", found.hex);
+      document.documentElement.style.setProperty("--brand-red-soft", found.soft);
+      document.documentElement.style.setProperty("--brand-red-glow", found.glow);
+    }
+    showToast(`✨ Admin Theme Accent switched to ${found.label}!`, "success");
   }
 
   return (
     <div className="space-y-5 text-white select-none">
-      <style>{`
-        :root {
-          --brand-red: ${
-            dashboardTheme === "red" ? "#dc2626" :
-            dashboardTheme === "teal" ? "#0d9488" :
-            dashboardTheme === "rose" ? "#e11d48" :
-            dashboardTheme === "blue" ? "#2563eb" :
-            dashboardTheme === "amber" ? "#d97706" :
-            dashboardTheme === "purple" ? "#7c3aed" :
-            "#64748b"
-          };
-          --brand-red-soft: ${
-            dashboardTheme === "red" ? "#fca5a5" :
-            dashboardTheme === "teal" ? "#99f6e4" :
-            dashboardTheme === "rose" ? "#fecdd3" :
-            dashboardTheme === "blue" ? "#bfdbfe" :
-            dashboardTheme === "amber" ? "#fde68a" :
-            dashboardTheme === "purple" ? "#ddd6fe" :
-            "#cbd5e1"
-          };
-        }
-      `}</style>
-
       {/* Theme Picker Component Bar */}
-      <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xl">
         <div>
-          <h4 className="text-xs font-black uppercase tracking-wider text-white">🎨 Customize Panel Accent Theme</h4>
-          <p className="text-[10px] text-white/40 mt-1 leading-snug">Personalize the dashboard panel style. Red is the default brand identity color.</p>
+          <div className="flex items-center gap-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-white">🎨 Admin Console UI Accent Theme</h4>
+            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-white/80">
+              Active: {themesList.find(t => t.id === dashboardTheme)?.label || "Ferrari Red"}
+            </span>
+          </div>
+          <p className="text-[11px] text-white/50 mt-1 leading-snug">
+            Click any color dot to instantly transform the entire Admin Dashboard buttons, highlights, badges, and glows.
+          </p>
         </div>
         
-        {/* Colorful Circles Picker */}
-        <div className="flex items-center gap-3">
+        {/* Colorful Circles Picker with Labels */}
+        <div className="flex items-center gap-2.5 bg-black/50 p-2 rounded-2xl border border-white/10">
           {themesList.map((item) => {
             const isActive = dashboardTheme === item.id;
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => changeTheme(item.id as any)}
                 title={item.label}
-                className={`w-6 h-6 rounded-full transition-all duration-300 border-2 cursor-pointer ${
-                  isActive ? "scale-110 border-white ring-4 ring-white/10" : "border-transparent hover:scale-105"
+                className={`w-7 h-7 rounded-full transition-all duration-300 border-2 cursor-pointer flex items-center justify-center ${
+                  isActive ? "scale-125 border-white ring-4 ring-white/20 shadow-lg" : "border-transparent opacity-70 hover:opacity-100 hover:scale-110"
                 }`}
                 style={{
                   backgroundColor: item.hex,
                 }}
-              />
+              >
+                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              </button>
             );
           })}
         </div>
@@ -384,6 +388,7 @@ export function AdminSiteSettingsPanel() {
         <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Select Config Block</p>
         <div className="flex flex-wrap gap-2 text-xs uppercase font-black tracking-wider">
           {[
+            { id: "cardTheme", label: "🎨 6-Card Theme Studio" },
             { id: "brand", label: "Brand Details" },
             { id: "description", label: "Description" },
             { id: "contact", label: "Contact Info" },
@@ -401,7 +406,7 @@ export function AdminSiteSettingsPanel() {
             return (
               <button
                 key={section.id}
-                onClick={() => setActiveSection(section.id as FooterSettingsSection)}
+                onClick={() => setActiveSection(section.id as SiteSettingsSection)}
                 className={`rounded-xl px-4 py-2.5 transition border cursor-pointer ${
                   isActive
                     ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]/20 shadow-lg shadow-[var(--brand-red)]/15"
@@ -417,6 +422,219 @@ export function AdminSiteSettingsPanel() {
 
       {/* Inputs block */}
       <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 space-y-4">
+        {activeSection === "cardTheme" && (
+          <div className="space-y-6">
+            <div className="border-b border-white/5 pb-3">
+              <h4 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                <span>🎨</span> Vehicle Card Theme Studio (6 Distinct Styles)
+              </h4>
+              <p className="text-xs text-white/50 mt-1">
+                Select the live vehicle card design across Explore & Booking pages. Changes apply site-wide with 0ms zero lag.
+              </p>
+            </div>
+
+            {/* 6 Theme Grid Selection with Mini Visual Previews */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[
+                {
+                  id: "classic",
+                  title: "1. Classic Dark Minimal",
+                  badge: "⭐ Original Default",
+                  accentColor: "border-red-600/40 text-red-400",
+                  desc: "Crisp, uncluttered dark layout with high-contrast typography, clean badges, and smooth micro-tilt.",
+                  preview: (
+                    <div className="rounded-xl border border-red-600/30 bg-gradient-to-br from-black to-red-950/20 p-3 shadow-lg relative overflow-hidden text-[10px]">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-600/10 blur-xl pointer-events-none" />
+                      <div className="h-20 w-full rounded-lg overflow-hidden relative bg-neutral-900 mb-2">
+                        <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-red-950/80 border border-red-600/40 text-[8px] font-bold text-red-400">🚗 CAR</span>
+                      </div>
+                      <p className="font-bold text-white text-xs gradient-text line-clamp-1">Tata Nexon EV</p>
+                      <div className="flex gap-1 mt-1 text-[8px] text-white/60">
+                        <span className="bg-blue-950/50 px-1.5 py-0.5 rounded text-blue-300">📍 Delhi</span>
+                        <span className="bg-white/5 px-1.5 py-0.5 rounded text-white/70">👤 5 Seats</span>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                        <span className="font-bold text-green-400 text-xs">₹2,300/day</span>
+                        <span className="bg-red-600 px-2 py-0.5 rounded text-white text-[8px] font-bold">Book Now</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "glassmorphism",
+                  title: "2. Ultra Glassmorphism Luxury",
+                  badge: "💎 Deep Frosted",
+                  accentColor: "border-rose-500/40 text-rose-400",
+                  desc: "Deep frosted glass (#0d0d14), crimson ambient neon glow, 3-pill spec boxes, and light shimmer sweep.",
+                  preview: (
+                    <div className="rounded-xl border border-white/15 bg-[#0d0d14]/90 backdrop-blur-xl p-3 shadow-lg relative overflow-hidden text-[10px]">
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-rose-600/20 blur-xl pointer-events-none" />
+                      <div className="h-20 w-full rounded-lg overflow-hidden relative bg-black mb-2">
+                        <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[8px] font-bold text-rose-400">💎 LUXURY</span>
+                      </div>
+                      <p className="font-bold text-white text-xs line-clamp-1">Tata Nexon EV</p>
+                      <div className="grid grid-cols-3 gap-1 mt-1 text-center text-[7px] text-white/70">
+                        <span className="bg-white/5 p-1 rounded">⛽ Petrol</span>
+                        <span className="bg-white/5 p-1 rounded">⚙️ Auto</span>
+                        <span className="bg-white/5 p-1 rounded">✈️ Airport</span>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                        <span className="font-black text-emerald-400 text-xs">₹2,300/day</span>
+                        <span className="bg-gradient-to-r from-red-600 to-rose-600 px-2 py-0.5 rounded-lg text-white text-[8px] font-bold shadow-md shadow-rose-600/30">Book ⚡</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "cyberpunk",
+                  title: "3. Cyberpunk Neon Racing",
+                  badge: "⚡ Neon Speed",
+                  accentColor: "border-cyan-500/40 text-cyan-400",
+                  desc: "Futuristic cyan & crimson neon borders, high-tech angular chips, and carbon texture backdrop.",
+                  preview: (
+                    <div className="rounded-xl border border-cyan-500/40 bg-[#080b12] p-3 shadow-[0_0_15px_rgba(6,182,212,0.15)] relative overflow-hidden font-mono text-[10px]">
+                      <div className="h-20 w-full rounded-lg overflow-hidden relative bg-black mb-2 border border-cyan-500/20">
+                        <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-cyan-950/90 border border-cyan-500/40 text-[7px] font-black text-cyan-300">⚡ RACE TECH</span>
+                      </div>
+                      <p className="font-black text-cyan-300 text-xs line-clamp-1">TATA NEXON EV</p>
+                      <div className="flex gap-1 mt-1 text-[8px] text-cyan-400/80">
+                        <span className="bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-500/20">⛽ PETROL</span>
+                        <span className="bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-500/20">⚙️ AUTO</span>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-cyan-500/20 flex items-center justify-between">
+                        <span className="font-black text-cyan-300 text-xs">₹2,300/D</span>
+                        <span className="bg-cyan-500 px-2 py-0.5 rounded text-black text-[8px] font-black shadow-[0_0_10px_rgba(6,182,212,0.4)]">BOOK // NOW</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "platinum",
+                  title: "4. Platinum Luxury Minimalist",
+                  badge: "👑 Prestige Gold",
+                  accentColor: "border-amber-400/40 text-amber-300",
+                  desc: "Refined gold/platinum border accents, champagne price text, and understated matte luxury styling.",
+                  preview: (
+                    <div className="rounded-xl border border-amber-400/30 bg-gradient-to-b from-[#121110] to-[#0a0a09] p-3 shadow-lg relative overflow-hidden text-[10px]">
+                      <div className="h-20 w-full rounded-lg overflow-hidden relative bg-black mb-2 border border-amber-400/20">
+                        <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-amber-950/90 border border-amber-400/30 text-[7px] font-bold text-amber-300">👑 PRESTIGE</span>
+                      </div>
+                      <p className="font-bold text-amber-200 text-xs line-clamp-1">Tata Nexon EV</p>
+                      <p className="text-[8px] text-white/40 mt-0.5">📍 Delhi · 5 Seats · Luxury Spec</p>
+                      <div className="mt-2 pt-2 border-t border-amber-400/15 flex items-center justify-between">
+                        <span className="font-black text-amber-300 text-xs">₹2,300/day</span>
+                        <span className="bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-0.5 rounded-lg text-black text-[8px] font-bold">Reserve</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "boldsport",
+                  title: "5. Bold Sport Dynamic Grid",
+                  badge: "🏎️ High Performance",
+                  accentColor: "border-orange-500/40 text-orange-400",
+                  desc: "High-energy sport badges, prominent floating daily price capsule ribbon, and vibrant CTA button.",
+                  preview: (
+                    <div className="rounded-xl border border-orange-500/30 bg-gradient-to-br from-[#14080a] to-[#0a0a0a] p-3 shadow-lg relative overflow-hidden text-[10px]">
+                      <div className="h-20 w-full rounded-lg overflow-hidden relative bg-black mb-2 border border-orange-500/20">
+                        <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-orange-600 text-white text-[7px] font-black">🏎️ SPORT</span>
+                        <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-orange-400 text-[8px] font-black border border-orange-500/30">₹2,300/day</span>
+                      </div>
+                      <p className="font-black text-white text-xs line-clamp-1">Tata Nexon EV</p>
+                      <p className="text-[8px] text-white/50 mt-0.5">📍 Delhi • ⛽ Petrol • ⚙️ Auto</p>
+                      <div className="mt-2 pt-2 border-t border-orange-500/20 flex items-center justify-end">
+                        <span className="bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1 rounded-lg text-white text-[8px] font-black shadow-md shadow-orange-600/30">Book Ride ⚡</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: "holographic",
+                  title: "6. 3D Holographic Floating",
+                  badge: "✨ Multi-Color Glow",
+                  accentColor: "border-purple-500/40 text-purple-400",
+                  desc: "Multi-color holographic gradient borders, subtle floating elevation, and 3D perspective tilt.",
+                  preview: (
+                    <div className="rounded-xl p-[1px] bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-xl text-[10px]">
+                      <div className="rounded-xl bg-[#0b0b14]/95 p-3">
+                        <div className="h-20 w-full rounded-lg overflow-hidden relative bg-black mb-2">
+                          <img src="https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80" alt="Preview" className="h-full w-full object-cover" />
+                          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-purple-950/90 border border-purple-400/30 text-[7px] font-bold text-purple-300">✨ HOLOGRAPHIC</span>
+                        </div>
+                        <p className="font-bold text-white text-xs line-clamp-1">Tata Nexon EV</p>
+                        <div className="flex gap-1 mt-1 text-[8px] text-purple-300">
+                          <span className="bg-purple-950/40 px-1 py-0.5 rounded">📍 Delhi</span>
+                          <span className="bg-indigo-950/40 px-1 py-0.5 rounded">⛽ Petrol</span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                          <span className="font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400 text-xs">₹2,300/day</span>
+                          <span className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 px-2 py-0.5 rounded-lg text-white text-[8px] font-bold">Book ✨</span>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                },
+              ].map((th) => {
+                const isSelected = (form.vehicleCardStyle || "classic") === th.id;
+                return (
+                  <div
+                    key={th.id}
+                    onClick={() => setForm((prev) => ({ ...prev, vehicleCardStyle: th.id }))}
+                    className={`relative rounded-2xl border p-4 cursor-pointer transition-all duration-300 flex flex-col justify-between ${
+                      isSelected
+                        ? `bg-white/[0.06] ${th.accentColor} shadow-[0_0_30px_rgba(239,68,68,0.25)] scale-[1.02] ring-2 ring-red-500/50`
+                        : "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/10 border border-white/10 text-white/90">
+                          {th.badge}
+                        </span>
+                        {isSelected && (
+                          <span className="text-xs font-black text-emerald-400 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Visual Live Preview Box */}
+                      <div className="my-2">
+                        {th.preview}
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-black text-white">{th.title}</h5>
+                        <p className="text-[11px] text-white/60 leading-relaxed mt-1">{th.desc}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-white/40">Theme: {th.id}</span>
+                      <button
+                        type="button"
+                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition ${
+                          isSelected
+                            ? "bg-[var(--brand-red)] text-white shadow-md shadow-red-600/30"
+                            : "bg-white/10 text-white/70 hover:text-white"
+                        }`}
+                      >
+                        {isSelected ? "Selected ✓" : "Select Theme"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {activeSection === "brand" && (
           <div className="space-y-4">
             <h4 className="text-xs font-black uppercase tracking-wider text-white border-b border-white/5 pb-2">Brand Parameters</h4>

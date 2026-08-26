@@ -124,6 +124,8 @@ const jsonLdOrgSchema = {
   ]
 };
 
+import { AnalyticsTracker } from "@/components/analytics-tracker";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -145,6 +147,7 @@ export default function RootLayout({
         className={`${brandDisplay.variable} ${bodySans.variable} antialiased`}
         suppressHydrationWarning
       >
+        <AnalyticsTracker />
         {children}
       </body>
     </html>

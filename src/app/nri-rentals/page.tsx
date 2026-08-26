@@ -161,45 +161,45 @@ export default function NriRentalsPage() {
       <header className="relative overflow-hidden border-b border-white/10 bg-gradient-to-b from-red-950/40 via-neutral-950 to-neutral-950 -mt-12 pt-12">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-red-600/10 blur-[150px] pointer-events-none rounded-full" />
 
-        <div className="mx-auto max-w-6xl px-6 pb-16 pt-10 md:pb-20 md:pt-14">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+        <div className="mx-auto max-w-6xl px-3.5 sm:px-6 pb-8 pt-6 sm:pb-16 sm:pt-10 md:pb-20 md:pt-14">
+          <div className="grid md:grid-cols-2 gap-6 sm:gap-10 items-center">
             {/* Story Column */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3">
+            <div className="space-y-3.5 sm:space-y-5">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <Image
                   src="/Logo1.png"
                   alt="Next Gear Official Logo"
                   width={44}
                   height={44}
-                  className="h-11 w-11 object-contain drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                  className="h-8 w-8 sm:h-11 sm:w-11 object-contain drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]"
                 />
                 <div>
-                  <span className="text-xs uppercase tracking-[0.3em] text-cyan-400 font-extrabold block">Global NRI Mobility Hub</span>
-                  <span className="text-[10px] text-white/50">Airport Delivery • USD / AED / GBP Gateways</span>
+                  <span className="text-[11px] sm:text-xs uppercase tracking-[0.25em] text-cyan-400 font-extrabold block">Global NRI Mobility Hub</span>
+                  <span className="text-[9.5px] sm:text-[10px] text-white/50">Airport Delivery • USD / AED / GBP Gateways</span>
                 </div>
               </div>
 
-              <h1 className="text-3xl font-black sm:text-5xl text-white tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
                 NRI Self-Drive Portal <br />
                 <span className="gradient-text-brand drop-shadow-md">
                   Seamless Airport Mobility
                 </span>
               </h1>
 
-              <p className="text-sm sm:text-base text-white/80 leading-relaxed">
+              <p className="text-xs sm:text-base text-white/80 leading-relaxed">
                 Rent verified Thar 4x4, Himalayan 450, and luxury cars across India. Enjoy instant passport OCR verification, zero local address proof requirements, and flight arrival gate key handover.
               </p>
 
-              <div className="flex flex-wrap gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-1 sm:pt-2">
                 <a
                   href="#verify-section"
-                  className="rounded-full bg-[var(--brand-red)] px-6 py-3 text-xs font-black text-white hover:bg-red-600 transition shadow-xl shadow-red-600/30"
+                  className="rounded-full bg-[var(--brand-red)] px-5 py-2.5 sm:px-6 sm:py-3 text-xs font-black text-white text-center hover:bg-red-600 transition shadow-xl shadow-red-600/30"
                 >
                   Verify Passport OCR Now →
                 </a>
                 <Link
                   href="/vehicles"
-                  className="rounded-full border border-white/20 bg-white/5 px-6 py-3 text-xs font-bold text-white hover:bg-white/10 transition"
+                  className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 sm:px-6 sm:py-3 text-xs font-bold text-white text-center hover:bg-white/10 transition"
                 >
                   Browse Global Fleet
                 </Link>
@@ -207,51 +207,51 @@ export default function NriRentalsPage() {
             </div>
 
             {/* Non-Video Interactive NRI Passport & Flight Concierge Card */}
-            <div className="relative rounded-3xl border border-cyan-500/40 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-8 shadow-[0_0_50px_rgba(6,182,212,0.15)] backdrop-blur-2xl space-y-6 hover:border-cyan-500/80 transition-all duration-500">
+            <div className="relative rounded-2xl sm:rounded-3xl border border-cyan-500/40 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black p-4 sm:p-8 shadow-[0_0_50px_rgba(6,182,212,0.15)] backdrop-blur-2xl space-y-3.5 sm:space-y-6 hover:border-cyan-500/80 transition-all duration-500">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-cyan-400 uppercase tracking-widest flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-[10px] sm:text-xs font-black text-cyan-400 uppercase tracking-widest flex items-center gap-1.5 sm:gap-2">
+                  <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-cyan-400 animate-ping" />
                   🌐 GLOBAL NRI CONCIERGE HUB
                 </span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-full">
+                <span className="text-[9px] sm:text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">
                   ✓ Verified Airport Delivery
                 </span>
               </div>
 
-              <div className="space-y-3 border-y border-white/10 py-5 text-xs text-white/80">
-                <div className="flex items-center gap-3">
-                  <span className="h-7 w-7 rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-sm flex-shrink-0">✈️</span>
+              <div className="space-y-2.5 sm:space-y-3 border-y border-white/10 py-3 sm:py-5 text-xs text-white/80">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <span className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg sm:rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs sm:text-sm flex-shrink-0">✈️</span>
                   <div>
-                    <strong className="text-white block">Terminal Gate Handover</strong>
-                    <span className="text-white/60">Delhi T3, Goa MOPA, Mumbai T2 & Bangalore</span>
+                    <strong className="text-white text-xs block">Terminal Gate Handover</strong>
+                    <span className="text-[10px] sm:text-xs text-white/60">Delhi T3, Goa MOPA, Mumbai T2 & Bangalore</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="h-7 w-7 rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-sm flex-shrink-0">💳</span>
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <span className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg sm:rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs sm:text-sm flex-shrink-0">💳</span>
                   <div>
-                    <strong className="text-white block">International Multi-Currency</strong>
-                    <span className="text-white/60">Pay in USD, AED, GBP, EUR via Stripe & PayPal</span>
+                    <strong className="text-white text-xs block">International Multi-Currency</strong>
+                    <span className="text-[10px] sm:text-xs text-white/60">Pay in USD, AED, GBP, EUR via Stripe & PayPal</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="h-7 w-7 rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-sm flex-shrink-0">🆔</span>
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <span className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg sm:rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs sm:text-sm flex-shrink-0">🆔</span>
                   <div>
-                    <strong className="text-white block">Zero Local Address Proof</strong>
-                    <span className="text-white/60">International Passport & IDP 100% accepted</span>
+                    <strong className="text-white text-xs block">Zero Local Address Proof</strong>
+                    <span className="text-[10px] sm:text-xs text-white/60">International Passport & IDP 100% accepted</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2 text-[11px] text-white/70 font-semibold">
-                  <Image src="/Logo1.png" alt="Next Gear Logo" width={20} height={20} className="h-5 w-5 object-contain" />
+              <div className="flex items-center justify-between pt-0.5">
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-white/70 font-semibold">
+                  <Image src="/Logo1.png" alt="Next Gear Logo" width={20} height={20} className="h-4 w-4 sm:h-5 sm:w-5 object-contain" />
                   Next Gear International
                 </div>
                 <a
                   href="#verify-section"
-                  className="rounded-full bg-cyan-500/20 border border-cyan-400/40 px-4 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/40 transition"
+                  className="rounded-full bg-cyan-500/20 border border-cyan-400/40 px-3 py-1 sm:px-4 sm:py-1.5 text-[11px] sm:text-xs font-bold text-cyan-300 hover:bg-cyan-500/40 transition"
                 >
                   Start Verification →
                 </a>
@@ -262,38 +262,38 @@ export default function NriRentalsPage() {
       </header>
 
       {/* Main Content Body */}
-      <main className="mx-auto max-w-6xl px-6 py-16 space-y-16" id="verify-section">
+      <main className="mx-auto max-w-6xl px-3.5 sm:px-6 py-8 sm:py-16 space-y-8 sm:space-y-16" id="verify-section">
         
-        {/* NRI Exclusive Benefits Section */}
-        <section className="grid gap-6 md:grid-cols-4">
-          <div className="rounded-3xl border border-white/10 bg-neutral-900/80 p-6 space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
-            <div className="text-3xl">✈️</div>
-            <h3 className="text-base font-bold text-white">Airport Terminal Delivery</h3>
-            <p className="text-xs text-white/70 leading-relaxed">
+        {/* NRI Exclusive Benefits Section (Compact 2x2 on Mobile, 4-col on Desktop) */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-6">
+          <div className="rounded-2xl sm:rounded-3xl border border-white/10 bg-neutral-900/80 p-3 sm:p-6 space-y-1.5 sm:space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
+            <div className="text-2xl sm:text-3xl">✈️</div>
+            <h3 className="text-xs sm:text-base font-bold text-white leading-tight">Airport Terminal Delivery</h3>
+            <p className="text-[10px] sm:text-xs text-white/70 leading-relaxed">
               Meet our concierge driver directly at Delhi T3, Goa MOPA, Mumbai T2 & Bangalore arrival gates.
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-neutral-900/80 p-6 space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
-            <div className="text-3xl">💳</div>
-            <h3 className="text-base font-bold text-white">Multi-Currency Payments</h3>
-            <p className="text-xs text-white/70 leading-relaxed">
+          <div className="rounded-2xl sm:rounded-3xl border border-white/10 bg-neutral-900/80 p-3 sm:p-6 space-y-1.5 sm:space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
+            <div className="text-2xl sm:text-3xl">💳</div>
+            <h3 className="text-xs sm:text-base font-bold text-white leading-tight">Multi-Currency Payments</h3>
+            <p className="text-[10px] sm:text-xs text-white/70 leading-relaxed">
               Pay via USD, AED, GBP, EUR with international Credit Cards, Stripe, or PayPal with ₹0 FX fee.
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-neutral-900/80 p-6 space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
-            <div className="text-3xl">🆔</div>
-            <h3 className="text-base font-bold text-white">No Local Aadhaar Required</h3>
-            <p className="text-xs text-white/70 leading-relaxed">
+          <div className="rounded-2xl sm:rounded-3xl border border-white/10 bg-neutral-900/80 p-3 sm:p-6 space-y-1.5 sm:space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
+            <div className="text-2xl sm:text-3xl">🆔</div>
+            <h3 className="text-xs sm:text-base font-bold text-white leading-tight">No Local Aadhaar Required</h3>
+            <p className="text-[10px] sm:text-xs text-white/70 leading-relaxed">
               Exempt from local address proofs. Your International Passport & Driving Permit IDP is 100% sufficient.
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-neutral-900/80 p-6 space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
-            <div className="text-3xl">🕒</div>
-            <h3 className="text-base font-bold text-white">Flight-Track Delay Buffer</h3>
-            <p className="text-xs text-white/70 leading-relaxed">
+          <div className="rounded-2xl sm:rounded-3xl border border-white/10 bg-neutral-900/80 p-3 sm:p-6 space-y-1.5 sm:space-y-3 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)] transition duration-500">
+            <div className="text-2xl sm:text-3xl">🕒</div>
+            <h3 className="text-xs sm:text-base font-bold text-white leading-tight">Flight-Track Delay Buffer</h3>
+            <p className="text-[10px] sm:text-xs text-white/70 leading-relaxed">
               We track your flight live. Enjoy 3 hours of free buffer time in case of international flight delays.
             </p>
           </div>
@@ -301,63 +301,63 @@ export default function NriRentalsPage() {
 
         {/* Interactive OCR Verification & KYC Console */}
         {scanStatus !== "verified" ? (
-          <div className="grid gap-8 lg:grid-cols-12 items-start">
+          <div className="grid gap-4 sm:gap-8 lg:grid-cols-12 items-start">
             
             {/* Step 1: Scanner Upload Area */}
-            <div className="lg:col-span-6 space-y-6">
-              <section className="rounded-3xl border border-white/15 bg-neutral-900/90 p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
+            <div className="lg:col-span-6 space-y-4 sm:space-y-6">
+              <section className="rounded-2xl sm:rounded-3xl border border-white/15 bg-neutral-900/90 p-4 sm:p-8 backdrop-blur-xl shadow-2xl space-y-4 sm:space-y-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-cyan-400 uppercase tracking-widest">
+                  <span className="text-[11px] sm:text-xs font-black text-cyan-400 uppercase tracking-widest">
                     STEP 1: CHOOSE DOCUMENT
                   </span>
-                  <span className="text-[10px] text-white/50 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                  <span className="text-[9px] sm:text-[10px] text-white/50 bg-white/5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border border-white/10">
                     🔒 256-Bit Encrypted OCR
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                   <button
                     onClick={() => {
                       setDocType("passport");
                       if (scanStatus !== "idle") setScanStatus("idle");
                     }}
-                    className={`rounded-2xl border p-4 text-left transition ${
+                    className={`rounded-xl sm:rounded-2xl border p-2.5 sm:p-4 text-left transition cursor-pointer ${
                       docType === "passport"
                         ? "border-cyan-400 bg-cyan-950/40 text-white ring-2 ring-cyan-500/30"
                         : "border-white/10 bg-black/40 text-white/70 hover:bg-black/60"
                     }`}
                   >
-                    <span className="block text-2xl mb-1">📘</span>
-                    <span className="font-bold text-sm text-white">International Passport</span>
-                    <span className="block text-xs text-white/50 mt-0.5">Photo & Identity Page</span>
+                    <span className="block text-xl sm:text-2xl mb-0.5 sm:mb-1">📘</span>
+                    <span className="font-bold text-xs sm:text-sm text-white block leading-tight">International Passport</span>
+                    <span className="block text-[10px] sm:text-xs text-white/50 mt-0.5">Photo & Identity Page</span>
                   </button>
                   <button
                     onClick={() => {
                       setDocType("license");
                       if (scanStatus !== "idle") setScanStatus("idle");
                     }}
-                    className={`rounded-2xl border p-4 text-left transition ${
+                    className={`rounded-xl sm:rounded-2xl border p-2.5 sm:p-4 text-left transition cursor-pointer ${
                       docType === "license"
                         ? "border-cyan-400 bg-cyan-950/40 text-white ring-2 ring-cyan-500/30"
                         : "border-white/10 bg-black/40 text-white/70 hover:bg-black/60"
                     }`}
                   >
-                    <span className="block text-2xl mb-1">🚗</span>
-                    <span className="font-bold text-sm text-white">International IDP</span>
-                    <span className="block text-xs text-white/50 mt-0.5">Driving Permit License</span>
+                    <span className="block text-xl sm:text-2xl mb-0.5 sm:mb-1">🚗</span>
+                    <span className="font-bold text-xs sm:text-sm text-white block leading-tight">International IDP</span>
+                    <span className="block text-[10px] sm:text-xs text-white/50 mt-0.5">Driving Permit License</span>
                   </button>
                 </div>
 
-                <div className="pt-2">
-                  <span className="text-xs font-black text-cyan-400 uppercase tracking-widest block mb-3">
+                <div className="pt-1">
+                  <span className="text-[11px] sm:text-xs font-black text-cyan-400 uppercase tracking-widest block mb-2 sm:mb-3">
                     STEP 2: SCAN OCR DOCUMENT
                   </span>
                   
                   {scanStatus === "idle" && (
-                    <div className="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-cyan-500/30 bg-black/50 py-10 text-center transition hover:border-cyan-400 group">
-                      <span className="text-4xl text-cyan-400 group-hover:scale-110 transition">📤</span>
-                      <p className="mt-3 text-sm font-bold text-white">Upload Passport or IDP File</p>
-                      <p className="text-xs text-white/50 mt-1">Drag and drop file here, or click to browse image / PDF</p>
+                    <div className="relative flex flex-col items-center justify-center rounded-xl sm:rounded-2xl border-2 border-dashed border-cyan-500/30 bg-black/50 py-6 sm:py-10 text-center transition hover:border-cyan-400 group">
+                      <span className="text-3xl sm:text-4xl text-cyan-400 group-hover:scale-110 transition">📤</span>
+                      <p className="mt-2 sm:mt-3 text-xs sm:text-sm font-bold text-white">Upload Passport or IDP File</p>
+                      <p className="text-[10px] sm:text-xs text-white/50 mt-0.5">Drag and drop file here, or click to browse image / PDF</p>
                       <input
                         type="file"
                         accept="image/*,application/pdf"
@@ -368,39 +368,39 @@ export default function NriRentalsPage() {
                   )}
 
                   {scanStatus === "scanning" && (
-                    <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-400 bg-black/90 py-12 text-center text-white shadow-2xl">
+                    <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border-2 border-cyan-400 bg-black/90 py-8 sm:py-12 text-center text-white shadow-2xl">
                       {/* Laser sweep line */}
                       <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_20px_#22d3ee] laser-sweep" />
                       
-                      <span className="inline-block animate-pulse text-4xl mb-2">🔍</span>
-                      <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">Simulating High-Fidelity OCR Sweep</h4>
-                      <p className="text-xs text-white/60 mt-1">{scanMessage}</p>
+                      <span className="inline-block animate-pulse text-3xl sm:text-4xl mb-1 sm:mb-2">🔍</span>
+                      <h4 className="text-xs sm:text-sm font-bold text-cyan-400 uppercase tracking-wider">High-Fidelity OCR Sweep</h4>
+                      <p className="text-[10px] sm:text-xs text-white/60 mt-1 px-4">{scanMessage}</p>
                       
-                      <div className="mx-auto mt-6 max-w-[220px] rounded-full bg-white/10 h-2">
+                      <div className="mx-auto mt-4 sm:mt-6 max-w-[200px] sm:max-w-[220px] rounded-full bg-white/10 h-1.5 sm:h-2">
                         <div
-                          className="h-2 rounded-full bg-cyan-400 transition-all duration-200"
+                          className="h-full rounded-full bg-cyan-400 transition-all duration-200"
                           style={{ width: `${scanProgress}%` }}
                         />
                       </div>
-                      <span className="block text-xs font-bold text-cyan-400 mt-2">{scanProgress}%</span>
+                      <span className="block text-[11px] sm:text-xs font-bold text-cyan-400 mt-1.5 sm:mt-2">{scanProgress}%</span>
                     </div>
                   )}
 
                   {scanStatus !== "idle" && scanStatus !== "scanning" && (
-                    <div className="rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4">
+                    <div className="rounded-xl sm:rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-3 sm:p-4">
                       <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2.5">
-                          <span className="h-6 w-6 rounded-full bg-emerald-500 text-black font-black flex items-center justify-center text-xs">✓</span>
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                          <span className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-emerald-500 text-black font-black flex items-center justify-center text-xs">✓</span>
                           <div>
-                            <p className="text-sm font-bold text-emerald-300">Passport OCR Parsing Complete</p>
-                            <p className="text-xs text-emerald-400/80 font-mono">{fileName || "passport_scanned.pdf"}</p>
+                            <p className="text-xs sm:text-sm font-bold text-emerald-300">Passport OCR Parsing Complete</p>
+                            <p className="text-[10px] sm:text-xs text-emerald-400/80 font-mono">{fileName || "passport_scanned.pdf"}</p>
                           </div>
                         </div>
                         <button
                           onClick={() => setScanStatus("idle")}
-                          className="text-xs font-bold text-white/60 hover:text-white underline"
+                          className="text-[11px] sm:text-xs font-bold text-white/60 hover:text-white underline cursor-pointer"
                         >
-                          Rescan File
+                          Rescan
                         </button>
                       </div>
                     </div>
@@ -410,82 +410,82 @@ export default function NriRentalsPage() {
             </div>
 
             {/* Step 2: Extracted Form Data */}
-            <div className="lg:col-span-6 space-y-6">
-              <section className="rounded-3xl border border-white/15 bg-neutral-900/90 p-6 sm:p-8 backdrop-blur-xl shadow-2xl space-y-6">
+            <div className="lg:col-span-6 space-y-4 sm:space-y-6">
+              <section className="rounded-2xl sm:rounded-3xl border border-white/15 bg-neutral-900/90 p-4 sm:p-8 backdrop-blur-xl shadow-2xl space-y-4 sm:space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-black text-white">Extracted OCR Information</h2>
-                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-full">
+                  <h2 className="text-sm sm:text-lg font-black text-white">Extracted OCR Information</h2>
+                  <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full">
                     ✓ Verified Fields
                   </span>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-2.5 sm:space-y-4">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-white/50">Full Legal Name</label>
+                    <label className="block text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-widest text-white/50">Full Legal Name</label>
                     <input
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Extracted Name"
                       disabled={scanStatus === "idle" || scanStatus === "scanning"}
-                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
+                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-white/50">Document / Passport Number</label>
+                    <label className="block text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-widest text-white/50">Document / Passport Number</label>
                     <input
                       value={docNumber}
                       onChange={(e) => setDocNumber(e.target.value)}
                       placeholder="Extracted Document Number"
                       disabled={scanStatus === "idle" || scanStatus === "scanning"}
-                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50 font-mono"
+                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50 font-mono"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold uppercase tracking-widest text-white/50">Date of Birth</label>
+                      <label className="block text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-widest text-white/50">Date of Birth</label>
                       <input
                         type="date"
                         value={dob}
                         onChange={(e) => setDob(e.target.value)}
                         disabled={scanStatus === "idle" || scanStatus === "scanning"}
-                        className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
+                        className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold uppercase tracking-widest text-white/50">Expiry Date</label>
+                      <label className="block text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-widest text-white/50">Expiry Date</label>
                       <input
                         type="date"
                         value={expiryDate}
                         onChange={(e) => setExpiryDate(e.target.value)}
                         disabled={scanStatus === "idle" || scanStatus === "scanning"}
-                        className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
+                        className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-white/50">Contact Email</label>
+                    <label className="block text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-widest text-white/50">Contact Email</label>
                     <input
                       type="email"
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
                       placeholder="your-email@domain.com"
                       disabled={scanStatus === "idle" || scanStatus === "scanning"}
-                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-4 py-2.5 text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
+                      className="mt-1 w-full rounded-xl border border-white/15 bg-black/50 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-white focus:border-cyan-400 focus:outline-none disabled:opacity-50"
                     />
                   </div>
                 </div>
 
                 {errorMessage && (
-                  <div className="rounded-xl bg-red-950/60 border border-red-500/40 p-3.5 text-xs text-red-400">
+                  <div className="rounded-xl bg-red-950/60 border border-red-500/40 p-2.5 sm:p-3.5 text-xs text-red-400">
                     {errorMessage}
                   </div>
                 )}
 
                 {!currentUser && (
-                  <div className="rounded-xl bg-amber-950/40 border border-amber-500/30 p-3.5 text-xs text-amber-300 leading-relaxed">
+                  <div className="rounded-xl bg-amber-950/40 border border-amber-500/30 p-2.5 sm:p-3.5 text-xs text-amber-300 leading-relaxed">
                     <span className="font-bold">⚠️ Account Authentication:</span> Please log in to complete your verified NRI status registration.
                   </div>
                 )}
@@ -493,7 +493,7 @@ export default function NriRentalsPage() {
                 <button
                   onClick={submitKyc}
                   disabled={scanStatus !== "scanned"}
-                  className="w-full rounded-full bg-[var(--brand-red)] py-3.5 text-xs font-black text-white shadow-xl hover:bg-red-600 transition disabled:bg-neutral-800 disabled:text-white/40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full rounded-xl sm:rounded-full bg-[var(--brand-red)] py-2.5 sm:py-3.5 text-xs font-black text-white shadow-xl hover:bg-red-600 transition disabled:bg-neutral-800 disabled:text-white/40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {scanStatus === "submitting" ? (
                     <>
@@ -516,32 +516,32 @@ export default function NriRentalsPage() {
         ) : (
           /* Approved NRI Success State Card */
           <div className="mx-auto max-w-2xl text-center">
-            <section className="rounded-3xl border border-emerald-500/40 bg-gradient-to-b from-neutral-900 via-emerald-950/30 to-neutral-900 p-8 sm:p-12 shadow-2xl space-y-6">
-              <span className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-black text-4xl shadow-xl font-black">
+            <section className="rounded-2xl sm:rounded-3xl border border-emerald-500/40 bg-gradient-to-b from-neutral-900 via-emerald-950/30 to-neutral-900 p-5 sm:p-12 shadow-2xl space-y-4 sm:space-y-6">
+              <span className="inline-flex h-14 w-14 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-emerald-500 text-black text-2xl sm:text-4xl shadow-xl font-black">
                 ✓
               </span>
-              <h2 className="text-2xl sm:text-4xl font-black text-white">NRI Verification Approved!</h2>
+              <h2 className="text-xl sm:text-4xl font-black text-white">NRI Verification Approved!</h2>
               <p className="text-xs sm:text-sm text-emerald-300 max-w-md mx-auto leading-relaxed">
                 Your passport credentials have been validated. Airport handover and multi-currency booking gateways are now unlocked.
               </p>
 
-              <div className="rounded-2xl border border-white/10 bg-black/60 p-6 text-left space-y-3">
-                <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest">UNLOCKED NRI BENEFITS</h4>
-                <ul className="space-y-2 text-xs text-white/80">
+              <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-black/60 p-4 sm:p-6 text-left space-y-2.5 sm:space-y-3">
+                <h4 className="text-[10px] sm:text-xs font-black text-emerald-400 uppercase tracking-widest">UNLOCKED NRI BENEFITS</h4>
+                <ul className="space-y-1.5 sm:space-y-2 text-xs text-white/80">
                   <li className="flex items-center gap-2">✓ <strong className="text-white">Delhi T3, Goa MOPA, Mumbai T2 & Bangalore Airport Gate Handover</strong></li>
                   <li className="flex items-center gap-2">✓ <strong className="text-white">Stripe & PayPal Multi-Currency Payment (USD, AED, GBP)</strong></li>
                   <li className="flex items-center gap-2">✓ <strong className="text-white">Zero Local Address Proof Required (Passport & IDP Approved)</strong></li>
                 </ul>
               </div>
 
-              <div className="space-y-3 pt-4">
-                <p className="text-xs font-extrabold text-white/70 uppercase tracking-wider">Select Your Home Timezone to Book</p>
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2.5 sm:space-y-3 pt-2 sm:pt-4">
+                <p className="text-[10px] sm:text-xs font-extrabold text-white/70 uppercase tracking-wider">Select Your Home Timezone to Book</p>
+                <div className="grid gap-2.5 sm:gap-3 sm:grid-cols-2">
                   {timezoneOptions.map((tz) => (
                     <Link
                       key={tz}
                       href={`/vehicles?nri=1&tz=${encodeURIComponent(tz)}`}
-                      className="rounded-full border border-cyan-400/40 bg-cyan-950/40 px-5 py-3 text-xs font-bold text-cyan-300 hover:bg-cyan-900/60 transition shadow-lg"
+                      className="rounded-xl sm:rounded-full border border-cyan-400/40 bg-cyan-950/40 px-4 py-2.5 sm:px-5 sm:py-3 text-xs font-bold text-cyan-300 hover:bg-cyan-900/60 transition shadow-lg text-center"
                     >
                       Book Vehicle ({tz})
                     </Link>
@@ -552,31 +552,31 @@ export default function NriRentalsPage() {
           </div>
         )}
 
-        {/* Second AI Experience Video Banner */}
-        <section className="relative rounded-3xl border border-red-500/30 bg-gradient-to-r from-neutral-950 via-red-950/40 to-neutral-950 p-8 sm:p-12 overflow-hidden shadow-2xl">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="space-y-4">
-              <span className="inline-block rounded-full bg-red-500/20 border border-red-500/40 px-3.5 py-1 text-xs font-bold text-red-400 uppercase tracking-wider">
+        {/* Second AI Experience Banner */}
+        <section className="relative rounded-2xl sm:rounded-3xl border border-red-500/30 bg-gradient-to-r from-neutral-950 via-red-950/40 to-neutral-950 p-4 sm:p-8 md:p-12 overflow-hidden shadow-2xl">
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-8 items-center">
+            <div className="space-y-2.5 sm:space-y-4">
+              <span className="inline-block rounded-full bg-red-500/20 border border-red-500/40 px-3 py-0.5 sm:px-3.5 sm:py-1 text-[10px] sm:text-xs font-bold text-red-400 uppercase tracking-wider">
                 ⚡ NEXTGO AI INTERNATIONAL CONCIERGE
               </span>
-              <h2 className="text-2xl sm:text-4xl font-black text-white leading-tight">
+              <h2 className="text-lg sm:text-2xl md:text-4xl font-black text-white leading-tight">
                 24x7 Airport Representative Support
               </h2>
               <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
                 Have flight delay questions or custom vehicle delivery requests? NextGo AI coordinates directly with our airport ground staff in real time.
               </p>
-              <div className="pt-2">
+              <div className="pt-1 sm:pt-2">
                 <Link
                   href="/vehicles"
-                  className="inline-flex items-center gap-2 rounded-full bg-white text-black px-6 py-3 text-xs font-black hover:bg-neutral-200 transition shadow-lg"
+                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-white text-black px-4 sm:px-6 py-2 sm:py-3 text-xs font-black hover:bg-neutral-200 transition shadow-lg"
                 >
                   🏎️ Reserve Your Ride Now
                 </Link>
               </div>
             </div>
 
-            {/* 3D Car AI Robot International Concierge Motion Card */}
-            <div className="relative rounded-2xl overflow-hidden border border-cyan-500/30 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black shadow-2xl h-60 sm:h-72 p-6 flex flex-col items-center justify-center text-center space-y-3 group hover:border-cyan-500/60 transition-all duration-500">
+            {/* 3D Car AI Robot Motion Card */}
+            <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-cyan-500/30 bg-gradient-to-b from-neutral-900 via-neutral-950 to-black shadow-2xl h-48 sm:h-72 p-4 sm:p-6 flex flex-col items-center justify-center text-center space-y-2 sm:space-y-3 group hover:border-cyan-500/60 transition-all duration-500">
               <div className="relative">
                 <div className="absolute -inset-4 bg-cyan-500/20 rounded-full blur-xl animate-pulse" />
                 <Image
@@ -584,22 +584,22 @@ export default function NriRentalsPage() {
                   alt="NextGo Car AI Robot"
                   width={140}
                   height={140}
-                  className="h-28 sm:h-32 w-auto object-contain relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-[0_0_20px_rgba(6,182,212,0.5)]"
+                  className="h-20 sm:h-32 w-auto object-contain relative z-10 transition-transform duration-500 group-hover:scale-110 drop-shadow-[0_0_20px_rgba(6,182,212,0.5)]"
                 />
               </div>
 
               <div>
-                <span className="text-xs font-black text-cyan-400 uppercase tracking-widest block">
+                <span className="text-[10px] sm:text-xs font-black text-cyan-400 uppercase tracking-widest block">
                   🤖 NEXTGO INTERNATIONAL CONCIERGE
                 </span>
-                <span className="text-[11px] text-white/70">
+                <span className="text-[10px] sm:text-[11px] text-white/70">
                   24x7 Airport Arrival Gate Key Handover
                 </span>
               </div>
 
               {/* Solid Corner Cap Mask directly flush to bottom-0 right-0 */}
-              <div className="absolute bottom-0 right-0 rounded-tl-2xl bg-neutral-950 border-t border-l border-white/20 px-4 py-2 text-white text-[10px] font-bold flex items-center gap-2 shadow-2xl z-20 pointer-events-none">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
+              <div className="absolute bottom-0 right-0 rounded-tl-xl sm:rounded-tl-2xl bg-neutral-950 border-t border-l border-white/20 px-2.5 sm:px-4 py-1 sm:py-2 text-white text-[9px] sm:text-[10px] font-bold flex items-center gap-1.5 sm:gap-2 shadow-2xl z-20 pointer-events-none">
+                <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-cyan-400 animate-ping" />
                 <span className="text-cyan-400 font-extrabold">NextGo AI Live</span>
               </div>
             </div>
@@ -607,18 +607,18 @@ export default function NriRentalsPage() {
         </section>
 
         {/* Checklist Steps Section */}
-        <section className="rounded-3xl border border-white/10 bg-neutral-900/80 p-8 space-y-6">
-          <h2 className="text-xl font-black text-white">NRI Verification Checklist</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+        <section className="rounded-2xl sm:rounded-3xl border border-white/10 bg-neutral-900/80 p-4 sm:p-8 space-y-3 sm:space-y-6">
+          <h2 className="text-base sm:text-xl font-black text-white">NRI Verification Checklist</h2>
+          <div className="grid gap-2.5 sm:gap-4 md:grid-cols-2">
             {steps.map((item, idx) => (
-              <div key={item.title} className="rounded-2xl border border-white/10 bg-black/40 p-4 space-y-1">
+              <div key={item.title} className="rounded-xl sm:rounded-2xl border border-white/10 bg-black/40 p-3 sm:p-4 space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="h-5 w-5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold flex items-center justify-center">
+                  <span className="h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-red-500/20 text-red-400 text-[9px] sm:text-[10px] font-bold flex items-center justify-center">
                     {idx + 1}
                   </span>
-                  <p className="text-sm font-bold text-white">{item.title}</p>
+                  <p className="text-xs sm:text-sm font-bold text-white">{item.title}</p>
                 </div>
-                <p className="text-xs text-white/60 pl-7">{item.description}</p>
+                <p className="text-[10px] sm:text-xs text-white/60 pl-6 sm:pl-7">{item.description}</p>
               </div>
             ))}
           </div>

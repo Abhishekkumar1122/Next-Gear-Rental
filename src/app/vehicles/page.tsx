@@ -62,7 +62,7 @@ function getVehicleTypeTheme(type: string) {
   };
 }
 
-// Subcomponent representing a vehicle listing card to support multi-photo slideshow animation
+// Subcomponent representing a vehicle listing card supporting 6 distinct theme styles
 interface VehicleCatalogCardProps {
   vehicle: Vehicle;
   theme: ReturnType<typeof getVehicleTypeTheme>;
@@ -70,6 +70,7 @@ interface VehicleCatalogCardProps {
   handleMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => void;
   setHoveredVehicleId: (id: string | null) => void;
   availableCount?: number;
+  cardStyle?: string;
 }
 
 function VehicleCatalogCard({
@@ -79,42 +80,651 @@ function VehicleCatalogCard({
   handleMouseLeave,
   setHoveredVehicleId,
   availableCount,
+  cardStyle = "classic",
 }: VehicleCatalogCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Parse all valid image URLs provided by Vendor or Admin
+  // Parse all valid image URLs provided by Vendor or Admin (up to 4 photos)
   const images = useMemo(() => {
     const list: string[] = [];
     if (Array.isArray(vehicle.imageUrls)) {
       vehicle.imageUrls.forEach((url: string) => {
-        if (url && typeof url === "string" && url.trim()) list.push(url.trim());
+        if (url && typeof url === "string" && url.trim() && !list.includes(url.trim())) list.push(url.trim());
       });
     }
     if ((vehicle as any).imageUrl && typeof (vehicle as any).imageUrl === "string" && (vehicle as any).imageUrl.trim()) {
       const single = (vehicle as any).imageUrl.trim();
       if (!list.includes(single)) list.push(single);
     }
-    return list;
-  }, [vehicle.imageUrls, (vehicle as any).imageUrl]);
+    if ((vehicle as any).image && typeof (vehicle as any).image === "string" && (vehicle as any).image.trim()) {
+      const single = (vehicle as any).image.trim();
+      if (!list.includes(single)) list.push(single);
+    }
+
+    if (list.length === 0) {
+      const def = vehicle.type.toLowerCase().includes("bike") || vehicle.type.toLowerCase().includes("scoot")
+        ? "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&q=80"
+        : "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80";
+      list.push(def);
+    }
+
+    return list.slice(0, 4);
+  }, [vehicle.imageUrls, (vehicle as any).imageUrl, (vehicle as any).image, vehicle.type]);
 
   const defaultImage = vehicle.type.toLowerCase().includes("bike") || vehicle.type.toLowerCase().includes("scoot")
     ? "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&q=80"
     : "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=400&q=80";
 
-  // Continuous auto-slideshow animation for 3-4 images
+  // Continuous auto-slideshow animation for up to 4 images
   useEffect(() => {
     if (images.length <= 1) return;
-
-    // Auto-cycle every 2.8s, speed up to 1.5s on hover
-    const speed = isHovered ? 1500 : 2800;
+    const speed = isHovered ? 1500 : 2500;
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }, speed);
-
     return () => clearInterval(interval);
   }, [isHovered, images.length]);
 
+  const isAvailable = (vehicle.availabilityStatus ?? "available") === "available";
+
+  // ==========================================
+  // 🌟 THEME 1: CLASSIC DARK MINIMAL (ORIGINAL)
+  // ==========================================
+  if (cardStyle === "classic") {
+    return (
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={(e) => {
+          handleMouseLeave(e);
+          setIsHovered(false);
+        }}
+        onMouseEnter={() => {
+          setHoveredVehicleId(vehicle.id);
+          setIsHovered(true);
+        }}
+        className={`group tilt-card rounded-2xl border ${theme.border} bg-gradient-to-br from-black via-black to-red-950/10 p-4 shadow-xl ${theme.glowShadow} transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-[475px] max-h-[475px]`}
+      >
+        {/* Dynamic ambient glow gradient */}
+        <div className={`absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-gradient-to-br ${theme.glowBg} blur-xl opacity-100 group-hover:opacity-100 transition-all duration-500 pointer-events-none`} />
+        
+        {/* Hover red sweep overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-red)]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+        <div className="relative z-10 flex-1 flex flex-col justify-between h-full">
+          <div>
+            <div className="mb-3.5 overflow-hidden rounded-xl border border-white/10 aspect-video relative group-hover:border-white/20 transition-colors h-40 w-full bg-neutral-900">
+              {/* Permanent Base Image layer so card never flashes black */}
+              <img
+                src={images[0] || defaultImage}
+                alt={vehicle.title}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="eager"
+              />
+              {images.length > 1 && images.map((src, idx) => (
+                <img
+                  key={`${src}-${idx}`}
+                  src={src}
+                  alt={vehicle.title}
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out ${
+                    idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                  }`}
+                  loading="eager"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultImage;
+                  }}
+                />
+              ))}
+
+              {/* Photo Counter Badge for Multiple Images */}
+              {images.length > 1 && (
+                <div className="absolute top-2 left-2 z-20 bg-black/75 backdrop-blur-md border border-white/15 px-2.5 py-0.5 rounded-full text-[9px] font-black text-white/90 flex items-center gap-1.5 shadow-lg">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+                  <span>{currentImageIndex + 1}/{images.length} Photos</span>
+                </div>
+              )}
+
+              {/* Interactive Dots overlay */}
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-lg">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
+                        idx === currentImageIndex ? "bg-red-500 scale-125 shadow-[0_0_6px_#ef4444]" : "bg-white/40 hover:bg-white/80"
+                      }`}
+                      aria-label={`View photo ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Floating Rating Badge */}
+              {vehicle.rating ? (
+                <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 rounded-full bg-black/70 backdrop-blur-md px-2 py-0.5 text-[9px] font-extrabold text-amber-400 border border-white/10 shadow-lg">
+                  <span>⭐</span>
+                  <span>{vehicle.rating.toFixed(1)}</span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                {/* 🌈 Dynamic Animated Gradient Text Title */}
+                <p className="text-base font-black gradient-text line-clamp-1 h-6 flex items-center tracking-tight">
+                  {vehicle.title}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 min-h-[26px]">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold tracking-wider border uppercase ${theme.badgeClass}`}>
+                    <span>{theme.icon}</span>
+                    <span>{theme.label}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-950/50 border border-blue-800/30 px-2.5 py-0.5 text-[9px] font-semibold text-blue-300">
+                    📍 {vehicle.city.split(",")[0].trim()}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[9px] font-semibold text-white/70">
+                    👤 {vehicle.seats} Seats
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3.5 space-y-2">
+              {/* Specs breakdown */}
+              <div className="flex items-center gap-2 text-[11px] text-white/70 min-h-[22px] whitespace-nowrap overflow-hidden">
+                <span className="inline-flex items-center gap-1 shrink-0">⛽ {vehicle.fuel}</span>
+                <span className="text-white/20 shrink-0">•</span>
+                <span className="inline-flex items-center gap-1 shrink-0">⚙️ {vehicle.transmission}</span>
+                <span className="text-white/20 shrink-0">•</span>
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  {vehicle.airportPickup ? "✈️ Airport" : "🏙️ Hub"}
+                </span>
+              </div>
+
+              {/* Availability status line */}
+              <div className="flex items-center justify-between gap-2 mt-1 min-h-[26px]">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {isAvailable ? (
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-green-400 border border-green-800/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                        AVAILABLE
+                      </span>
+                      {availableCount !== undefined && availableCount === 1 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-amber-400 border border-amber-500/20 animate-pulse">
+                          🔥 Only 1 left!
+                        </span>
+                      ) : availableCount !== undefined && availableCount > 1 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-sky-400 border border-sky-500/20">
+                          ⚡ {availableCount} Available
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-rose-400 border border-rose-800/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                      BOOKED
+                    </span>
+                  )}
+                  {vehicle.availabilityMessage && !availableCount && (
+                    <span className="text-[10px] text-white/50 font-medium">{vehicle.availabilityMessage}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Date badges if present */}
+            {vehicle.availableDates && vehicle.availableDates.length > 0 ? (
+              <div className="mt-3.5 flex items-center gap-1.5 overflow-hidden min-h-[26px]">
+                <span className="text-[9px] text-white/30 font-bold whitespace-nowrap">Dates:</span>
+                <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+                  {vehicle.availableDates.slice(0, 3).map((date) => (
+                    <span key={date} className="shrink-0 rounded bg-white/5 border border-white/5 px-1.5 py-0.5 text-[9px] text-white/50 font-mono">
+                      {date}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3.5 min-h-[26px]" />
+            )}
+          </div>
+
+          <div className="mt-auto">
+            {/* Daily Rate block */}
+            <div className="mt-4 pt-3 border-t border-white/5 flex items-baseline justify-between">
+              <span className="text-[11px] uppercase tracking-wider text-white/40 font-semibold">DAILY RATE</span>
+              <div className="text-right">
+                <span className={`text-lg font-black tracking-tight ${theme.priceText}`}>
+                  {toCurrency(vehicle.pricePerDayINR, "INR")}
+                </span>
+                <span className="text-xs text-white/45 font-medium font-normal"> / day</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="mt-3.5 flex gap-2">
+              <Link
+                href={`/vehicles/${vehicle.id}`}
+                prefetch={true}
+                className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 py-2 text-xs font-bold text-white transition-all hover:-translate-y-0.5"
+              >
+                Details
+              </Link>
+              {isAvailable ? (
+                <Link
+                  href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`}
+                  className={`flex-1 text-center rounded-xl ${theme.btnBg} py-2 text-xs font-extrabold text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0`}
+                >
+                  Book Now
+                </Link>
+              ) : (
+                <div className="flex-1">
+                  <WaitlistButton
+                    vehicleId={vehicle.id}
+                    city={vehicle.city}
+                    className="w-full text-center rounded-xl border border-white/10 hover:border-white/20 bg-white/5 py-2 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // ⚡ THEME 3: CYBERPUNK NEON RACING
+  // ==========================================
+  if (cardStyle === "cyberpunk") {
+    return (
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={(e) => {
+          handleMouseLeave(e);
+          setIsHovered(false);
+        }}
+        onMouseEnter={() => {
+          setHoveredVehicleId(vehicle.id);
+          setIsHovered(true);
+        }}
+        className="group relative rounded-2xl border border-cyan-500/30 bg-[#080b12] p-4 shadow-[0_0_25px_rgba(6,182,212,0.12)] hover:border-cyan-400 hover:shadow-[0_0_35px_rgba(6,182,212,0.3)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-full"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 blur-2xl pointer-events-none" />
+        <div className="relative z-10 flex-1 flex flex-col justify-between">
+          <div>
+            <div className="mb-3.5 overflow-hidden rounded-xl border border-cyan-500/20 aspect-video relative h-40 w-full bg-black">
+              {images.map((src, idx) => (
+                <img
+                  key={`${src}-${idx}`}
+                  src={src}
+                  alt={vehicle.title}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
+                    idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                  }`}
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultImage;
+                  }}
+                />
+              ))}
+
+              <div className="absolute top-2 left-2 z-20 bg-cyan-950/85 border border-cyan-500/40 px-2 py-0.5 rounded text-[9px] font-mono font-black text-cyan-300">
+                ⚡ {theme.label} // {vehicle.city.split(",")[0].trim().toUpperCase()}
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-cyan-500/20">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${
+                        idx === currentImageIndex ? "bg-cyan-400 scale-125 shadow-[0_0_6px_#22d3ee]" : "bg-white/40 hover:bg-white/80"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {vehicle.rating && (
+                <div className="absolute top-2 right-2 z-20 bg-black/80 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-mono text-amber-400">
+                  ★ {vehicle.rating.toFixed(1)}
+                </div>
+              )}
+            </div>
+
+            <h3 className="text-base font-black text-white group-hover:text-cyan-400 transition-colors line-clamp-1 font-mono h-6 flex items-center">
+              {vehicle.title}
+            </h3>
+
+            <div className="mt-2 grid grid-cols-3 gap-1 text-center font-mono text-[10px]">
+              <div className="bg-cyan-950/30 border border-cyan-500/20 py-1 rounded text-cyan-300">⛽ {vehicle.fuel}</div>
+              <div className="bg-cyan-950/30 border border-cyan-500/20 py-1 rounded text-cyan-300">⚙️ {vehicle.transmission}</div>
+              <div className="bg-cyan-950/30 border border-cyan-500/20 py-1 rounded text-cyan-300">{vehicle.airportPickup ? "✈️ Air" : "🏙️ Hub"}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-cyan-500/20">
+            <div className="flex items-baseline justify-between mb-3 font-mono">
+              <span className="text-[10px] text-cyan-400/60 uppercase">DAILY TARIFF</span>
+              <span className="text-xl font-black text-cyan-300">{toCurrency(vehicle.pricePerDayINR, "INR")}<span className="text-[10px] text-cyan-500/60">/DAY</span></span>
+            </div>
+
+            <div className="flex gap-2">
+              <Link href={`/vehicles/${vehicle.id}`} className="flex-1 text-center rounded border border-cyan-500/30 hover:border-cyan-400 py-2 text-xs font-mono font-bold text-cyan-300 hover:bg-cyan-950/40 transition">
+                SPECS
+              </Link>
+              {isAvailable ? (
+                <Link href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`} className="flex-1 text-center rounded bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 py-2 text-xs font-mono font-black text-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition">
+                  BOOK // NOW
+                </Link>
+              ) : (
+                <div className="flex-1"><WaitlistButton vehicleId={vehicle.id} city={vehicle.city} className="w-full text-center rounded border border-white/10 py-2 text-xs font-mono text-white/50" /></div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 👑 THEME 4: PLATINUM LUXURY MINIMALIST
+  // ==========================================
+  if (cardStyle === "platinum") {
+    return (
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={(e) => {
+          handleMouseLeave(e);
+          setIsHovered(false);
+        }}
+        onMouseEnter={() => {
+          setHoveredVehicleId(vehicle.id);
+          setIsHovered(true);
+        }}
+        className="group relative rounded-3xl border border-amber-400/25 bg-gradient-to-b from-[#121110] to-[#0a0a09] p-4 shadow-2xl hover:border-amber-400/50 transition-all duration-300 flex flex-col justify-between overflow-hidden h-full"
+      >
+        <div className="relative z-10 flex-1 flex flex-col justify-between">
+          <div>
+            <div className="mb-3.5 overflow-hidden rounded-2xl border border-amber-400/20 aspect-video relative h-40 w-full bg-black">
+              {images.map((src, idx) => (
+                <img
+                  key={`${src}-${idx}`}
+                  src={src}
+                  alt={vehicle.title}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
+                    idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                  }`}
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultImage;
+                  }}
+                />
+              ))}
+
+              <div className="absolute top-2.5 left-2.5 z-20 bg-amber-950/80 backdrop-blur-md border border-amber-400/30 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase text-amber-300">
+                👑 {theme.label}
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-amber-400/20">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${
+                        idx === currentImageIndex ? "bg-amber-400 scale-125 shadow-[0_0_6px_#fbbf24]" : "bg-white/40 hover:bg-white/80"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {vehicle.rating && (
+                <div className="absolute top-2.5 right-2.5 z-20 bg-black/80 border border-amber-400/30 px-2 py-0.5 rounded-full text-[9px] font-black text-amber-400">
+                  ⭐ {vehicle.rating.toFixed(1)}
+                </div>
+              )}
+            </div>
+
+            <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-1 h-6 flex items-center">
+              {vehicle.title}
+            </h3>
+            <p className="text-xs text-white/50 mt-1">📍 {vehicle.city.split(",")[0].trim()} · {vehicle.seats} Seats · {vehicle.fuel}</p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-amber-400/15">
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-[10px] uppercase font-bold text-amber-400/60 tracking-wider">Luxury Rental</span>
+              <span className="text-xl font-black text-amber-300">{toCurrency(vehicle.pricePerDayINR, "INR")}<span className="text-xs text-white/40 font-normal"> /day</span></span>
+            </div>
+
+            <div className="flex gap-2">
+              <Link href={`/vehicles/${vehicle.id}`} className="flex-1 text-center rounded-xl border border-white/15 hover:border-amber-400/40 py-2.5 text-xs font-bold text-white transition">
+                Overview
+              </Link>
+              {isAvailable ? (
+                <Link href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`} className="flex-1 text-center rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 py-2.5 text-xs font-black text-black shadow-lg shadow-amber-500/20 transition">
+                  Reserve
+                </Link>
+              ) : (
+                <div className="flex-1"><WaitlistButton vehicleId={vehicle.id} city={vehicle.city} className="w-full text-center rounded-xl border border-white/10 py-2.5 text-xs font-bold text-white/50" /></div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 🏎️ THEME 5: BOLD SPORT DYNAMIC GRID
+  // ==========================================
+  if (cardStyle === "boldsport") {
+    return (
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={(e) => {
+          handleMouseLeave(e);
+          setIsHovered(false);
+        }}
+        onMouseEnter={() => {
+          setHoveredVehicleId(vehicle.id);
+          setIsHovered(true);
+        }}
+        className="group relative rounded-3xl border border-orange-500/30 bg-gradient-to-br from-[#14080a] via-[#0d070b] to-[#0a0a0a] p-4 shadow-xl hover:border-orange-500/60 transition-all duration-300 flex flex-col justify-between overflow-hidden h-full"
+      >
+        <div className="relative z-10 flex-1 flex flex-col justify-between">
+          <div>
+            <div className="mb-3.5 overflow-hidden rounded-2xl border border-orange-500/20 aspect-video relative h-40 w-full bg-black">
+              {images.map((src, idx) => (
+                <img
+                  key={`${src}-${idx}`}
+                  src={src}
+                  alt={vehicle.title}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
+                    idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                  }`}
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultImage;
+                  }}
+                />
+              ))}
+
+              <div className="absolute top-2.5 left-2.5 z-20 bg-orange-600 px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase text-white shadow-md">
+                🏎️ SPORT {theme.label}
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-orange-500/20">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${
+                        idx === currentImageIndex ? "bg-orange-500 scale-125 shadow-[0_0_6px_#f97316]" : "bg-white/40 hover:bg-white/80"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="absolute bottom-2.5 right-2.5 z-20 bg-black/80 px-2 py-0.5 rounded text-[10px] font-black text-orange-400 border border-orange-500/30">
+                {toCurrency(vehicle.pricePerDayINR, "INR")} /day
+              </div>
+            </div>
+
+            <h3 className="text-base font-black text-white group-hover:text-orange-400 transition-colors line-clamp-1 h-6 flex items-center">
+              {vehicle.title}
+            </h3>
+            <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
+              <span>📍 {vehicle.city.split(",")[0].trim()}</span>
+              <span>•</span>
+              <span>⛽ {vehicle.fuel}</span>
+              <span>•</span>
+              <span>⚙️ {vehicle.transmission}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-orange-500/20 flex gap-2">
+            <Link href={`/vehicles/${vehicle.id}`} className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/20 py-2.5 text-xs font-bold text-white transition">
+              Details
+            </Link>
+            {isAvailable ? (
+              <Link href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`} className="flex-1 text-center rounded-xl bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-600/30 transition">
+                Book Ride ⚡
+              </Link>
+            ) : (
+              <div className="flex-1"><WaitlistButton vehicleId={vehicle.id} city={vehicle.city} className="w-full text-center rounded-xl border border-white/10 py-2.5 text-xs font-bold text-white/50" /></div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // ✨ THEME 6: 3D HOLOGRAPHIC FLOATING
+  // ==========================================
+  if (cardStyle === "holographic") {
+    return (
+      <div
+        onMouseMove={handleMouseMove}
+        onMouseLeave={(e) => {
+          handleMouseLeave(e);
+          setIsHovered(false);
+        }}
+        onMouseEnter={() => {
+          setHoveredVehicleId(vehicle.id);
+          setIsHovered(true);
+        }}
+        className="group relative rounded-3xl p-[1.5px] bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-2xl hover:from-pink-400 hover:via-purple-400 hover:to-indigo-400 transition-all duration-500 flex flex-col justify-between h-full"
+      >
+        <div className="rounded-[23px] bg-[#0b0b14]/95 backdrop-blur-2xl p-4 h-full flex flex-col justify-between">
+          <div>
+            <div className="mb-3.5 overflow-hidden rounded-2xl aspect-video relative h-40 w-full bg-black">
+              {images.map((src, idx) => (
+                <img
+                  key={`${src}-${idx}`}
+                  src={src}
+                  alt={vehicle.title}
+                  className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
+                    idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                  }`}
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultImage;
+                  }}
+                />
+              ))}
+
+              <div className="absolute top-2.5 left-2.5 z-20 bg-purple-950/80 backdrop-blur-md border border-purple-400/40 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase text-purple-300">
+                ✨ {theme.label}
+              </div>
+
+              {images.length > 1 && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-purple-400/20">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(idx);
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${
+                        idx === currentImageIndex ? "bg-purple-400 scale-125 shadow-[0_0_6px_#c084fc]" : "bg-white/40 hover:bg-white/80"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {vehicle.rating && (
+                <div className="absolute top-2.5 right-2.5 z-20 bg-black/80 border border-purple-400/30 px-2 py-0.5 rounded-full text-[9px] font-black text-purple-300">
+                  ⭐ {vehicle.rating.toFixed(1)}
+                </div>
+              )}
+            </div>
+
+            <h3 className="text-base font-black text-white group-hover:text-purple-300 transition-colors line-clamp-1 h-6 flex items-center">
+              {vehicle.title}
+            </h3>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+              <span className="px-2 py-0.5 rounded-md bg-purple-950/50 border border-purple-500/20 text-purple-300">📍 {vehicle.city.split(",")[0].trim()}</span>
+              <span className="px-2 py-0.5 rounded-md bg-indigo-950/50 border border-indigo-500/20 text-indigo-300">⛽ {vehicle.fuel}</span>
+              <span className="px-2 py-0.5 rounded-md bg-pink-950/50 border border-pink-500/20 text-pink-300">⚙️ {vehicle.transmission}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-white/10">
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-[10px] uppercase font-bold text-white/40">Tariff</span>
+              <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400">{toCurrency(vehicle.pricePerDayINR, "INR")}<span className="text-xs text-white/40 font-normal"> /day</span></span>
+            </div>
+
+            <div className="flex gap-2">
+              <Link href={`/vehicles/${vehicle.id}`} className="flex-1 text-center rounded-xl border border-white/15 hover:border-white/30 py-2.5 text-xs font-bold text-white transition">
+                Details
+              </Link>
+              {isAvailable ? (
+                <Link href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`} className="flex-1 text-center rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:opacity-90 py-2.5 text-xs font-black text-white shadow-lg shadow-purple-600/30 transition">
+                  Book Now ✨
+                </Link>
+              ) : (
+                <div className="flex-1"><WaitlistButton vehicleId={vehicle.id} city={vehicle.city} className="w-full text-center rounded-xl border border-white/10 py-2.5 text-xs font-bold text-white/50" /></div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 💎 THEME 2: ULTRA GLASSMORPHISM LUXURY (DEFAULT FALLBACK)
+  // ==========================================
   return (
     <div
       onMouseMove={handleMouseMove}
@@ -126,48 +736,63 @@ function VehicleCatalogCard({
         setHoveredVehicleId(vehicle.id);
         setIsHovered(true);
       }}
-      className={`group tilt-card rounded-2xl border ${theme.border} bg-gradient-to-br from-black via-black to-red-950/10 p-4 shadow-xl ${theme.glowShadow} transition-all duration-300 relative overflow-hidden flex flex-col justify-between`}
+      className="group relative rounded-3xl border border-white/[0.08] bg-[#0d0d14]/90 backdrop-blur-2xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.8)] hover:shadow-[0_20px_50px_rgba(239,68,68,0.2)] hover:border-red-500/40 transition-all duration-500 flex flex-col justify-between overflow-hidden h-[475px] max-h-[475px]"
     >
-      {/* Dynamic ambient glow gradient */}
-      <div className={`absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-gradient-to-br ${theme.glowBg} blur-xl opacity-100 group-hover:opacity-100 transition-all duration-500 pointer-events-none`} />
-      
-      {/* Hover red sweep overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-red)]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-      
-      <div className="relative z-10">
-        <div className="mb-3.5 overflow-hidden rounded-xl border border-white/10 aspect-video relative group-hover:border-white/20 transition-colors h-40 w-full bg-black">
-          {images.length === 0 ? (
+      <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-red-600/15 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+      <div className="absolute -bottom-20 -left-20 w-48 h-48 rounded-full bg-blue-600/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent pointer-events-none" />
+
+      <div className="relative z-10 flex-1 flex flex-col justify-between h-full">
+        <div>
+          <div className="mb-3.5 overflow-hidden rounded-2xl border border-white/10 aspect-video relative h-40 w-full bg-black/80 shadow-inner group-hover:border-white/20 transition-all">
+            {/* Permanent Base Image layer */}
             <img
-              src={defaultImage}
+              src={images[0] || defaultImage}
               alt={vehicle.title}
-              className="absolute inset-0 h-full w-full object-cover opacity-100"
-              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="eager"
             />
-          ) : (
-            images.map((src, idx) => (
+            {images.length > 1 && images.map((src, idx) => (
               <img
                 key={src}
                 src={src}
                 alt={vehicle.title}
-                className={`absolute inset-0 h-full w-full object-cover transition-all duration-700 ease-in-out ${
-                  idx === currentImageIndex ? "opacity-100 scale-105" : "opacity-0 scale-100 pointer-events-none"
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-out ${
+                  idx === currentImageIndex ? "opacity-100 scale-100 group-hover:scale-105" : "opacity-0 scale-95 pointer-events-none"
                 }`}
-                loading="lazy"
+                loading="eager"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = defaultImage;
+                }}
               />
-            ))
-          )}
+            ))}
 
-          {/* Photo Counter Badge for Multiple Images */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-black tracking-wider uppercase backdrop-blur-md border shadow-lg ${theme.badgeClass}`}>
+              <span>{theme.icon}</span>
+              <span>{theme.label}</span>
+            </span>
+          </div>
+
+          <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+            {vehicle.rating ? (
+              <div className="flex items-center gap-1 rounded-full bg-black/75 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-black text-amber-400 border border-white/15 shadow-xl">
+                <span>⭐</span>
+                <span>{vehicle.rating.toFixed(1)}</span>
+              </div>
+            ) : null}
+          </div>
+
           {images.length > 1 && (
-            <div className="absolute top-2 left-2 z-20 bg-black/75 backdrop-blur-md border border-white/15 px-2.5 py-0.5 rounded-full text-[9px] font-black text-white/90 flex items-center gap-1.5 shadow-lg">
-              <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
-              <span>{currentImageIndex + 1}/{images.length} Photos</span>
+            <div className="absolute bottom-2.5 right-2.5 z-20 bg-black/70 backdrop-blur-md border border-white/15 px-2 py-0.5 rounded-full text-[9px] font-bold text-white/80 flex items-center gap-1">
+              <span>📷 {currentImageIndex + 1}/{images.length}</span>
             </div>
           )}
 
-          {/* Interactive Dots overlay */}
           {images.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-lg">
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-lg">
               {images.map((_, idx) => (
                 <button
                   key={idx}
@@ -176,149 +801,127 @@ function VehicleCatalogCard({
                     setCurrentImageIndex(idx);
                   }}
                   className={`w-1.5 h-1.5 rounded-full transition-all cursor-pointer ${
-                    idx === currentImageIndex ? "bg-red-500 scale-125 shadow-[0_0_6px_#ef4444]" : "bg-white/40 hover:bg-white/80"
+                    idx === currentImageIndex ? "bg-red-500 scale-125 shadow-[0_0_8px_#ef4444]" : "bg-white/40 hover:bg-white/80"
                   }`}
                   aria-label={`View photo ${idx + 1}`}
                 />
               ))}
             </div>
           )}
-
-          {/* Floating Rating Badge */}
-          {vehicle.rating ? (
-            <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 rounded-full bg-black/70 backdrop-blur-md px-2 py-0.5 text-[9px] font-extrabold text-amber-400 border border-white/10 shadow-lg">
-              <span>⭐</span>
-              <span>{vehicle.rating.toFixed(1)}</span>
-            </div>
-          ) : null}
         </div>
         
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-base font-bold gradient-text line-clamp-1">
+        <div className="space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-base font-black gradient-text line-clamp-1 tracking-tight h-6 flex items-center">
               {vehicle.title}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold tracking-wider border uppercase ${theme.badgeClass}`}>
-                <span>{theme.icon}</span>
-                <span>{theme.label}</span>
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-950/50 border border-blue-800/30 px-2.5 py-0.5 text-[9px] font-semibold text-blue-300">
-                📍 {vehicle.city.split(",")[0].trim()}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[9px] font-semibold text-white/70">
-                👤 {vehicle.seats} Seats
-              </span>
-            </div>
+            </h3>
           </div>
-        </div>
 
-        <div className="mt-3.5 space-y-2">
-          {/* Specs breakdown */}
-          <div className="flex items-center gap-2 text-xs text-white/70">
-            <span className="flex items-center gap-1">⛽ {vehicle.fuel}</span>
-            <span className="text-white/20">•</span>
-            <span className="flex items-center gap-1">⚙️ {vehicle.transmission}</span>
-            <span className="text-white/20">•</span>
-            <span className="flex items-center gap-1">
-              {vehicle.airportPickup ? "✈️ Airport" : "🏙️ Hub"}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-lg bg-blue-950/40 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
+              📍 {vehicle.city.split(",")[0].trim()}
             </span>
-          </div>
-
-          {/* Availability status line */}
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(vehicle.availabilityStatus ?? "available").toUpperCase() === "AVAILABLE" ? (
-                <>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-green-400 border border-green-800/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    AVAILABLE
-                  </span>
-                  {availableCount !== undefined && availableCount === 1 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-amber-400 border border-amber-500/20 animate-pulse">
-                      🔥 Only 1 left!
-                    </span>
-                  ) : availableCount !== undefined && availableCount > 1 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-sky-400 border border-sky-500/20">
-                      ⚡ {availableCount} Available
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/50 px-2.5 py-0.5 text-[9px] font-extrabold text-rose-400 border border-rose-800/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                  BOOKED
-                </span>
-              )}
-              {vehicle.availabilityMessage && !availableCount && (
-                <span className="text-[10px] text-white/50 font-medium">{vehicle.availabilityMessage}</span>
-              )}
-            </div>
-            
-            {vehicle.vehicleNumber ? (
-              <span className="text-[9px] text-white/30 font-mono tracking-wider">
-                {vehicle.vehicleNumber}
+            <span className="inline-flex items-center gap-1 rounded-lg bg-white/[0.04] border border-white/10 px-2 py-0.5 text-[10px] font-medium text-white/70">
+              👤 {vehicle.seats} Seats
+            </span>
+            {vehicle.airportPickup && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-purple-950/40 border border-purple-500/20 px-2 py-0.5 text-[10px] font-bold text-purple-300">
+                ✈️ Airport Handover
               </span>
-            ) : null}
+            )}
           </div>
         </div>
 
-        {/* Date badges if present */}
-        {vehicle.availableDates && vehicle.availableDates.length > 0 && (
-          <div className="mt-3.5 flex items-center gap-1.5 overflow-hidden">
-            <span className="text-[9px] text-white/30 font-bold whitespace-nowrap">Dates:</span>
-            <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth">
-              {vehicle.availableDates.slice(0, 3).map((date) => (
-                <span key={date} className="shrink-0 rounded bg-white/5 border border-white/5 px-1.5 py-0.5 text-[9px] text-white/50 font-mono">
-                  {date}
-                </span>
-              ))}
-            </div>
+        <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
+            <p className="text-[9px] uppercase font-bold text-white/40">Fuel</p>
+            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">⛽ {vehicle.fuel}</p>
           </div>
-        )}
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
+            <p className="text-[9px] uppercase font-bold text-white/40">Gear</p>
+            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">⚙️ {vehicle.transmission}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
+            <p className="text-[9px] uppercase font-bold text-white/40">Pickup</p>
+            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">{vehicle.airportPickup ? "✈️ Airport" : "🏙️ Hub"}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/5 pt-2.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {isAvailable ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 px-2.5 py-0.5 text-[9px] font-black text-emerald-400 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  AVAILABLE
+                </span>
+                {availableCount !== undefined && availableCount === 1 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/60 px-2.5 py-0.5 text-[9px] font-black text-amber-400 border border-amber-500/30 animate-pulse">
+                    🔥 Only 1 left!
+                  </span>
+                ) : availableCount !== undefined && availableCount > 1 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-950/60 px-2.5 py-0.5 text-[9px] font-bold text-sky-300 border border-sky-500/20">
+                    ⚡ {availableCount} Available
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-950/60 px-2.5 py-0.5 text-[9px] font-black text-rose-400 border border-rose-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                BOOKED
+              </span>
+            )}
+          </div>
+
+          <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/20">
+            ₹0 Deposit
+          </span>
+        </div>
       </div>
 
-      <div>
-        {/* Daily Rate block */}
-        <div className="mt-4 pt-3 border-t border-white/5 flex items-baseline justify-between">
-          <span className="text-[11px] uppercase tracking-wider text-white/40 font-semibold">Daily Rate</span>
+      <div className="mt-auto pt-3 border-t border-white/[0.08] relative z-10">
+        <div className="flex items-baseline justify-between mb-3">
+          <div className="space-y-0.5">
+            <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Daily Rental</span>
+            <p className="text-[10px] text-white/30">Taxes & Insurance included</p>
+          </div>
           <div className="text-right">
-            <span className={`text-lg font-black tracking-tight ${theme.priceText}`}>
+            <span className="text-2xl font-black text-green-400 tracking-tight">
               {toCurrency(vehicle.pricePerDayINR, "INR")}
             </span>
-            <span className="text-xs text-white/45 font-medium font-normal"> / day</span>
+            <span className="text-xs text-white/40 font-normal"> /day</span>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="mt-3.5 flex gap-2">
+        <div className="flex items-center gap-2">
           <Link
             href={`/vehicles/${vehicle.id}`}
             prefetch={true}
-            className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 py-2 text-xs font-bold text-white transition-all hover:-translate-y-0.5"
+            className="flex-1 text-center rounded-2xl border border-white/10 hover:border-white/25 bg-white/[0.04] hover:bg-white/[0.08] py-2.5 text-xs font-bold text-white transition-all hover:-translate-y-0.5 cursor-pointer"
           >
             Details
           </Link>
-          {(vehicle.availabilityStatus ?? "available") === "available" ? (
+          {isAvailable ? (
             <Link
               href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`}
-              className={`flex-1 text-center rounded-xl ${theme.btnBg} py-2 text-xs font-extrabold text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0`}
+              className="flex-1 text-center rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 py-2.5 text-xs font-black text-white shadow-[0_4px_20px_rgba(225,29,72,0.4)] hover:shadow-[0_6px_25px_rgba(225,29,72,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
             >
-              Book Now
+              Book Now ⚡
             </Link>
           ) : (
             <div className="flex-1">
               <WaitlistButton
                 vehicleId={vehicle.id}
                 city={vehicle.city}
-                className="w-full text-center rounded-xl border border-white/10 hover:border-white/20 bg-white/5 py-2 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-center rounded-2xl border border-white/10 hover:border-white/20 bg-white/5 py-2.5 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           )}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 // Global client-side memory cache for instant 0ms vehicle catalog rendering
@@ -405,7 +1008,19 @@ function VehiclesCatalogContent() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [mobileLayoutMode, setMobileLayoutMode] = useState<"coverflow" | "grid">("coverflow");
+  const [cardStyle, setCardStyle] = useState<string>("classic");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    fetch("/api/site-settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.settings?.vehicleCardStyle) {
+          setCardStyle(d.settings.vehicleCardStyle);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const isScrollingRef = useRef(false);
   const activeCardIndexRef = useRef(activeCardIndex);
@@ -845,18 +1460,18 @@ function VehiclesCatalogContent() {
       variant="dark"
       plainHeader={true}
     >
-      <section className="rounded-3xl border border-white/15 bg-gradient-to-br from-[var(--brand-red)]/20 via-white/5 to-white/5 backdrop-blur-xl p-6 shadow-2xl shadow-red-500/20 text-white relative overflow-hidden">
+      <section className="rounded-2xl sm:rounded-3xl border border-white/15 bg-gradient-to-br from-[var(--brand-red)]/20 via-white/5 to-white/5 backdrop-blur-xl p-3.5 sm:p-6 shadow-2xl shadow-red-500/20 text-white relative overflow-hidden">
         {/* Ambient Glows */}
         <div className="absolute -right-20 top-0 h-80 w-80 rounded-full bg-[var(--brand-red)]/10 blur-3xl pointer-events-none" aria-hidden="true" />
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-white/5 blur-3xl pointer-events-none" aria-hidden="true" />
 
-        <div className="flex flex-wrap items-start justify-between gap-3 relative z-10">
+        <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3 relative z-10">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Search & filter</p>
-            <h2 className="text-xl font-semibold text-white">
+            <p className="text-[9px] sm:text-xs uppercase tracking-[0.3em] text-white/50">Search & filter</p>
+            <h2 className="text-base sm:text-xl font-semibold text-white">
               Find your <span className="gradient-text">ride</span>
             </h2>
-            <p className="mt-2 text-sm text-white/70">Use filters to narrow results by city, type, fuel, and price.</p>
+            <p className="hidden sm:block mt-2 text-sm text-white/70">Use filters to narrow results by city, type, fuel, and price.</p>
           </div>
           {/* Location details shown on desktop header */}
           <div className="hidden md:flex flex-wrap gap-2">
@@ -891,29 +1506,29 @@ function VehiclesCatalogContent() {
         </div>
 
         {/* Mobile Quick Search Bar (Only visible on Mobile viewports) */}
-        <div className="flex md:hidden gap-2.5 w-full mt-4 relative z-10">
+        <div className="flex md:hidden gap-2 w-full mt-2.5 relative z-10">
           <div className="flex-1 relative">
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search vehicle name..."
-              className="w-full rounded-2xl border border-white/15 bg-white/[0.06] backdrop-blur-md pl-9 pr-3 py-2.5 text-xs text-white placeholder-white/40 transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.1] focus:outline-none focus:ring-1 focus:ring-red-500/30"
+              className="w-full rounded-xl border border-white/15 bg-white/[0.06] backdrop-blur-md pl-8 pr-3 py-2 text-xs text-white placeholder-white/40 transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.1] focus:outline-none"
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 h-3.5 w-3.5" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50 h-3 w-3" />
           </div>
           <button
             type="button"
             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className={`px-3.5 py-2.5 rounded-2xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer select-none active:scale-95 ${
+            className={`px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer select-none active:scale-95 ${
               isMobileFiltersOpen || hasActiveFilters
                 ? "bg-gradient-to-r from-red-600 to-red-500 border-red-500 text-white shadow-lg shadow-red-600/30"
                 : "bg-white/[0.06] border-white/15 text-white/90 hover:text-white hover:bg-white/10 backdrop-blur-md"
             }`}
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="h-3 w-3" />
             <span>Filters</span>
             {activeFiltersCount > 0 && (
-              <span className="h-4 min-w-4 px-1 flex items-center justify-center rounded-full bg-white text-[var(--brand-red)] text-[9px] font-black leading-none">
+              <span className="h-3.5 min-w-3.5 px-1 flex items-center justify-center rounded-full bg-white text-[var(--brand-red)] text-[8.5px] font-black leading-none">
                 {activeFiltersCount}
               </span>
             )}
@@ -921,21 +1536,21 @@ function VehiclesCatalogContent() {
         </div>
 
         {/* Mobile Quick Actions (Location & Reset) - Always visible on mobile */}
-        <div className="flex md:hidden gap-2.5 w-full mt-2.5 relative z-10">
+        <div className="flex md:hidden gap-2 w-full mt-2 relative z-10">
           <button
             type="button"
             onClick={handleUseCurrentLocation}
             disabled={isDetectingLocation}
-            className={`flex-1 rounded-2xl border py-2.5 px-3.5 text-xs font-bold transition active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 min-w-0 ${
+            className={`flex-1 rounded-xl border py-2 px-3 text-xs font-bold transition active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5 min-w-0 ${
               detectedLocationLabel && city === detectedLocationLabel
                 ? "border-emerald-500/50 bg-emerald-950/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)] backdrop-blur-md"
                 : "border-white/15 bg-white/[0.06] text-white hover:bg-white/10 backdrop-blur-md"
             }`}
           >
-            <MapPin className={`h-3.5 w-3.5 flex-shrink-0 ${detectedLocationLabel && city === detectedLocationLabel ? "text-emerald-400" : "text-red-500"} animate-pulse`} />
-            <span className="truncate">
+            <MapPin className={`h-3 w-3 flex-shrink-0 ${detectedLocationLabel && city === detectedLocationLabel ? "text-emerald-400" : "text-red-500"} animate-pulse`} />
+            <span className="truncate text-[11px]">
               {isDetectingLocation 
-                ? "Detecting location..." 
+                ? "Detecting..." 
                 : (detectedLocationLabel && city === detectedLocationLabel ? detectedLocationLabel : "Current Location")
               }
             </span>
@@ -944,7 +1559,7 @@ function VehiclesCatalogContent() {
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-bold text-white/85 hover:text-white hover:bg-white/10 backdrop-blur-md transition active:scale-95 cursor-pointer flex-shrink-0"
+              className="rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2 text-xs font-bold text-white/85 hover:text-white hover:bg-white/10 backdrop-blur-md transition active:scale-95 cursor-pointer flex-shrink-0"
             >
               Reset
             </button>
@@ -952,9 +1567,9 @@ function VehiclesCatalogContent() {
         </div>
 
         {/* Airport & Major Pickup Hub Quick Chips */}
-        <div className="mt-3 relative z-10 flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
-          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1 shrink-0 bg-red-950/50 border border-red-500/30 px-2.5 py-1.5 rounded-xl shadow-md">
-            <Plane className="w-3 h-3 text-red-400 animate-pulse" /> Airport Hubs:
+        <div className="mt-2.5 relative z-10 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[9px] uppercase font-bold text-red-400 tracking-wider flex items-center gap-1 shrink-0 bg-red-950/50 border border-red-500/30 px-2 py-1 rounded-lg shadow-sm">
+            <Plane className="w-2.5 h-2.5 text-red-400 animate-pulse" /> Hubs:
           </span>
           {(activeHubs.filter((h) => h.airportName && h.airportName.trim().length > 0).length > 0
             ? activeHubs.filter((h) => h.airportName && h.airportName.trim().length > 0)
@@ -985,7 +1600,7 @@ function VehiclesCatalogContent() {
                   setDetectedLocationLabel("");
                   setOutOfRangeInfo(null);
                 }}
-                className={`shrink-0 rounded-full border px-3.5 py-1 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`shrink-0 rounded-full border px-3 py-0.5 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   isAct
                     ? "border-red-500 bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30 scale-105"
                     : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/10 hover:text-white"
@@ -993,17 +1608,17 @@ function VehiclesCatalogContent() {
               >
                 <span>{cleanAirportName}</span>
                 {code && (
-                  <span className="text-[9px] font-mono bg-black/40 px-1.5 py-0.5 rounded text-red-300 font-bold">{code}</span>
+                  <span className="text-[8.5px] font-mono bg-black/40 px-1 py-0.2 rounded text-red-300 font-bold">{code}</span>
                 )}
               </button>
             );
           })}
         </div>
 
-        <form onSubmit={fetchVehicles} className="mt-3 relative z-10">
-          <div className={`grid gap-3 transition-all duration-300 ${
+        <form onSubmit={fetchVehicles} className="mt-2.5 relative z-10">
+          <div className={`grid gap-2.5 transition-all duration-300 ${
             isMobileFiltersOpen 
-              ? "grid-cols-1 opacity-100 max-h-[500px] mt-3" 
+              ? "grid-cols-1 opacity-100 max-h-[500px] mt-2.5" 
               : "hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
           }`}>
             {/* Search Input - Desktop only (redundant on mobile) */}
@@ -1025,7 +1640,7 @@ function VehiclesCatalogContent() {
                   setOutOfRangeInfo(null);
                 }
               }} 
-              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 md:py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
             >
               <option value="">All Cities</option>
               {city && !cityOptions.some((opt) => opt.toLowerCase() === city.toLowerCase()) && (
@@ -1039,7 +1654,7 @@ function VehiclesCatalogContent() {
             <select 
               value={type} 
               onChange={(event) => setType(event.target.value)} 
-              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 md:py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
             >
               <option value="">All Types</option>
               <option value="bike">Bike</option>
@@ -1050,7 +1665,7 @@ function VehiclesCatalogContent() {
             <select 
               value={fuel} 
               onChange={(event) => setFuel(event.target.value)} 
-              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 md:py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
             >
               <option value="">All Fuels</option>
               <option value="petrol">Petrol</option>
@@ -1061,7 +1676,7 @@ function VehiclesCatalogContent() {
             <select 
               value={transmission} 
               onChange={(event) => setTransmission(event.target.value)} 
-              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 md:py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs md:text-sm text-white transition-all focus:border-[var(--brand-red)] focus:bg-white/[0.08] focus:outline-none focus:ring-2 focus:ring-red-500/20 [&_option]:bg-[#121212] [&_option]:text-white cursor-pointer"
             >
               <option value="">All Transmissions</option>
               <option value="manual">Manual</option>
@@ -1070,7 +1685,7 @@ function VehiclesCatalogContent() {
 
             <button
               type="submit"
-              className="rounded-xl bg-[var(--brand-red)] px-4 py-2.5 md:py-2 font-bold text-xs md:text-sm text-white shadow-lg shadow-red-600/30 transition hover:-translate-y-0.5 hover:bg-red-600 active:scale-95 cursor-pointer"
+              className="rounded-xl bg-[var(--brand-red)] px-4 py-2 font-bold text-xs md:text-sm text-white shadow-lg shadow-red-600/30 transition hover:-translate-y-0.5 hover:bg-red-600 active:scale-95 cursor-pointer"
             >
               {isLoading ? "Searching..." : "Search vehicles"}
             </button>
@@ -1080,13 +1695,13 @@ function VehiclesCatalogContent() {
 
       {/* 150 KM Radius Coming Soon Banner & Request Form */}
       {outOfRangeInfo && (
-        <div className="mt-6 rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-950/70 via-neutral-900 to-black p-5 sm:p-6 shadow-2xl space-y-4 text-white relative overflow-hidden animate-[fade-up_0.5s_ease_forwards]">
+        <div className="mt-3 sm:mt-6 rounded-2xl sm:rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-950/70 via-neutral-900 to-black p-4 sm:p-6 shadow-2xl space-y-3 text-white relative overflow-hidden animate-[fade-up_0.5s_ease_forwards]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="inline-block rounded-full bg-amber-500/20 border border-amber-500/40 px-3 py-1 text-[11px] font-extrabold text-amber-400 uppercase tracking-wider">
+              <span className="inline-block rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">
                 🚀 Service Launch Request
               </span>
-              <h3 className="text-lg sm:text-xl font-black mt-2 text-white">
+              <h3 className="text-base sm:text-xl font-black mt-1.5 text-white">
                 We are coming soon to <span className="text-amber-400">{outOfRangeInfo.areaName}</span>!
               </h3>
               <p className="text-xs sm:text-sm text-white/70 mt-1 max-w-2xl">
@@ -1104,30 +1719,30 @@ function VehiclesCatalogContent() {
           </div>
 
           {isSubmittedWaitlist ? (
-            <div className="rounded-2xl bg-emerald-950/80 border border-emerald-500/40 p-4 text-emerald-300 text-xs sm:text-sm font-bold flex items-center gap-2.5">
-              <span className="text-lg">✅</span>
+            <div className="rounded-xl bg-emerald-950/80 border border-emerald-500/40 p-3 text-emerald-300 text-xs sm:text-sm font-bold flex items-center gap-2">
+              <span className="text-base">✅</span>
               <span>Thank you, {waitlistName || "Rider"}! Request received for <strong>{outOfRangeInfo.areaName}</strong>. We'll notify you via WhatsApp/SMS when Next Gear launches in your area!</span>
             </div>
           ) : (
-            <form onSubmit={handleWaitlistSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <form onSubmit={handleWaitlistSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <input
                 required
                 value={waitlistName}
                 onChange={(e) => setWaitlistName(e.target.value)}
                 placeholder="Your Full Name"
-                className="rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-xs text-white placeholder-white/40 focus:border-amber-400 focus:outline-none"
+                className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder-white/40 focus:border-amber-400 focus:outline-none"
               />
               <input
                 required
                 value={waitlistPhone}
                 onChange={(e) => setWaitlistPhone(e.target.value)}
                 placeholder="Phone Number / WhatsApp"
-                className="rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-xs text-white placeholder-white/40 focus:border-amber-400 focus:outline-none"
+                className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder-white/40 focus:border-amber-400 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={isSubmittingWaitlist}
-                className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2.5 text-xs font-black text-black shadow-lg shadow-amber-500/20 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                className="rounded-xl bg-amber-500 hover:bg-amber-400 px-3 py-2 text-xs font-black text-black shadow-lg shadow-amber-500/20 transition active:scale-95 cursor-pointer disabled:opacity-50"
               >
                 {isSubmittingWaitlist ? "Submitting..." : `Request Launch in ${outOfRangeInfo.areaName.slice(0, 15)}`}
               </button>
@@ -1137,12 +1752,12 @@ function VehiclesCatalogContent() {
       )}
 
       {/* Mobile view Tab Bar */}
-      <div className="flex lg:hidden rounded-2xl border border-white/10 bg-white/[0.03] p-1 mt-6">
+      <div className="flex lg:hidden rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.03] p-1 mt-2.5 sm:mt-6">
         <button
           type="button"
           onClick={() => setActiveMobileTab("list")}
-          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeMobileTab === "list" ? "bg-[var(--brand-red)] text-white shadow-lg shadow-red-600/30" : "text-white/60 hover:text-white"
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeMobileTab === "list" ? "bg-[var(--brand-red)] text-white shadow-md shadow-red-600/30" : "text-white/60 hover:text-white"
           }`}
         >
           <List className="h-3.5 w-3.5" />
@@ -1151,8 +1766,8 @@ function VehiclesCatalogContent() {
         <button
           type="button"
           onClick={() => setActiveMobileTab("map")}
-          className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-            activeMobileTab === "map" ? "bg-[var(--brand-red)] text-white shadow-lg shadow-red-600/30" : "text-white/60 hover:text-white"
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            activeMobileTab === "map" ? "bg-[var(--brand-red)] text-white shadow-md shadow-red-600/30" : "text-white/60 hover:text-white"
           }`}
         >
           <MapPin className="h-3.5 w-3.5" />
@@ -1161,27 +1776,27 @@ function VehiclesCatalogContent() {
       </div>
 
       {/* Grid container: Split map & list */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-8 items-start mt-2.5 sm:mt-6">
         
         {/* Left catalog panel */}
-        <div className={`lg:col-span-7 space-y-6 ${activeMobileTab === "list" ? "block" : "hidden lg:block"}`}>
-          <section className="space-y-4 rounded-3xl border-0 sm:border border-white/10 bg-transparent sm:bg-white/[0.03] backdrop-blur-none sm:backdrop-blur-xl p-0 sm:p-6 shadow-none sm:shadow-2xl text-white">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-0">
+        <div className={`lg:col-span-7 space-y-3 sm:space-y-6 ${activeMobileTab === "list" ? "block" : "hidden lg:block"}`}>
+          <section className="space-y-3 sm:space-y-4 rounded-2xl sm:rounded-3xl border-0 sm:border border-white/10 bg-transparent sm:bg-white/[0.03] backdrop-blur-none sm:backdrop-blur-xl p-0 sm:p-6 shadow-none sm:shadow-2xl text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2.5 px-1 sm:px-0">
               <div className="flex items-center justify-between w-full sm:w-auto">
-                <h2 className="text-lg font-bold text-white tracking-wide">Results</h2>
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-wide">Results</h2>
 
                 {/* Mobile Layout Switcher - Top Right on Mobile */}
-                <div className="flex sm:hidden items-center flex-shrink-0 bg-white/[0.06] border border-white/15 p-1 rounded-2xl backdrop-blur-md shadow-inner">
+                <div className="flex sm:hidden items-center flex-shrink-0 bg-white/[0.06] border border-white/15 p-0.5 rounded-xl backdrop-blur-md shadow-inner">
                   <button
                     type="button"
                     onClick={() => setMobileLayoutMode("coverflow")}
-                    className={`px-2.5 py-1.5 text-[11px] font-bold rounded-xl transition-all duration-300 flex items-center gap-1 cursor-pointer whitespace-nowrap flex-shrink-0 ${
+                    className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all duration-300 flex items-center gap-1 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                       mobileLayoutMode === "coverflow"
                         ? "bg-gradient-to-r from-red-600 to-red-500 text-white shadow-md shadow-red-600/30"
                         : "text-white/60 hover:text-white"
                     }`}
                   >
-                    <Layers className="h-3.5 w-3.5 flex-shrink-0" />
+                    <Layers className="h-3 w-3 flex-shrink-0" />
                     <span className="whitespace-nowrap">3D View</span>
                   </button>
                   <button
@@ -1404,11 +2019,11 @@ function VehiclesCatalogContent() {
                     <div 
                       ref={scrollRef}
                       onScroll={handleScroll}
-                      className="flex sm:hidden overflow-x-auto snap-x snap-mandatory py-6 no-scrollbar scroll-smooth w-full px-[11vw] relative z-10 items-center"
+                      className="flex sm:hidden overflow-x-auto snap-x snap-mandatory py-2 no-scrollbar scroll-smooth w-full px-[9vw] relative z-10 items-center"
                       style={{
                         scrollSnapType: 'x mandatory',
-                        scrollPaddingLeft: '11vw',
-                        scrollPaddingRight: '11vw',
+                        scrollPaddingLeft: '9vw',
+                        scrollPaddingRight: '9vw',
                         WebkitOverflowScrolling: 'touch',
                         touchAction: 'pan-x pan-y',
                         overscrollBehaviorX: 'contain',
@@ -1433,7 +2048,7 @@ function VehiclesCatalogContent() {
                         return (
                           <div
                             key={vehicle.id}
-                            className="snap-center shrink-0 w-[78vw] transition-all duration-300 relative flex justify-center"
+                            className="snap-center shrink-0 w-[82vw] transition-all duration-300 relative flex justify-center"
                             style={{
                               transform: `perspective(800px) rotateY(${rotateY}deg) scale(${scale}) translateZ(0)`,
                               opacity: opacity,
@@ -1452,6 +2067,7 @@ function VehiclesCatalogContent() {
                                 handleMouseLeave={handleMouseLeave}
                                 setHoveredVehicleId={setHoveredVehicleId}
                                 availableCount={availableCount}
+                                cardStyle={cardStyle}
                               />
                             </div>
                           </div>
@@ -1507,6 +2123,7 @@ function VehiclesCatalogContent() {
                           handleMouseLeave={handleMouseLeave}
                           setHoveredVehicleId={setHoveredVehicleId}
                           availableCount={availableCount}
+                          cardStyle={cardStyle}
                         />
                       );
                     })}
@@ -1534,6 +2151,7 @@ function VehiclesCatalogContent() {
                         handleMouseLeave={handleMouseLeave}
                         setHoveredVehicleId={setHoveredVehicleId}
                         availableCount={availableCount}
+                        cardStyle={cardStyle}
                       />
                     );
                   })}

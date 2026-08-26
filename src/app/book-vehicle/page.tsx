@@ -13,6 +13,28 @@ export default async function BookVehiclePage() {
     redirect("/login");
   }
 
+  let dbUser = null;
+  if (user?.id || user?.email) {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      dbUser = await prisma.user.findFirst({
+        where: user.id ? { id: user.id } : { email: user.email },
+        select: { name: true, email: true, phone: true },
+      });
+    } catch (e) {
+      console.warn("Could not fetch user profile for booking prefill", e);
+    }
+  }
+
+  const rawEmail = dbUser?.email || user?.email || "";
+  const isGuestPhoneEmail = rawEmail.endsWith("@guest.next-gear.app");
+  const cleanEmail = isGuestPhoneEmail ? "" : rawEmail;
+
+  const rawPhone = dbUser?.phone || user?.phone || (isGuestPhoneEmail ? rawEmail.split("@")[0] : "");
+  const cleanPhone = rawPhone ? rawPhone.replace(/\D/g, "").slice(-10) : "";
+
+  const cleanName = dbUser?.name || (cleanEmail && !cleanEmail.toLowerCase().startsWith("admin@") ? cleanEmail.split("@")[0] : (dbUser?.name || ""));
+
   const siteSettings = await getSiteSettings();
   const addonWaiverActive = siteSettings.addonWaiverActive !== "false";
   const addonRsaActive = siteSettings.addonRsaActive !== "false";
@@ -49,8 +71,9 @@ export default async function BookVehiclePage() {
         }
       >
         <BookingExperience
-          userEmail={user.email}
-          userName={user.email.split("@")[0]}
+          userEmail={cleanEmail}
+          userName={cleanName}
+          userPhone={cleanPhone}
           addonWaiverActive={addonWaiverActive}
           addonRsaActive={addonRsaActive}
           addonHelmetActive={addonHelmetActive}

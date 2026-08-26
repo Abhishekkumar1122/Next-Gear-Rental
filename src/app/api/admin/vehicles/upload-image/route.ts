@@ -2,7 +2,7 @@ import { assertAdminMutationRequest } from "@/lib/admin-security";
 import { uploadBufferToCloudinary } from "@/lib/cloudinary";
 import { NextResponse } from "next/server";
 
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
 
 function resolveExtension(mimeType: string) {

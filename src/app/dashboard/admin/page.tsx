@@ -7,6 +7,7 @@ import { AdminVendorApplicationsPanel } from "@/components/admin-vendor-applicat
 import { AdminVehicleInventoryPanel } from "@/components/admin-vehicle-inventory-panel";
 import { AdminPromotionsPanel } from "@/components/admin-promotions-panel";
 import { AdminAlertsPanel } from "@/components/admin-alerts-panel";
+import { AdminBroadcastsPanel } from "@/components/admin-broadcasts-panel";
 import { getAdminHistory } from "@/lib/dashboard-history";
 import { allowedTrendHours, getOpsMetricsReport, normalizeTrendHours } from "@/lib/ops-report";
 import { getServerSessionUser } from "@/lib/server-session";
@@ -36,7 +37,9 @@ import { AdminOverviewKpis } from "@/components/admin-overview-kpis";
 import { getCachedAttentionCenterData } from "@/lib/attention-center";
 import { getCachedAdminKpiAggregates } from "@/lib/admin-kpi-aggregates";
 
-export const revalidate = 120; // Cache dashboard for 2 minutes
+import { AdminOverviewClient } from "@/components/admin-overview-client";
+
+export const dynamic = "force-dynamic";
 
 // Cache admin data to reduce database load
 const getCachedAdminHistory = unstable_cache(
@@ -120,10 +123,13 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
   const daysParam = typeof params.days === "string" ? params.days : "30";
   const sectionParam = typeof params.section === "string" ? params.section : "overview";
 
-  const allowedSections = ["overview", "attention-center", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "cities", "inspections", "contact-requests", "alerts", "mail-inbox", "email-templates", "footer", "support", "webhooks", "deliveries", "careers-jobs"] as const;
-  const activeSection = allowedSections.includes(sectionParam as (typeof allowedSections)[number])
+  const allowedSections = ["overview", "attention-center", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "cities", "inspections", "contact-requests", "alerts", "broadcasts", "mail-inbox", "email-templates", "settings", "footer", "support", "webhooks", "deliveries", "careers-jobs"] as const;
+  let activeSection = allowedSections.includes(sectionParam as (typeof allowedSections)[number])
     ? (sectionParam as (typeof allowedSections)[number])
     : "overview";
+  if (activeSection === "footer") {
+    activeSection = "settings";
+  }
 
   const [history, webhookAudit, opsReport, deliveryJobs, driversList, attentionData, kpiAggregates] = await Promise.all([
     getCachedAdminHistory(provider, status),
@@ -267,9 +273,10 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     { id: "careers-jobs", label: "Jobs & Careers", icon: "💼" },
     { id: "contact-requests", label: "Contact Requests", icon: "✉️" },
     { id: "alerts", label: "Alerts", icon: "⚠️" },
+    { id: "broadcasts", label: "WhatsApp & Offers Broadcast", icon: "📢" },
     { id: "mail-inbox", label: "Mail Command Center", icon: "📬" },
     { id: "email-templates", label: "Email & WhatsApp Templates", icon: "✉️" },
-    { id: "footer", label: "Footer Settings", icon: "🛠️" },
+    { id: "settings", label: "Site Settings", icon: "⚙️" },
     { id: "webhooks", label: "Webhooks", icon: "⚡" },
   ] as const;
 
@@ -303,26 +310,19 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
   const pctRefunded = Math.round((refundedCount / totalPayments) * 100);
   const pctFailed = 100 - pctPaid - pctRefunded;
 
-  // Monthly revenue trends (baseline + database live metrics)
-  const monthlyRevenueData = [
-    { month: "Jan", revenue: 45000, bookings: 32 },
-    { month: "Feb", revenue: 38000, bookings: 28 },
-    { month: "Mar", revenue: 52000, bookings: 41 },
-    { month: "Apr", revenue: 64000, bookings: 49 },
-    { month: "May", revenue: 85000, bookings: 68 },
-    { month: "Jun", revenue: 110000, bookings: 88 },
-    { month: "Jul", revenue: 125000, bookings: 98 },
-    { month: "Aug", revenue: 95000, bookings: 76 },
-    { month: "Sep", revenue: 115000, bookings: 92 }
-  ];
-
-  // Aggregate active database payments dynamically
+  // Real database monthly revenue trends (All 12 dynamic calendar months, Jan - Dec)
   const monthsShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const realMonthlyRevenueData = monthsShort.map((m) => ({
+    month: m,
+    revenue: 0,
+    bookings: 0,
+  }));
+
   financeItems.forEach((item) => {
     if (!item.createdAt) return;
     const date = new Date(item.createdAt);
     const monthName = monthsShort[date.getMonth()];
-    const targetMonth = monthlyRevenueData.find((m) => m.month === monthName);
+    const targetMonth = realMonthlyRevenueData.find((m) => m.month === monthName);
     if (targetMonth) {
       if (item.status === "PAID") {
         targetMonth.revenue += item.amountINR;
@@ -331,8 +331,8 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     }
   });
 
-  const maxRev = Math.max(...monthlyRevenueData.map((m) => m.revenue), 130000);
-  const maxBook = Math.max(...monthlyRevenueData.map((m) => m.bookings), 100);
+  const maxRev = Math.max(...realMonthlyRevenueData.map((m) => m.revenue), 100);
+  const maxBook = Math.max(...realMonthlyRevenueData.map((m) => m.bookings), 10);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row">
@@ -502,11 +502,11 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header Bar */}
-        <header className="bg-[#0b0b0b] border-b border-white/5 px-4 md:px-6 py-4 flex items-center justify-between gap-4">
+        <header className="bg-[#0b0b0b] border-b border-white/5 px-4 md:px-6 py-3 flex items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-white/40 uppercase tracking-widest shrink-0">
             <span>Admin</span>
             <span>/</span>
-            <span className="text-[var(--brand-red-soft)] font-extrabold">{activeSection}</span>
+            <span className="text-[var(--brand-red-soft)] font-extrabold">{activeSection === "settings" ? "SITE SETTINGS" : activeSection}</span>
           </div>
 
           {/* Quick Header Actions */}
@@ -533,416 +533,83 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
           </div>
         </header>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-6 md:p-10 space-y-8 overflow-y-auto no-scrollbar theme-dark-admin-subpanels">
+        {/* Main Content Area - Reduced vertical padding so graphs and metrics sit higher */}
+        <main className="flex-1 p-4 md:p-6 space-y-4 overflow-y-auto no-scrollbar theme-dark-admin-subpanels">
           
           {activeSection === "overview" && (
-            <div className="space-y-6">
-              {/* Congratulations Header Card */}
-              <div className="rounded-3xl border border-[var(--brand-red)]/20 bg-gradient-to-r from-[var(--brand-red)]/[0.04] via-black to-black p-6 md:p-8 relative overflow-hidden shadow-xl shadow-[var(--brand-red)]/[0.02]">
-                <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-[var(--brand-red)]/10 blur-3xl pointer-events-none" />
-                <span className="inline-block rounded-full bg-[var(--brand-red)]/[0.08] px-3 py-1 text-[10px] font-black tracking-wider text-[var(--brand-red-soft)] border border-[var(--brand-red)]/20">
-                  SYSTEM READY
-                </span>
-                <h2 className="text-xl md:text-2xl font-black font-display uppercase tracking-wider text-white mt-3.5">
-                  Welcome back, Next Gear Admin! 🚀
-                </h2>
-                <p className="text-xs md:text-sm text-white/60 leading-relaxed mt-2 max-w-2xl">
-                  The rental fleet, vendor pipeline, and payment gateways are fully online. Run diagnostic commands, verify document queues, and check transaction logs directly.
-                </p>
+            <div className="space-y-4">
+              {/* Sleek Compact Header Card (Image 1 Refinement) */}
+              <div className="rounded-2xl border border-[var(--brand-red)]/20 bg-gradient-to-r from-[var(--brand-red)]/[0.04] via-black to-black p-3.5 md:p-4 relative overflow-hidden shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-red-950/40 border border-red-500/20 flex items-center justify-center text-base shrink-0">
+                    🚀
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-black font-display uppercase tracking-wider text-white">
+                        Welcome back, Next Gear Admin!
+                      </h2>
+                      <span className="inline-block rounded-full bg-emerald-950/60 px-2 py-0.5 text-[8px] font-black tracking-wider text-emerald-400 border border-emerald-500/20">
+                        SYSTEM READY
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-white/50 leading-relaxed mt-0.5">
+                      Fleet, vendor pipeline, and payment gateways are online.
+                    </p>
+                  </div>
+                </div>
 
                 {/* Date range picker tabs */}
-                <div className="flex flex-wrap items-center justify-between gap-4 mt-6 border-t border-white/[0.04] pt-4">
-                  <p className="text-[9px] text-white/40 uppercase font-black tracking-wider">Analytics Range Filter</p>
-                  <div className="flex gap-1.5 text-[8.5px] font-black uppercase tracking-wider">
-                    {[
-                      { id: "7", label: "7 Days" },
-                      { id: "30", label: "30 Days" },
-                      { id: "365", label: "1 Year" },
-                      { id: "all", label: "All Time" }
-                    ].map((d) => {
-                      const isAct = daysParam === d.id;
-                      const linkQuery = new URLSearchParams();
-                      linkQuery.set("section", "overview");
-                      linkQuery.set("days", d.id);
-                      if (provider) linkQuery.set("provider", provider);
-                      if (status) linkQuery.set("status", status);
-                      
-                      return (
-                        <Link
-                          key={d.id}
-                          href={`/dashboard/admin?${linkQuery.toString()}`}
-                          className={`rounded-lg px-3 py-1.5 border transition duration-300 ${
-                            isAct
-                              ? "bg-[var(--brand-red)] border-red-500/20 text-white"
-                              : "border-white/5 hover:bg-white/5 text-white/50"
-                          }`}
-                        >
-                          {d.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* KPI Stat Cards Grid with dynamic sparklines */}
-              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-                <StatCard
-                  label="Paid Revenue"
-                  value={`₹${paidTotal.toLocaleString("en-IN")}`}
-                  helper="All paid invoices"
-                  icon="💰"
-                  trend="+24%"
-                  isPositive={true}
-                  accentColor="red"
-                  linePath={paidSparkline.linePath}
-                  areaPath={paidSparkline.areaPath}
-                  dotX={paidSparkline.lastX}
-                  dotY={paidSparkline.lastY}
-                />
-                <StatCard
-                  label="Total Refunds"
-                  value={`₹${refundTotal.toLocaleString("en-IN")}`}
-                  helper="Cancelled bookings"
-                  icon="🔄"
-                  trend="+14%"
-                  isPositive={true}
-                  accentColor="yellow"
-                  linePath={refundSparkline.linePath}
-                  areaPath={refundSparkline.areaPath}
-                  dotX={refundSparkline.lastX}
-                  dotY={refundSparkline.lastY}
-                />
-                <StatCard
-                  label="Active Riders"
-                  value={uniqueCustomers.toString()}
-                  helper="Verified emails"
-                  icon="👤"
-                  trend="+18%"
-                  isPositive={true}
-                  accentColor="cyan"
-                  linePath={ridersSparkline.linePath}
-                  areaPath={ridersSparkline.areaPath}
-                  dotX={ridersSparkline.lastX}
-                  dotY={ridersSparkline.lastY}
-                />
-                <StatCard
-                  label="Total Bookings"
-                  value={financeItems.length.toString()}
-                  helper={`Past ${daysParam === "all" ? "all time" : daysParam + " days"} history`}
-                  icon="📅"
-                  trend="-5%"
-                  isPositive={false}
-                  accentColor="purple"
-                  linePath={bookingsSparkline.linePath}
-                  areaPath={bookingsSparkline.areaPath}
-                  dotX={bookingsSparkline.lastX}
-                  dotY={bookingsSparkline.lastY}
-                />
-              </div>
-
-              {/* Web Traffic & Device Analytics Panel */}
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-                {/* Traffic Visits Card */}
-                <div className="rounded-2xl border border-white/5 bg-[#0c0c0c] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-48 group">
-                  {/* Sparkline Background Overlay */}
-                  <div className="absolute inset-0 z-0 opacity-20 group-hover:opacity-30 transition-opacity duration-500">
-                    <svg className="w-full h-full text-[var(--brand-red)]" viewBox="0 0 100 30" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="grad-visits" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="currentColor" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d={visitsSparkline.areaPath}
-                        fill="url(#grad-visits)"
-                      />
-                      <path
-                        d={visitsSparkline.linePath}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                      />
-                      <circle cx={visitsSparkline.lastX} cy={visitsSparkline.lastY} r="1.5" className="fill-white" />
-                      <circle cx={visitsSparkline.lastX} cy={visitsSparkline.lastY} r="3.5" className="fill-emerald-400/50 animate-ping" />
-                    </svg>
-                  </div>
-
-                  {/* Foreground Content */}
-                  <div className="relative z-10 w-full pointer-events-none">
-                    <div className="flex justify-between items-center pointer-events-auto">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-white/40">Total Site Visits</span>
-                      <span className="text-[10px] font-black text-[var(--brand-red-soft)] bg-[var(--brand-red)]/10 border border-[var(--brand-red)]/20 px-2 py-0.5 rounded-full">-35% 📉</span>
-                    </div>
-                    <div className="mt-4.5">
-                      <p className="text-2xl font-black text-white leading-none">189,240</p>
-                      <p className="mt-1.5 text-[10px] text-white/50">Unique sessions this month</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Interaction & CTR Card */}
-                <div className="rounded-2xl border border-white/5 bg-[#0c0c0c] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-48">
-                  <div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-white/40">Click-Through Rate (CTR)</span>
-                      <span className="text-[10px] font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/30 px-2 py-0.5 rounded-full">+18% 📈</span>
-                    </div>
-                    <p className="mt-3 text-2xl font-black text-white">24.6%</p>
-                    <p className="mt-1 text-[10px] text-white/50">Search & details conversion ratio</p>
-                  </div>
-                  
-                  {/* Double Progress indicator */}
-                  <div className="mt-4 space-y-2 text-[10px]">
-                    <div className="flex justify-between text-white/60">
-                      <span>Conversion Goal</span>
-                      <span className="font-bold text-white">78%</span>
-                    </div>
-                    <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-                      <div className="bg-[var(--brand-red)] h-1.5 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.6)]" style={{ width: "78%" }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* User Device breakdown (Mobile vs Desktop) */}
-                <div className="rounded-2xl border border-white/5 bg-[#0c0c0c] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-48">
-                  <div>
-                    <p className="text-[10px] uppercase font-bold tracking-wider text-white/40">User Device Split</p>
-                    <p className="text-[11px] text-white/60 leading-relaxed mt-1">Ratio of traffic coming from mobile viewports vs desktop.</p>
-                  </div>
-                  
-                  <div className="mt-4 space-y-3 text-[10px]">
-                    {/* Device progress bars */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between font-bold text-white/80">
-                        <span className="flex items-center gap-1">📱 Mobile Users</span>
-                        <span>58%</span>
-                      </div>
-                      <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
-                        <div className="bg-[var(--brand-red)] h-2 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.6)]" style={{ width: "58%" }} />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between font-bold text-white/80">
-                        <span className="flex items-center gap-1">🖥️ Desktop / Laptop</span>
-                        <span>42%</span>
-                      </div>
-                      <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
-                        <div className="bg-slate-600 h-2 rounded-full" style={{ width: "42%" }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Data Visualization section: Donut + Bar Graph */}
-              <div className="grid gap-6 md:grid-cols-12">
-                
-                {/* Donut Chart: Booking status breakdown */}
-                <div className="md:col-span-4 rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 flex flex-col justify-between shadow-xl">
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-2.5">
-                      Order Status
-                    </h3>
-                    <div className="relative py-6 flex items-center justify-center">
-                      <svg viewBox="0 0 100 100" className="w-36 h-36 transform -rotate-90">
-                        {/* Outer empty track ring */}
-                        <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.02)" strokeWidth="8" fill="none" />
-                        
-                        {/* Paid segment (Red) */}
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r="38"
-                          stroke="var(--brand-red)"
-                          strokeWidth="8"
-                          fill="none"
-                          strokeDasharray="238.76"
-                          strokeDashoffset={238.76 * (1 - paidCount / totalPayments)}
-                          className="transition-all duration-500"
-                        />
-                        
-                        {/* Refunded segment (Amber) */}
-                        {refundedCount > 0 && (
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="38"
-                            stroke="#d97706"
-                            strokeWidth="8"
-                            fill="none"
-                            strokeDasharray="238.76"
-                            strokeDashoffset={238.76 * (1 - refundedCount / totalPayments)}
-                            transform={`rotate(${(paidCount / totalPayments) * 360} 50 50)`}
-                            className="transition-all duration-500"
-                          />
-                        )}
-
-                        {/* Failed segment (Slate) */}
-                        {failedCount > 0 && (
-                          <circle
-                            cx="50"
-                            cy="50"
-                            r="38"
-                            stroke="#475569"
-                            strokeWidth="8"
-                            fill="none"
-                            strokeDasharray="238.76"
-                            strokeDashoffset={238.76 * (1 - failedCount / totalPayments)}
-                            transform={`rotate(${((paidCount + refundedCount) / totalPayments) * 360} 50 50)`}
-                            className="transition-all duration-500"
-                          />
-                        )}
-                      </svg>
-                      
-                      <div className="absolute flex flex-col items-center justify-center leading-none text-center">
-                        <span className="text-xl font-black text-white">{pctPaid}%</span>
-                        <span className="text-[8px] uppercase tracking-widest text-white/40 mt-1 font-bold">Paid Ratio</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-[var(--brand-red)]" />
-                        <span className="text-white/60">Paid</span>
-                      </div>
-                      <span className="font-bold text-white">{paidCount} ({pctPaid}%)</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-amber-600" />
-                        <span className="text-white/60">Refunded</span>
-                      </div>
-                      <span className="font-bold text-white">{refundedCount} ({pctRefunded}%)</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-slate-600" />
-                        <span className="text-white/60">Failed / Created</span>
-                      </div>
-                      <span className="font-bold text-white">{failedCount} ({pctFailed}%)</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bar Chart: Sales & Bookings comparison */}
-                <div className="md:col-span-8 rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-2.5">
-                      Sales & Views
-                    </h3>
+                <div className="flex items-center gap-1.5 text-[8.5px] font-black uppercase tracking-wider self-end md:self-center shrink-0">
+                  {[
+                    { id: "7", label: "7 Days" },
+                    { id: "30", label: "30 Days" },
+                    { id: "365", label: "1 Year" },
+                    { id: "all", label: "All Time" }
+                  ].map((d) => {
+                    const isAct = daysParam === d.id;
+                    const linkQuery = new URLSearchParams();
+                    linkQuery.set("section", "overview");
+                    linkQuery.set("days", d.id);
+                    if (provider) linkQuery.set("provider", provider);
+                    if (status) linkQuery.set("status", status);
                     
-                    {/* Vertical bars container */}
-                    <div className="h-48 mt-6 flex items-end justify-between gap-2 px-2 relative border-b border-white/5 pb-1">
-                      {/* Grid Lines */}
-                      <div className="absolute inset-x-0 bottom-12 border-t border-white/5" />
-                      <div className="absolute inset-x-0 bottom-24 border-t border-white/5" />
-                      <div className="absolute inset-x-0 bottom-36 border-t border-white/5" />
-
-                      {monthlyRevenueData.map((item) => {
-                        const revHeight = Math.max(10, Math.round((item.revenue / maxRev) * 100));
-                        const bookHeight = Math.max(10, Math.round((item.bookings / maxBook) * 100));
-                        
-                        return (
-                          <div key={item.month} className="flex-1 flex flex-col items-center h-full justify-end relative group">
-                            <div className="flex items-end justify-center gap-1.5 w-full h-full">
-                              {/* Revenue Bar (Red) */}
-                              <div
-                                style={{ height: `${revHeight}%` }}
-                                className="w-2.5 rounded-t-sm bg-gradient-to-t from-orange-600 to-amber-400 shadow-md shadow-orange-500/20 transition-all duration-500 relative"
-                              >
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-red-600 text-[8px] font-black text-white px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
-                                  ₹{Math.round(item.revenue/1000)}k
-                                </span>
-                              </div>
-                              {/* Bookings Bar (Slate) */}
-                              <div
-                                style={{ height: `${bookHeight}%` }}
-                                className="w-2.5 rounded-t-sm bg-gradient-to-t from-blue-600 to-cyan-400 shadow-md shadow-cyan-500/20 transition-all duration-500 relative"
-                              >
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-slate-700 text-[8px] font-black text-white px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
-                                  {item.bookings} Book
-                                </span>
-                              </div>
-                            </div>
-                            <span className="text-[10px] text-white/40 mt-2 font-bold tracking-wider uppercase select-none">{item.month}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 text-[10px] uppercase font-black tracking-wider mt-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-gradient-to-t from-orange-600 to-amber-400 shadow-sm shadow-orange-500/30" />
-                      <span className="text-white/60">Sales Revenue</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-gradient-to-t from-blue-600 to-cyan-400 shadow-sm shadow-cyan-500/30" />
-                      <span className="text-white/60">Booking Count</span>
-                    </div>
-                  </div>
+                    return (
+                      <Link
+                        key={d.id}
+                        href={`/dashboard/admin?${linkQuery.toString()}`}
+                        className={`rounded-lg px-2.5 py-1 border transition duration-200 ${
+                          isAct
+                            ? "bg-[var(--brand-red)] border-red-500/20 text-white shadow-sm"
+                            : "border-white/5 hover:bg-white/5 text-white/50"
+                        }`}
+                      >
+                        {d.label}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Bottom statistics targets section */}
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl flex items-center justify-between">
-                  <div className="space-y-1.5">
-                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Monthly Revenue Target</h4>
-                    <p className="text-2xl font-black text-white">₹{paidTotal.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-green-400 font-bold flex items-center gap-1">
-                      <span>▲ 16.5%</span> <span className="text-white/40 font-normal">vs target ₹1.5L</span>
-                    </p>
-                  </div>
-                  
-                  {/* Gauge indicator */}
-                  <div className="relative flex items-center justify-center">
-                    <svg viewBox="0 0 36 36" className="w-16 h-16 transform -rotate-90">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="3" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="var(--brand-red)" strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - Math.min(100, Math.round((paidTotal / 150000) * 100))} />
-                    </svg>
-                    <span className="absolute text-[10px] font-black text-white">{Math.min(100, Math.round((paidTotal / 150000) * 100))}%</span>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl flex items-center justify-between">
-                  <div className="space-y-1.5">
-                    <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Yearly Revenue Target</h4>
-                    <p className="text-2xl font-black text-white">₹9,84,246</p>
-                    <p className="text-xs text-green-400 font-bold flex items-center gap-1">
-                      <span>▲ 24.9%</span> <span className="text-white/40 font-normal">vs target ₹15L</span>
-                    </p>
-                  </div>
-
-                  {/* Gauge indicator */}
-                  <div className="relative flex items-center justify-center">
-                    <svg viewBox="0 0 36 36" className="w-16 h-16 transform -rotate-90">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="3" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#d97706" strokeWidth="3" strokeDasharray="100" strokeDashoffset={100 - 65} />
-                    </svg>
-                    <span className="absolute text-[10px] font-black text-white">65%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Administrative Actions Panel */}
-              <section className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl">
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Quick Actions</p>
-                <h2 className="text-base font-black uppercase tracking-wider text-white mt-1">Admin Control Center</h2>
-                <p className="text-xs text-white/60 leading-relaxed mt-1">Initialize mock databases, bypass payment triggers, or audit vehicle parameters instantly.</p>
-                <div className="mt-5">
-                  <AdminActionPanel />
-                </div>
-              </section>
-
-              {/* Live Activity Feed Monitor */}
-              <AdminActivityFeed />
+              <AdminOverviewClient
+                paidTotal={paidTotal}
+                totalRefunds={refundTotal}
+                totalBookings={financeItems.length}
+                activeRidersCount={uniqueCustomers}
+                paidCount={paidCount}
+                refundedCount={refundedCount}
+                failedCount={failedCount}
+                totalPayments={totalPayments}
+                pctPaid={pctPaid}
+                pctRefunded={pctRefunded}
+                pctFailed={pctFailed}
+                monthlyRevenueData={realMonthlyRevenueData}
+                revenueSparkline={paidSparkline}
+                bookingsSparkline={bookingsSparkline}
+                activeRidersSparkline={ridersSparkline}
+                refundsSparkline={refundSparkline}
+                visitsSparkline={visitsSparkline}
+              />
             </div>
           )}
 
@@ -1205,12 +872,18 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             </section>
           )}
 
-          {activeSection === "footer" && (
+          {activeSection === "broadcasts" && (
+            <AdminBroadcastsPanel />
+          )}
+
+          {activeSection === "settings" && (
             <section className="rounded-3xl border border-white/5 bg-[#0c0c0c] p-6 shadow-xl space-y-4">
               <div className="border-b border-white/5 pb-4">
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Settings</p>
-                <h2 className="text-base font-black uppercase tracking-wider text-white mt-1">Site Footer Configurations</h2>
-                <p className="text-xs text-white/60 leading-relaxed mt-1">Configure brand descriptions, copyright info, phone registries, and social indexes.</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/40">Master Controls</p>
+                <h2 className="text-base font-black uppercase tracking-wider text-white mt-1 flex items-center gap-2">
+                  <span>⚙️</span> Global Platform & Site Settings
+                </h2>
+                <p className="text-xs text-white/60 leading-relaxed mt-1">Configure vehicle card themes, brand identity, payment gateways, automated discounts, operational controls, and SEO metadata.</p>
               </div>
               <div>
                 <AdminSiteSettingsPanel />

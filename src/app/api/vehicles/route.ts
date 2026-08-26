@@ -92,17 +92,7 @@ export async function GET(request: NextRequest) {
       };
 
       // ⚡ Phase 1: Fetch initial DB datasets in parallel (including fast indexed COUNT)
-      const [activeBookings, overrides, dbVehicles, totalCount, dbCities] = await Promise.all([
-        prisma.booking.findMany({
-          where: {
-            status: "CONFIRMED",
-            endDate: { gte: now },
-          },
-          select: {
-            vehicleId: true,
-            endDate: true,
-          },
-        }),
+      const [overrides, dbVehicles, totalCount, dbCities] = await Promise.all([
         getVehicleAvailabilityOverrides(),
         prisma.vehicle.findMany({
           where: whereClause,
@@ -150,6 +140,22 @@ export async function GET(request: NextRequest) {
       const hasMore = dbVehicles.length > limit;
       const pageVehicles = hasMore ? dbVehicles.slice(0, limit) : dbVehicles;
       const nextCursor = hasMore ? pageVehicles[pageVehicles.length - 1]?.id : null;
+      const currentVehicleIds = pageVehicles.map((v) => v.id);
+
+      // ⚡ Phase 2: Bounded Active Booking lookup ONLY for current page vehicle IDs
+      const activeBookings = currentVehicleIds.length > 0
+        ? await prisma.booking.findMany({
+            where: {
+              vehicleId: { in: currentVehicleIds },
+              status: "CONFIRMED",
+              endDate: { gte: now },
+            },
+            select: {
+              vehicleId: true,
+              endDate: true,
+            },
+          })
+        : [];
 
       const activeVehicleIds = new Set(activeBookings.map((item) => item.vehicleId));
       const bookedUntilMap = new Map<string, string>();

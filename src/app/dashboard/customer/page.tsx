@@ -28,15 +28,43 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
             : []),
         ],
       },
-      include: {
-        user: true,
+      select: {
+        id: true,
+        vehicleId: true,
+        cityName: true,
+        startDate: true,
+        endDate: true,
+        totalAmountINR: true,
+        currency: true,
+        status: true,
+        handoverStatus: true,
+        extraChargesPaid: true,
+        extraChargesAmount: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
         vehicle: {
-          include: {
-            vendor: true,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            fuel: true,
+            seats: true,
+            vendor: {
+              select: {
+                businessName: true,
+                contactPhone: true,
+              },
+            },
           },
         },
       },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
 
     return bookings.map((b) => ({

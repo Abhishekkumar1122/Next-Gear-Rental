@@ -85,6 +85,7 @@ const siteSettingsSchema = z.object({
   faq1Question: z.string().max(100).optional(), faq1Answer: z.string().max(300).optional(),
   faq2Question: z.string().max(100).optional(), faq2Answer: z.string().max(300).optional(),
   faq3Question: z.string().max(100).optional(), faq3Answer: z.string().max(300).optional(),
+  vehicleCardStyle: z.enum(["classic", "glassmorphism", "cyberpunk", "platinum", "boldsport", "holographic"]).optional(),
 });
 
 export async function GET() {

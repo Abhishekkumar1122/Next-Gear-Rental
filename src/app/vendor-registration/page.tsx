@@ -64,28 +64,28 @@ export default async function VendorRegistrationPage() {
           <div className="absolute top-[20%] left-[-10%] h-72 w-72 rounded-full bg-[var(--brand-red)]/5 blur-[120px] pointer-events-none z-0" />
           <div className="absolute bottom-[20%] right-[-10%] h-80 w-80 rounded-full bg-red-600/5 blur-[120px] pointer-events-none z-0" />
 
-          <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12 md:px-10 md:py-16 flex-grow relative z-10">
-            <div className="grid gap-8 grid-cols-1 md:grid-cols-[1.1fr_0.9fr]">
-              <div className="order-1 md:order-none md:col-start-2 md:row-start-1 animate-slide-right rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl sm:p-8 accent-border hover:border-white/20 transition-all duration-300">
+          <main className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-8 px-3.5 sm:px-6 md:px-10 py-6 sm:py-12 md:py-16 flex-grow relative z-10">
+            <div className="grid gap-4 sm:gap-8 grid-cols-1 md:grid-cols-[1.1fr_0.9fr]">
+              <div className="order-1 md:order-none md:col-start-2 md:row-start-1 animate-slide-right rounded-2xl sm:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-8 shadow-2xl accent-border hover:border-white/20 transition-all duration-300">
                 <VendorRegistrationForm />
               </div>
               <div className="order-2 md:order-none md:col-span-2 md:col-start-1 md:row-start-2 animate-slide-bottom">
                 <VendorApplicationStatusPanel />
               </div>
-              <div className="order-3 md:order-none md:col-start-1 md:row-start-1 animate-slide-left rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl sm:p-8 accent-border hover:border-white/20 transition-all duration-300">
-                <h2 className="text-xl font-bold tracking-tight text-white mb-6 uppercase tracking-wider text-[var(--brand-red-soft)]">Why partner with us</h2>
-                <div className="space-y-6">
+              <div className="order-3 md:order-none md:col-start-1 md:row-start-1 animate-slide-left rounded-2xl sm:rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-8 shadow-2xl accent-border hover:border-white/20 transition-all duration-300">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white mb-3.5 sm:mb-6 uppercase tracking-wider text-[var(--brand-red-soft)]">Why partner with us</h2>
+                <div className="space-y-3 sm:space-y-6">
                   {[
                     { n: "1", title: "Pan India Demand", desc: "Get instant access to verified customers and bookings across major cities in India." },
                     { n: "2", title: "Weekly Payouts", desc: "Enjoy transparent commissions, low platform fees, and guaranteed weekly bank payouts." },
                     { n: "3", title: "Dedicated Support", desc: "Get assigned a dedicated vendor success manager to help set up and scale your listings." },
                     { n: "4", title: "Live Vendor Dashboard", desc: "Monitor earnings, block vehicle availability, and control pricing from a single live portal." },
                   ].map((item) => (
-                    <div key={item.n} className="flex gap-4 items-start">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] border border-white/10 text-[var(--brand-red-soft)] font-bold text-sm">{item.n}</div>
+                    <div key={item.n} className="flex gap-3 sm:gap-4 items-start">
+                      <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] border border-white/10 text-[var(--brand-red-soft)] font-bold text-xs sm:text-sm">{item.n}</div>
                       <div>
-                        <h3 className="text-sm font-semibold text-white">{item.title}</h3>
-                        <p className="mt-1 text-xs text-white/60">{item.desc}</p>
+                        <h3 className="text-xs sm:text-sm font-semibold text-white">{item.title}</h3>
+                        <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-white/60 leading-relaxed">{item.desc}</p>
                       </div>
                     </div>
                   ))}
