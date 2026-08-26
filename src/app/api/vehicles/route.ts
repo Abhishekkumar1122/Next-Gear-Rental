@@ -201,6 +201,15 @@ export async function GET(request: NextRequest) {
         const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
         if (maxPrice > 0 && effectivePrice > maxPrice) return null;
 
+        const dbImages = imageMap.get(vehicle.id) ?? [];
+        const mockMatch = vehicles.find((v) => v.id === vehicle.id || v.title.toLowerCase().trim() === vehicle.title.toLowerCase().trim());
+        const combinedImages = [...dbImages];
+        if (mockMatch && Array.isArray(mockMatch.imageUrls)) {
+          for (const url of mockMatch.imageUrls) {
+            if (url && !combinedImages.includes(url)) combinedImages.push(url);
+          }
+        }
+
         return {
           id: vehicle.id,
           title: vehicle.title,
@@ -225,7 +234,7 @@ export async function GET(request: NextRequest) {
           price3HrINR: vehicle.price3HrINR,
           price6HrINR: vehicle.price6HrINR,
           price12HrINR: vehicle.price12HrINR,
-          imageUrls: imageMap.get(vehicle.id) ?? [],
+          imageUrls: combinedImages.slice(0, 4),
           vehicleNumber: vehicleNumberMap.get(vehicle.id),
         };
       }).filter((item) => item !== null) as Vehicle[];

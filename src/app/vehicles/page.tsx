@@ -85,7 +85,7 @@ function VehicleCatalogCard({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Parse all valid image URLs provided by Vendor or Admin (up to 4 photos)
+  // Parse all valid image URLs (Always ensure 4 dynamic photos for smooth auto-slideshow)
   const images = useMemo(() => {
     const list: string[] = [];
     if (Array.isArray(vehicle.imageUrls)) {
@@ -102,15 +102,51 @@ function VehicleCatalogCard({
       if (!list.includes(single)) list.push(single);
     }
 
-    if (list.length === 0) {
-      const def = vehicle.type.toLowerCase().includes("bike") || vehicle.type.toLowerCase().includes("scoot")
-        ? "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&q=80"
-        : "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80";
-      list.push(def);
+    // 🌟 Fallback to mock data 4-angle gallery for this vehicle model
+    const mockMatch = fallbackVehicles.find(
+      (v) => v.id === vehicle.id || v.title.toLowerCase().trim() === vehicle.title.toLowerCase().trim()
+    );
+    if (mockMatch && Array.isArray(mockMatch.imageUrls)) {
+      mockMatch.imageUrls.forEach((url) => {
+        if (url && typeof url === "string" && url.trim() && !list.includes(url.trim())) {
+          list.push(url.trim());
+        }
+      });
+    }
+
+    // 🌟 Smart 4-angle vehicle presets if fewer than 4
+    if (list.length < 4) {
+      const isBike = vehicle.type.toLowerCase().includes("bike");
+      const isScoot = vehicle.type.toLowerCase().includes("scoot");
+      const typePresets = isBike
+        ? [
+            "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&q=80",
+            "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80",
+            "https://images.unsplash.com/photo-1558980664-3a031cf67ea8?w=800&q=80",
+            "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=800&q=80",
+          ]
+        : isScoot
+        ? [
+            "https://images.unsplash.com/photo-1621252179027-94459d278660?w=800&q=80",
+            "https://images.unsplash.com/photo-1558981420-87aa9dad1c89?w=800&q=80",
+            "https://images.unsplash.com/photo-1591637333184-19aa84b3e01f?w=800&q=80",
+            "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80",
+          ]
+        : [
+            "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&q=80",
+            "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80",
+            "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80",
+            "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80",
+          ];
+
+      for (const preset of typePresets) {
+        if (list.length >= 4) break;
+        if (!list.includes(preset)) list.push(preset);
+      }
     }
 
     return list.slice(0, 4);
-  }, [vehicle.imageUrls, (vehicle as any).imageUrl, (vehicle as any).image, vehicle.type]);
+  }, [vehicle.imageUrls, (vehicle as any).imageUrl, (vehicle as any).image, vehicle.id, vehicle.title, vehicle.type]);
 
   const defaultImage = vehicle.type.toLowerCase().includes("bike") || vehicle.type.toLowerCase().includes("scoot")
     ? "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=400&q=80"
@@ -119,7 +155,7 @@ function VehicleCatalogCard({
   // Continuous auto-slideshow animation for up to 4 images
   useEffect(() => {
     if (images.length <= 1) return;
-    const speed = isHovered ? 1500 : 2500;
+    const speed = isHovered ? 1400 : 2600;
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }, speed);
