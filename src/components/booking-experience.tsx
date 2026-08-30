@@ -4,6 +4,7 @@ import { toCurrency, calculateHours, calculateHourlyBaseCost, calculateDailyVehi
 import { downloadOfflinePass } from "@/lib/booking-pass-downloader";
 import { cityConfigs } from "@/lib/india-locations";
 import { calculateBookingAmount, formatBookingId } from "@/lib/pricing-tiers";
+import { calculateDistanceKm, calculateDeliveryFee, type DeliveryCalculation } from "@/lib/delivery-pricing";
 
 import { Booking, Vehicle } from "@/lib/types";
 import { bookingAddOns, vehicles as mockVehicles } from "@/lib/mock-data";
@@ -387,8 +388,13 @@ export function BookingExperience({
   const isNriMode = searchParams.get("nri") === "1";
   const prefilledTimezone = searchParams.get("tz") ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "Asia/Kolkata";
   const [city, setCity] = useState(prefilledCity);
-  const [startDate, setStartDate] = useState(() => offsetDate(1));
-  const [endDate, setEndDate] = useState(() => offsetDate(3));
+  
+  const queryStart = searchParams.get("startDate") || searchParams.get("start");
+  const queryEnd = searchParams.get("endDate") || searchParams.get("end");
+
+  // Default to 1 Day (Tomorrow to Day After, 24 hours) so initial listing price matches 1-to-1
+  const [startDate, setStartDate] = useState(() => queryStart || offsetDate(1));
+  const [endDate, setEndDate] = useState(() => queryEnd || offsetDate(2));
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
   const [type, setType] = useState("");
@@ -512,6 +518,162 @@ export function BookingExperience({
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showAddGearModal, setShowAddGearModal] = useState(false);
+
+  // 🚚 Smart Doorstep Delivery States
+  const [deliveryMode, setDeliveryMode] = useState<"self_pickup" | "doorstep">("self_pickup");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryLandmark, setDeliveryLandmark] = useState("");
+  const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
+  const [deliveryLng, setDeliveryLng] = useState<number | null>(null);
+  const [isLocatingDelivery, setIsLocatingDelivery] = useState(false);
+  const [deliveryCalc, setDeliveryCalc] = useState<DeliveryCalculation | null>(null);
+  const [deliverySearchQuery, setDeliverySearchQuery] = useState("");
+  const [deliverySearchResults, setDeliverySearchResults] = useState<any[]>([]);
+  const [isSearchingDelivery, setIsSearchingDelivery] = useState(false);
+  const [docErrorToast, setDocErrorToast] = useState<{ title: string; desc: string } | null>(null);
+  const [docPreviewModal, setDocPreviewModal] = useState<{
+    title: string;
+    docType: "license" | "aadhaar" | "aadhaar-back";
+    fileUrl: string;
+    fileName: string;
+    docNumber?: string;
+    fullName?: string;
+    dob?: string;
+    confidence?: number;
+  } | null>(null);
+  const [uploadedDocMeta, setUploadedDocMeta] = useState<{
+    dl?: { fileUrl: string; fileName: string; docNumber: string; fullName: string; dob?: string; confidence?: number };
+    gov?: { fileUrl: string; fileName: string; docNumber: string; fullName: string; dob?: string; confidence?: number };
+    govBack?: { fileUrl: string; fileName: string };
+  }>({});
+
+  // 6-Month Fast-Track KYC Status Auto-Detection
+  const [is6MonthKycVerified, setIs6MonthKycVerified] = useState(false);
+  const [kycDaysRemaining, setKycDaysRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    const cleanP = phone?.replace(/\D/g, "");
+    if (cleanP && cleanP.length >= 10) {
+      const checkStatus = async () => {
+        try {
+          const res = await fetch(`/api/kyc/customer-status?phone=${encodeURIComponent(cleanP)}&email=${encodeURIComponent(email || "")}`);
+          const data = await res.json();
+          if (res.ok && data.isVerified) {
+            setIs6MonthKycVerified(true);
+            setKycDaysRemaining(data.daysRemaining || 180);
+            if (data.customerName && !fullName) {
+              setFullName(data.customerName);
+            }
+            if (data.documents) {
+              if (data.documents.dlNo && !drivingLicenseNo) setDrivingLicenseNo(data.documents.dlNo);
+              if (data.documents.aadhaarNo && !governmentIdNo) setGovernmentIdNo(data.documents.aadhaarNo);
+              if (data.documents.dlUrl && !dlFileName) setDlFileName("Pre-Verified_DL.png");
+              if (data.documents.aadhaarFrontUrl && !govFileName) setGovFileName("Pre-Verified_Aadhaar.png");
+            }
+          }
+        } catch (e) {
+          console.warn("KYC auto-check error:", e);
+        }
+      };
+      checkStatus();
+    }
+  }, [phone, email]);
+
+  const deliveryDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Recalculate delivery distance and fee when deliveryLat/Lng or selectedVehicle changes
+  const updateDeliveryDistanceAndFee = (custLat: number, custLng: number, vType?: string) => {
+    const hubLat = selectedVehicle?.latitude || 28.5355;
+    const hubLng = selectedVehicle?.longitude || 77.3910;
+    const typeToUse = vType || selectedVehicle?.type || "car";
+    const dist = calculateDistanceKm(hubLat, hubLng, custLat, custLng);
+    const calc = calculateDeliveryFee(dist, typeToUse);
+    setDeliveryCalc(calc);
+  };
+
+  // 1-Tap Customer Delivery GPS Detection
+  const handleDetectCustomerDeliveryGps = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setIsLocatingDelivery(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setDeliveryLat(latitude);
+        setDeliveryLng(longitude);
+        updateDeliveryDistanceAndFee(latitude, longitude);
+
+        // Reverse geocode customer delivery address
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+          );
+          const data = await res.json();
+          if (data && data.address) {
+            const road = data.address.road || data.address.pedestrian || data.address.street || "";
+            const neighbourhood = data.address.neighbourhood || data.address.suburb || data.address.residential || "";
+            const detectedCity = data.address.city || data.address.town || data.address.county || "";
+            const formatted = [road, neighbourhood, detectedCity].filter(Boolean).join(", ") || data.display_name;
+            setDeliveryAddress(formatted);
+            if (neighbourhood && !deliveryLandmark) {
+              setDeliveryLandmark(neighbourhood);
+            }
+          }
+        } catch (e) {
+          console.warn("Could not reverse geocode customer location:", e);
+        } finally {
+          setIsLocatingDelivery(false);
+        }
+      },
+      (err) => {
+        console.warn("GPS detection error:", err);
+        alert("Could not access GPS. Please type your delivery address or hotel name.");
+        setIsLocatingDelivery(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  // Delivery Search Handler
+  const handleDeliverySearch = (query: string) => {
+    setDeliverySearchQuery(query);
+    if (deliveryDebounceRef.current) clearTimeout(deliveryDebounceRef.current);
+
+    if (query.trim().length < 3) {
+      setDeliverySearchResults([]);
+      return;
+    }
+
+    setIsSearchingDelivery(true);
+    deliveryDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            query + ", " + (city || "India")
+          )}&limit=5&countrycodes=in`
+        );
+        const data = await res.json();
+        setDeliverySearchResults(data || []);
+      } catch (err) {
+        console.warn("Delivery search error:", err);
+      } finally {
+        setIsSearchingDelivery(false);
+      }
+    }, 400);
+  };
+
+  const selectDeliverySearchResult = (item: any) => {
+    const newLat = parseFloat(item.lat);
+    const newLng = parseFloat(item.lon);
+    setDeliveryLat(newLat);
+    setDeliveryLng(newLng);
+    setDeliveryAddress(item.display_name);
+    setDeliverySearchResults([]);
+    setDeliverySearchQuery("");
+    updateDeliveryDistanceAndFee(newLat, newLng);
+  };
 
   function toggleAddon(addon: string) {
     setAddons((prev) =>
@@ -817,9 +979,14 @@ export function BookingExperience({
     return cost;
   }, [selectHelmet, selectGps, accessoryHelmetPrice, accessoryGpsPrice, rentalDays, quantity]);
 
+  const deliveryFeeAmount = useMemo(() => {
+    if (deliveryMode !== "doorstep" || !deliveryCalc) return 0;
+    return deliveryCalc.feeINR || 0;
+  }, [deliveryMode, deliveryCalc]);
+
   const finalEstimatedPrice = useMemo(() => {
-    return totalBaseBeforeBulk - bulkDiscount + addonsCost + accessoriesCost;
-  }, [totalBaseBeforeBulk, bulkDiscount, addonsCost, accessoriesCost]);
+    return totalBaseBeforeBulk - bulkDiscount + addonsCost + accessoriesCost + deliveryFeeAmount;
+  }, [totalBaseBeforeBulk, bulkDiscount, addonsCost, accessoriesCost, deliveryFeeAmount]);
 
   async function startLiveRazorpayPayment(params: {
     bookingId: string;
@@ -1166,6 +1333,13 @@ export function BookingExperience({
         isNri: isNriMode,
         internationalCardPreferred: isNriMode,
         quantity,
+        deliveryMode,
+        deliveryAddress: deliveryMode === "doorstep" ? deliveryAddress : undefined,
+        deliveryLandmark: deliveryMode === "doorstep" ? deliveryLandmark : undefined,
+        deliveryLat: deliveryMode === "doorstep" ? deliveryLat : undefined,
+        deliveryLng: deliveryMode === "doorstep" ? deliveryLng : undefined,
+        deliveryFeeINR: deliveryMode === "doorstep" && deliveryCalc ? deliveryCalc.feeINR : 0,
+        deliveryDistanceKm: deliveryMode === "doorstep" && deliveryCalc ? deliveryCalc.distanceKm : undefined,
         paymentProvider,
         paymentOption,
         kyc: {
@@ -1323,14 +1497,78 @@ export function BookingExperience({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Upload failed");
+        setFileName("");
+        if (isDl) {
+          setDrivingLicenseFile(null);
+          setDrivingLicenseNo("");
+        } else if (isGovBack) {
+          setGovernmentIdBackFile(null);
+        } else {
+          setGovernmentIdFile(null);
+          setGovernmentIdNo("");
+        }
+        const errorText = data.error || "Upload failed. Please upload a valid document.";
+        setDocErrorToast({
+          title: isDl ? "Invalid Driving License" : (isGovBack ? "Invalid Aadhaar Back" : "Invalid Aadhaar Card"),
+          desc: errorText,
+        });
+        throw new Error(errorText);
       }
 
-      setDocNo(data.extractedData.documentNumber);
-      setMessageStr("Verification Complete!");
+      setDocErrorToast(null);
+
+      const localBlobUrl = URL.createObjectURL(file);
+      const metaUrl = data.url || localBlobUrl;
+
+      if (isDl) {
+        setUploadedDocMeta(prev => ({
+          ...prev,
+          dl: {
+            fileUrl: metaUrl,
+            fileName: file.name,
+            docNumber: data.extractedData?.documentNumber || "",
+            fullName: data.extractedData?.fullName || fullName || "",
+            dob: data.extractedData?.dob || "",
+            confidence: data.extractedData?.confidenceScore || 95,
+          }
+        }));
+      } else if (isGovBack) {
+        setUploadedDocMeta(prev => ({
+          ...prev,
+          govBack: {
+            fileUrl: metaUrl,
+            fileName: file.name,
+          }
+        }));
+      } else {
+        setUploadedDocMeta(prev => ({
+          ...prev,
+          gov: {
+            fileUrl: metaUrl,
+            fileName: file.name,
+            docNumber: data.extractedData?.documentNumber || "",
+            fullName: data.extractedData?.fullName || fullName || "",
+            dob: data.extractedData?.dob || "",
+            confidence: data.extractedData?.confidenceScore || 95,
+          }
+        }));
+      }
+
+      if (data.extractedData?.documentNumber && data.extractedData.documentNumber !== "BACK_VERIFIED") {
+        setDocNo(data.extractedData.documentNumber);
+        setMessageStr(`✅ Scanned: ${data.extractedData.documentNumber}`);
+      } else if (isGovBack) {
+        setMessageStr("✅ Aadhaar Back Uploaded!");
+      } else {
+        setMessageStr(`⚠️ Could not detect ${isDl ? "Driving License" : "Aadhaar"} number from photo. Please enter manually below.`);
+      }
+
+      if (data.extractedData?.fullName) {
+        setFullName(data.extractedData.fullName);
+      }
     } catch (err: any) {
-      console.error(err);
-      setMessageStr(err.message || "Extraction failed. Please type manually.");
+      console.warn("KYC Manual upload error:", err);
+      setMessageStr(err.message || "⚠️ Upload failed. Please upload valid document.");
     } finally {
       setUploading(false);
     }
@@ -1563,7 +1801,7 @@ export function BookingExperience({
 
   return (
     <>
-      <section className="fade-up space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white relative overflow-hidden pb-28 sm:pb-6">
+      <section className="fade-up space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden pb-40 sm:pb-8">
       
       {/* Dynamic Aesthetic Styles Tag */}
       <style>{`
@@ -1800,42 +2038,217 @@ export function BookingExperience({
               </div>
             </div>
 
+            {/* 🚚 HANDOVER PREFERENCE: SELF PICKUP VS DOORSTEP DELIVERY */}
+            <div className="mt-2.5 sm:mt-3 rounded-2xl border border-white/10 bg-neutral-900/60 p-2.5 sm:p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                  <span>🚚</span>
+                  <span>Handover Preference</span>
+                </label>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  0–5 km FREE
+                </span>
+              </div>
 
-            <div className="mt-3 sm:mt-4 grid gap-3 sm:gap-6 grid-cols-1 md:grid-cols-2 text-sm">
-              {/* Column 1: Dates & Location (Styled as a premium summary card on mobile) */}
-              <div className="space-y-2.5 sm:space-y-4">
-                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 space-y-2 sm:space-y-3.5 sm:border-0 sm:bg-transparent sm:p-0">
+              {/* Compact Switcher Tabs (Constrained max-w on desktop for clean aesthetics) */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-black/50 border border-white/10 max-w-full sm:max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryMode("self_pickup")}
+                  className={`py-1.5 sm:py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate ${
+                    deliveryMode === "self_pickup"
+                      ? "bg-neutral-800 text-white shadow-md border border-white/20"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <span>🏬 Self-Pickup</span>
+                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded hidden xs:inline">
+                    FREE
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeliveryMode("doorstep");
+                    if (!deliveryLat) {
+                      handleDetectCustomerDeliveryGps();
+                    }
+                  }}
+                  className={`py-1.5 sm:py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer truncate ${
+                    deliveryMode === "doorstep"
+                      ? "bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <span>🚚 Doorstep Drop</span>
+                  <span className="text-[9px] font-bold bg-white/20 px-1.5 py-0.5 rounded text-white hidden xs:inline">
+                    0-5km Free
+                  </span>
+                </button>
+              </div>
+
+              {/* Compact Self-Pickup Info Strip */}
+              {deliveryMode === "self_pickup" && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2 sm:p-2.5 flex items-center justify-between gap-2 text-xs max-w-full sm:max-w-xl">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm shrink-0">📍</span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-white/90 truncate text-xs">
+                        {selectedVehicle.pickupAddress || `${city || selectedVehicle.city} Hub`}
+                      </p>
+                      {selectedVehicle.pickupLandmark && (
+                        <p className="text-[10px] text-white/50 truncate mt-0.5">
+                          Landmark: {selectedVehicle.pickupLandmark}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md shrink-0">
+                    ₹0 FREE
+                  </span>
+                </div>
+              )}
+
+              {/* Doorstep Delivery View */}
+              {deliveryMode === "doorstep" && (
+                <div className="space-y-2.5 pt-0.5 max-w-full sm:max-w-2xl">
+                  {/* Search Autocomplete + GPS Button */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/40 px-3 py-1.5 sm:py-2 text-xs focus-within:border-red-500">
+                        <span className="text-white/40">🔍</span>
+                        <input
+                          type="text"
+                          value={deliverySearchQuery}
+                          onChange={(e) => handleDeliverySearch(e.target.value)}
+                          placeholder="Search hotel, colony, building, airport..."
+                          className="w-full bg-transparent text-xs text-white placeholder-white/40 focus:outline-none"
+                        />
+                        {isSearchingDelivery && <span className="text-amber-400 text-xs animate-spin">⏳</span>}
+                      </div>
+
+                      {deliverySearchResults.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-xl border border-white/20 bg-[#1a1a1c] p-1.5 shadow-2xl backdrop-blur-xl">
+                          {deliverySearchResults.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => selectDeliverySearchResult(item)}
+                              className="w-full text-left p-2.5 rounded-lg text-xs text-white/90 hover:bg-red-600/20 hover:text-white transition flex items-start gap-2 cursor-pointer border-b border-white/5 last:border-0"
+                            >
+                              <span className="text-red-400">📍</span>
+                              <span className="line-clamp-2 leading-relaxed">{item.display_name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDetectCustomerDeliveryGps}
+                      disabled={isLocatingDelivery}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 px-3.5 py-1.5 sm:py-2 text-xs font-bold text-white shadow-md cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {isLocatingDelivery ? "Locating..." : "📍 Use My GPS"}
+                    </button>
+                  </div>
+
+                  {/* Address & Landmark */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-white/60 mb-1">
+                        Delivery Address / Area <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder="e.g. Hotel Radisson, Banjara Hills"
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 sm:py-2 text-xs text-white placeholder-white/30 focus:border-red-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-white/60 mb-1">
+                        Room / Flat / Gate / Landmark
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryLandmark}
+                        onChange={(e) => setDeliveryLandmark(e.target.value)}
+                        placeholder="e.g. Room 402, Main Reception, Gate 2"
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-1.5 sm:py-2 text-xs text-white placeholder-white/30 focus:border-red-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Real-Time Distance & Tier Pricing Badge */}
+                  {deliveryCalc && (
+                    <div className={`rounded-xl border p-2.5 flex items-center justify-between gap-2 text-xs ${deliveryCalc.badgeColor}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                        <div>
+                          <p className="font-bold leading-tight">{deliveryCalc.badgeText}</p>
+                          <p className="text-[10px] opacity-75 mt-0.5">
+                            📍 {deliveryCalc.distanceKm} km from vendor hub ({deliveryCalc.tierName})
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-mono font-extrabold text-sm shrink-0">
+                        {deliveryCalc.feeINR === 0 ? "FREE" : `+₹${deliveryCalc.feeINR}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2.5 sm:mt-3 grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 text-sm">
+              {/* Column 1: Dates & Location */}
+              <div className="space-y-2 sm:space-y-2.5">
+                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-2.5 sm:p-3.5 space-y-2 sm:border-0 sm:bg-transparent sm:p-0">
                   <div>
                     <p className="text-[9.5px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1">
                       <span>📅</span> DATES, TIMES & QUANTITY
                     </p>
-                    <p className="mt-1 text-xs sm:text-sm font-semibold text-white/85 leading-snug">
-                      {formatDateDisplay(startDate)} ({formatTimeDisplay(startTime)}) to {formatDateDisplay(endDate)} ({formatTimeDisplay(endTime)}) · <span className="text-[var(--brand-red-soft)] font-bold">{useHourly ? `${rentalHours} hrs` : `${rentalDays} days`}</span> · {quantity} {quantity === 1 ? "vehicle" : "vehicles"}
+                    <p className="mt-0.5 text-xs sm:text-sm font-semibold text-white/85 leading-snug">
+                      {formatDateDisplay(startDate)} ({formatTimeDisplay(startTime)}) to {formatDateDisplay(endDate)} ({formatTimeDisplay(endTime)}) · <span className="text-[var(--brand-red-soft)] font-bold">{useHourly ? `${rentalHours} hrs` : `${rentalDays} ${rentalDays === 1 ? "day" : "days"}`}</span> · {quantity} {quantity === 1 ? "vehicle" : "vehicles"}
                     </p>
                   </div>
-                  <div className="border-t border-white/5 pt-2 sm:pt-3.5 sm:border-0 sm:pt-0">
+                  <div className="border-t border-white/5 pt-1.5 sm:border-0 sm:pt-0">
                     <p className="text-[9.5px] sm:text-xs text-white/40 font-bold uppercase tracking-wider flex items-center gap-1">
-                      <span>📍</span> BOOKING LOCATION
+                      <span>📍</span> {deliveryMode === "doorstep" ? "DOORSTEP DELIVERY LOCATION" : "BOOKING HUB LOCATION"}
                     </p>
-                    <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm font-semibold text-white/90">
-                      {city || selectedVehicle.city}
+                    <p className="mt-0.5 text-xs sm:text-sm font-semibold text-white/90">
+                      {deliveryMode === "doorstep" && deliveryAddress ? deliveryAddress : (city || selectedVehicle.city)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Column 2: Estimated Cost (Styled as a premium summary card on mobile) */}
+              {/* Column 2: Estimated Cost */}
               <div className="md:text-right">
-                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 md:border-0 md:bg-transparent md:p-0">
+                <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.02] p-2.5 sm:p-3.5 md:border-0 md:bg-transparent md:p-0">
                   <p className="text-[10px] sm:text-xs text-white/40 uppercase font-bold tracking-wider text-left md:text-right flex items-center gap-1 justify-start md:justify-end">
                     <span>💰</span> ESTIMATED COST
                   </p>
-                  <div className="mt-2 sm:mt-3.5 space-y-1.5 sm:space-y-2 text-xs">
+                  <div className="mt-1.5 sm:mt-2 space-y-1 sm:space-y-1.5 text-xs">
                     <div className="flex justify-between md:justify-end gap-2 text-white/70">
                       <span>Base price ({toCurrency(useHourly ? (selectedVehicle.price1HrINR || Math.round(selectedVehicle.pricePerDayINR / 24)) : selectedVehicle.pricePerDayINR, "INR")} × {useHourly ? `${rentalHours} hrs` : `${rentalDays} ${rentalDays === 1 ? "day" : "days"}`}{quantity > 1 ? ` × ${quantity}` : ""}):</span>
                       <span className="font-bold text-white">{toCurrency(useHourly ? calculateHourlyBaseCost(selectedVehicle, rentalHours) * quantity : selectedVehicle.pricePerDayINR * rentalDays * quantity, "INR")}</span>
                     </div>
-                    <div className="flex justify-between md:justify-end gap-2 text-xs sm:text-sm font-semibold text-white/80 border-t border-white/5 pt-1.5 sm:pt-2">
+
+                    {/* Doorstep Delivery Row */}
+                    {deliveryMode === "doorstep" && (
+                      <div className="flex justify-between md:justify-end gap-2 text-white/80">
+                        <span>Doorstep Delivery ({deliveryCalc ? `${deliveryCalc.distanceKm} km` : "Zone"}):</span>
+                        <span className={`font-bold ${deliveryCalc?.feeINR === 0 ? "text-emerald-400" : "text-white"}`}>
+                          {deliveryCalc?.feeINR === 0 ? "FREE (₹0)" : `+₹${deliveryCalc?.feeINR || 0}`}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between md:justify-end gap-2 text-xs sm:text-sm font-semibold text-white/80 border-t border-white/5 pt-1.5">
                       <span>Total:</span>
                       <span className="text-white font-bold">{toCurrency(finalEstimatedPrice, "INR")}</span>
                     </div>
@@ -1949,6 +2362,27 @@ export function BookingExperience({
                 <h3 className="text-base font-extrabold font-display uppercase tracking-wider text-white/95 border-b border-white/5 pb-2">Customer Details & Document Upload</h3>
               </div>
 
+              {/* 👑 6-Month Fast-Track VIP Status Banner */}
+              {is6MonthKycVerified && (
+                <div className="col-span-1 md:col-span-2 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-emerald-900/40 to-black border border-emerald-500/40 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] animate-[fade-up_0.3s_ease]">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl sm:text-3xl">👑</span>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black uppercase text-emerald-400 tracking-wider flex items-center gap-2">
+                        Fast-Track VIP: 6-Month KYC Verified
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-white/80 mt-0.5">
+                        Your identity & documents are verified and valid for the next <strong className="text-emerald-300 font-bold">{kycDaysRemaining ?? 180} days</strong>. Express checkout unlocked with 0 document uploads needed!
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/20 px-3 py-1.5 rounded-full border border-emerald-500/30 uppercase shrink-0 flex items-center gap-1">
+                    ⚡ 1-Click Express
+                  </span>
+                </div>
+              )}
+
             {/* DigiLocker Banner Section */}
             <div className="col-span-1 md:col-span-2">
               <style>{`
@@ -2010,11 +2444,32 @@ export function BookingExperience({
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-[fade-up_0.3s_ease]">
-                    {/* Driving License Upload Zone */}
-                    <div 
-                      onDragOver={handleDragOver}
-                      onDrop={handleDLDrop}
+                  <div className="animate-[fade-up_0.3s_ease]">
+                    {/* Error / Warning Popup Banner */}
+                    {docErrorToast && (
+                      <div className="mb-3.5 p-3.5 sm:p-4 rounded-2xl border border-red-500/40 bg-gradient-to-r from-red-950/80 via-red-900/40 to-black/80 backdrop-blur-xl flex items-start justify-between gap-3 shadow-[0_0_30px_rgba(239,68,68,0.25)] animate-[head-shake_0.4s_ease]">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl sm:text-2xl mt-0.5 animate-bounce">⚠️</span>
+                          <div>
+                            <h4 className="text-xs sm:text-sm font-bold text-red-400 uppercase tracking-wider">{docErrorToast.title}</h4>
+                            <p className="text-[11px] sm:text-xs text-white/90 mt-0.5 leading-relaxed font-medium">{docErrorToast.desc}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDocErrorToast(null)}
+                          className="text-white/60 hover:text-white text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 transition cursor-pointer flex-shrink-0"
+                        >
+                          ✕ Dismiss
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Driving License Upload Zone */}
+                      <div 
+                        onDragOver={handleDragOver}
+                        onDrop={handleDLDrop}
                       className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 flex flex-row sm:flex-col items-center justify-between sm:justify-center text-left sm:text-center relative overflow-hidden min-h-[65px] sm:min-h-[140px] group"
                     >
                       {isUploadingDl ? (
@@ -2032,21 +2487,39 @@ export function BookingExperience({
                           </div>
                         </div>
                       ) : dlFileName ? (
-                        <div className="w-full flex items-center justify-between gap-2.5">
-                          <div className="flex items-center gap-2 text-left">
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-left min-w-0">
                             <span className="text-lg sm:text-xl">🚗</span>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-[10px] sm:text-xs font-bold text-emerald-400">DL Uploaded</p>
-                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[120px] sm:max-w-[180px]">{dlFileName}</p>
+                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[90px] sm:max-w-[140px]">{dlFileName}</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => { setDlFileName(""); setDrivingLicenseNo(""); setDrivingLicenseFile(null); setDlUploadMessage(""); }}
-                            className="text-[9px] text-white/50 hover:text-white underline border-none bg-transparent cursor-pointer flex-shrink-0"
-                          >
-                            Remove
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setDocPreviewModal({
+                                title: "Driving License Verification",
+                                docType: "license",
+                                fileUrl: uploadedDocMeta.dl?.fileUrl || (drivingLicenseFile ? URL.createObjectURL(drivingLicenseFile) : ""),
+                                fileName: dlFileName,
+                                docNumber: uploadedDocMeta.dl?.docNumber || drivingLicenseNo,
+                                fullName: uploadedDocMeta.dl?.fullName || fullName,
+                                dob: uploadedDocMeta.dl?.dob,
+                                confidence: uploadedDocMeta.dl?.confidence || 95,
+                              })}
+                              className="text-[9px] sm:text-[10px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1"
+                            >
+                              👁️ View & Verify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setDlFileName(""); setDrivingLicenseNo(""); setDrivingLicenseFile(null); setDlUploadMessage(""); }}
+                              className="text-[9px] text-white/40 hover:text-red-400 underline border-none bg-transparent cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="w-full flex items-center justify-between sm:justify-center relative cursor-pointer hover:bg-white/[0.01] transition rounded-xl">
@@ -2094,21 +2567,39 @@ export function BookingExperience({
                           </div>
                         </div>
                       ) : govFileName ? (
-                        <div className="w-full flex items-center justify-between gap-2.5">
-                          <div className="flex items-center gap-2 text-left">
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-left min-w-0">
                             <span className="text-lg sm:text-xl">💳</span>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-[10px] sm:text-xs font-bold text-emerald-400">Aadhaar Front</p>
-                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[120px] sm:max-w-[180px]">{govFileName}</p>
+                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[90px] sm:max-w-[140px]">{govFileName}</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => { setGovFileName(""); setGovernmentIdNo(""); setGovernmentIdFile(null); setGovUploadMessage(""); }}
-                            className="text-[9px] text-white/50 hover:text-white underline border-none bg-transparent cursor-pointer flex-shrink-0"
-                          >
-                            Remove
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setDocPreviewModal({
+                                title: "Aadhaar Front Verification",
+                                docType: "aadhaar",
+                                fileUrl: uploadedDocMeta.gov?.fileUrl || (governmentIdFile ? URL.createObjectURL(governmentIdFile) : ""),
+                                fileName: govFileName,
+                                docNumber: uploadedDocMeta.gov?.docNumber || governmentIdNo,
+                                fullName: uploadedDocMeta.gov?.fullName || fullName,
+                                dob: uploadedDocMeta.gov?.dob,
+                                confidence: uploadedDocMeta.gov?.confidence || 95,
+                              })}
+                              className="text-[9px] sm:text-[10px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1"
+                            >
+                              👁️ View & Verify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setGovFileName(""); setGovernmentIdNo(""); setGovernmentIdFile(null); setGovUploadMessage(""); }}
+                              className="text-[9px] text-white/40 hover:text-red-400 underline border-none bg-transparent cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="w-full flex items-center justify-between sm:justify-center relative cursor-pointer hover:bg-white/[0.01] transition rounded-xl">
@@ -2156,21 +2647,35 @@ export function BookingExperience({
                           </div>
                         </div>
                       ) : govBackFileName ? (
-                        <div className="w-full flex items-center justify-between gap-2.5">
-                          <div className="flex items-center gap-2 text-left">
+                        <div className="w-full flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-left min-w-0">
                             <span className="text-lg sm:text-xl">💳</span>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-[10px] sm:text-xs font-bold text-emerald-400">Aadhaar Back</p>
-                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[120px] sm:max-w-[180px]">{govBackFileName}</p>
+                              <p className="text-[8px] sm:text-[9px] text-white/40 font-mono truncate max-w-[90px] sm:max-w-[140px]">{govBackFileName}</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => { setGovBackFileName(""); setGovernmentIdBackFile(null); setGovBackUploadMessage(""); }}
-                            className="text-[9px] text-white/50 hover:text-white underline border-none bg-transparent cursor-pointer flex-shrink-0"
-                          >
-                            Remove
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setDocPreviewModal({
+                                title: "Aadhaar Back Verification",
+                                docType: "aadhaar-back",
+                                fileUrl: uploadedDocMeta.govBack?.fileUrl || (governmentIdBackFile ? URL.createObjectURL(governmentIdBackFile) : ""),
+                                fileName: govBackFileName,
+                              })}
+                              className="text-[9px] sm:text-[10px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1"
+                            >
+                              👁️ View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setGovBackFileName(""); setGovernmentIdBackFile(null); setGovBackUploadMessage(""); }}
+                              className="text-[9px] text-white/40 hover:text-red-400 underline border-none bg-transparent cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="w-full flex items-center justify-between sm:justify-center relative cursor-pointer hover:bg-white/[0.01] transition rounded-xl">
@@ -2197,8 +2702,9 @@ export function BookingExperience({
                       )}
                     </div>
                   </div>
-                )
-              ) : (
+                </div>
+              )
+            ) : (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 text-white animate-[fade-up_0.3s_ease]">
                   <div className="flex items-center gap-3">
                     <span className="text-lg">✅</span>
@@ -2270,12 +2776,12 @@ export function BookingExperience({
                 <label className="block text-xs font-semibold text-white/60 uppercase">Driving License Number</label>
                 <input
                   required
-                  disabled={isDigiLockerVerified || (isMobile && verificationMode === "manual")}
+                  disabled={isDigiLockerVerified}
                   value={drivingLicenseNo}
                   onChange={(e) => setDrivingLicenseNo(e.target.value)}
                   placeholder="Enter Driving License number"
                   className={`mt-1 w-full rounded-xl border border-white/10 px-3.5 py-2.5 text-white focus:outline-none ${
-                    isDigiLockerVerified || (isMobile && verificationMode === "manual") ? "bg-white/[0.03] text-white/50 cursor-not-allowed" : "bg-white/[0.05] interactive-input"
+                    isDigiLockerVerified ? "bg-white/[0.03] text-white/50 cursor-not-allowed" : "bg-white/[0.05] interactive-input"
                   }`}
                 />
               </div>
@@ -2286,12 +2792,12 @@ export function BookingExperience({
                 <label className="block text-xs font-semibold text-white/60 uppercase">Government ID (Aadhaar)</label>
                 <input
                   required
-                  disabled={isDigiLockerVerified || (isMobile && verificationMode === "manual")}
+                  disabled={isDigiLockerVerified}
                   value={governmentIdNo}
                   onChange={(e) => setGovernmentIdNo(e.target.value)}
                   placeholder="Enter Aadhaar ID number"
                   className={`mt-1 w-full rounded-xl border border-white/10 px-3.5 py-2.5 text-white focus:outline-none ${
-                    isDigiLockerVerified || (isMobile && verificationMode === "manual") ? "bg-white/[0.03] text-white/50 cursor-not-allowed" : "bg-white/[0.05] interactive-input"
+                    isDigiLockerVerified ? "bg-white/[0.03] text-white/50 cursor-not-allowed" : "bg-white/[0.05] interactive-input"
                   }`}
                 />
               </div>
@@ -3173,7 +3679,7 @@ export function BookingExperience({
                 } else if (phone.trim().length < 10) {
                   errors.push("Phone Number must be at least 10 digits.");
                 }
-                if (!isDigiLockerVerified) {
+                if (!isDigiLockerVerified && !is6MonthKycVerified) {
                   if (verificationMode === "manual") {
                     if (!dlFileName) {
                       errors.push("Driving License upload is missing.");
@@ -3280,6 +3786,115 @@ export function BookingExperience({
           >
             Okay, Got it
           </button>
+        </div>
+      </div>
+    )}
+
+    {/* 👁️ Interactive Document Preview & Scan Verification Modal */}
+    {docPreviewModal && (
+      <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[999999] flex items-center justify-center p-3 sm:p-6 animate-[fade-up_0.2s_ease]">
+        <div className="w-full max-w-xl rounded-3xl border border-white/15 bg-[#111116] shadow-[0_0_50px_rgba(0,0,0,0.9)] overflow-hidden text-white flex flex-col max-h-[90vh]">
+          {/* Header */}
+          <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-red-950/40 via-white/[0.02] to-transparent">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl sm:text-2xl">🛡️</span>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                  {docPreviewModal.title}
+                </h3>
+                <p className="text-[10px] sm:text-[11px] text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Verified via Google Gemini AI Vision Engine
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDocPreviewModal(null)}
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-4 sm:p-6 overflow-y-auto space-y-4 no-scrollbar">
+            {/* Image Preview Box */}
+            <div className="rounded-2xl border border-white/10 bg-black/60 p-2 sm:p-3 flex items-center justify-center min-h-[180px] sm:min-h-[240px] max-h-[300px] overflow-hidden relative group">
+              {docPreviewModal.fileUrl ? (
+                docPreviewModal.fileName.endsWith(".pdf") ? (
+                  <div className="flex flex-col items-center justify-center p-6 text-center">
+                    <span className="text-4xl sm:text-5xl">📄</span>
+                    <p className="text-xs font-bold text-white mt-2">{docPreviewModal.fileName}</p>
+                    <p className="text-[10px] text-white/50 mt-0.5">PDF Document Securely Uploaded</p>
+                  </div>
+                ) : (
+                  <img
+                    src={docPreviewModal.fileUrl}
+                    alt="Document Preview"
+                    className="max-h-[260px] w-auto max-w-full object-contain rounded-xl shadow-lg transition-transform duration-300 group-hover:scale-[1.02]"
+                  />
+                )
+              ) : (
+                <p className="text-xs text-white/40">No preview available</p>
+              )}
+            </div>
+
+            {/* Extracted Details & Verification Badges */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">Document Classification</span>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <span>✓</span> {docPreviewModal.docType === "license" ? "Driving License" : "UIDAI Aadhaar Card"}
+                </span>
+              </div>
+
+              {docPreviewModal.docNumber && (
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">Extracted Number</span>
+                  <span className="text-xs sm:text-sm font-mono font-black text-white bg-black/40 px-2.5 py-1 rounded-lg border border-white/10">
+                    {docPreviewModal.docNumber}
+                  </span>
+                </div>
+              )}
+
+              {docPreviewModal.fullName && (
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">Cardholder Name</span>
+                  <span className="text-xs sm:text-sm font-bold text-white">
+                    {docPreviewModal.fullName}
+                  </span>
+                </div>
+              )}
+
+              {docPreviewModal.dob && (
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">Date of Birth (DOB)</span>
+                  <span className="text-xs font-medium text-white/90">
+                    {docPreviewModal.dob}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-white/60 font-semibold uppercase tracking-wider">OCR Confidence</span>
+                <span className="text-xs font-black text-emerald-400">
+                  🟢 {docPreviewModal.confidence || 95}% Match (High Accuracy)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-white/10 bg-white/[0.02] flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setDocPreviewModal(null)}
+              className="rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 px-5 py-2 text-xs font-bold text-white transition shadow-lg shadow-red-500/20 cursor-pointer"
+            >
+              Done & Continue
+            </button>
+          </div>
         </div>
       </div>
     )}

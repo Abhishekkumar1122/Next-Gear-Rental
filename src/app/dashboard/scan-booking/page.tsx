@@ -87,51 +87,122 @@ function ScanBookingContent() {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [deferPaymentToReturn, setDeferPaymentToReturn] = useState(false);
 
-  // KYC counter verification states
+  // 6-Month Fast-Track KYC & Document Handover States
   const [kycStatus, setKycStatus] = useState<string>("unverified");
+  const [kycExpiresAt, setKycExpiresAt] = useState<string | null>(null);
   const [dlNumber, setDlNumber] = useState<string>("");
   const [dlName, setDlName] = useState<string>("");
   const [dlPhoto, setDlPhoto] = useState<string | null>(null);
-  const [kycVerifying, setKycVerifying] = useState<boolean>(false);
+  const [aadhaarFrontPhoto, setAadhaarFrontPhoto] = useState<string | null>(null);
+  const [aadhaarBackPhoto, setAadhaarBackPhoto] = useState<string | null>(null);
+  const [matchedDocs, setMatchedDocs] = useState<Record<string, boolean>>({
+    dl: false,
+    aadhaarFront: false,
+    aadhaarBack: false,
+  });
+  
+  // WhatsApp OTP Verification States
+  const [otpSent, setOtpSent] = useState(false);
+  const [handoverOtpInput, setHandoverOtpInput] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [activePreviewDoc, setActivePreviewDoc] = useState<{ title: string; url: string; docType: string } | null>(null);
 
-  const handleDlPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setDlPhoto(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleVerifyKyc = async () => {
-    if (!bookingId || !dlNumber || !dlName || !dlPhoto) return;
-    setKycVerifying(true);
+  const handleSendHandoverOtp = async () => {
+    if (!bookingId || !booking?.customerPhone) return;
+    setIsSendingOtp(true);
+    setOtpMessage(null);
     try {
-      const res = await fetch("/api/bookings/handover/kyc-verify", {
+      const res = await fetch("/api/kyc/send-handover-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId,
-          dlNumber,
-          dlName,
-          dlPhoto,
+          customerPhone: booking.customerPhone,
+          customerName: booking.customerName,
+          vehicleTitle: booking.vehicleTitle,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOtpSent(true);
+        setOtpMessage("📲 OTP sent to customer's WhatsApp! Ask customer for 4-digit code.");
+        if (data.devOtp) {
+          console.log(`[Dev Handover OTP]: ${data.devOtp}`);
+        }
+      } else {
+        alert(data.error || "Failed to send handover OTP.");
+      }
+    } catch {
+      alert("Network error while sending OTP.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyHandoverOtp = async () => {
+    if (!bookingId || !handoverOtpInput.trim()) {
+      alert("Please enter the 4-digit OTP shared by customer.");
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const res = await fetch("/api/kyc/verify-handover-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          enteredOtp: handoverOtpInput.trim(),
+          customerPhone: booking?.customerPhone,
+          customerName: booking?.customerName,
+          customerEmail: booking?.customerEmail,
+          documents: {
+            dlUrl: dlPhoto || (booking as any)?.drivingLicenseUrl,
+            dlNo: dlNumber || (booking as any)?.drivingLicenseNo,
+            aadhaarFrontUrl: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl,
+            aadhaarBackUrl: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl,
+          }
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setKycStatus("approved");
-        setPhotoSubmitToast("✅ Customer Driving License Approved & KYC Verified Successfully!");
-        setTimeout(() => setPhotoSubmitToast(null), 4000);
+        setKycExpiresAt(data.kycProfile?.expiresAt || null);
+        setOtpMessage("🎉 KYC Verified! Customer granted 6-Month Fast-Track VIP Status.");
+        setPhotoSubmitToast("👑 6-Month Fast-Track KYC Activated Successfully!");
+        setTimeout(() => setPhotoSubmitToast(null), 5000);
       } else {
-        alert(data.error ?? "Failed to verify KYC document.");
+        alert(data.error || "Invalid OTP entered.");
       }
     } catch {
-      alert("Network error while submitting KYC document.");
+      alert("Network error while verifying OTP.");
     } finally {
-      setKycVerifying(false);
+      setIsVerifyingOtp(false);
     }
+  };
+
+  const handleSpotPhotoRecapture = (type: "dl" | "aadhaarFront" | "aadhaarBack", e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const resultStr = reader.result as string;
+      if (type === "dl") {
+        setDlPhoto(resultStr);
+        setMatchedDocs(prev => ({ ...prev, dl: true }));
+      } else if (type === "aadhaarFront") {
+        setAadhaarFrontPhoto(resultStr);
+        setMatchedDocs(prev => ({ ...prev, aadhaarFront: true }));
+      } else {
+        setAadhaarBackPhoto(resultStr);
+        setMatchedDocs(prev => ({ ...prev, aadhaarBack: true }));
+      }
+      setPhotoSubmitToast(`📸 Fresh physical ${type.toUpperCase()} captured & matched!`);
+      setTimeout(() => setPhotoSubmitToast(null), 3000);
+    };
+    reader.readAsDataURL(file);
   };
 
   const maskPhone = (phone?: string) => {
@@ -738,83 +809,298 @@ function ScanBookingContent() {
               </span>
             </div>
 
-            {/* KYC Status Check & Counter Upload Widget */}
-            {kycStatus === "approved" ? (
-              <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3 flex items-center justify-between col-span-2">
-                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Driving License Verification</span>
-                <span className="flex items-center gap-1 text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  ✅ KYC Verified (Lifetime)
-                </span>
-              </div>
-            ) : (
-              <div className="col-span-2 bg-gradient-to-r from-red-950/20 via-black to-red-950/10 border border-red-500/20 rounded-xl p-4 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Driving License Verification</span>
-                  <span className="text-[10px] font-black uppercase text-red-400 bg-red-500/20 px-2.5 py-0.5 rounded-full border border-red-500/30">
-                    🚨 KYC Pending
+            {/* 🛡️ 6-Month Fast-Track KYC & Document Handover Suite */}
+            <div className="col-span-2 bg-gradient-to-br from-[#121218] via-black to-[#14101a] border border-white/15 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xl relative overflow-hidden">
+              {/* Top Status Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">🛡️</span>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                      Physical ID Cross-Check & 6-Month Fast-Track KYC
+                    </h4>
+                    <p className="text-[10px] sm:text-[11px] text-white/50">
+                      Verify rider's original cards with uploaded photos & authenticate via WhatsApp OTP
+                    </p>
+                  </div>
+                </div>
+                {kycStatus === "approved" ? (
+                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    👑 6-Month VIP Fast-Track KYC Active
                   </span>
-                </div>
-                <p className="text-[10px] text-white/60 leading-normal">
-                  Rider's profile does not have a verified Driving License. Please verify their physical DL hard copy and upload a photo to verify their account.
-                </p>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] font-black uppercase text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+                    ⏳ Handover Verification Required
+                  </span>
+                )}
+              </div>
 
-                {/* DL Form inputs & Camera Upload */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block">DL Number</label>
-                    <input
-                      type="text"
-                      placeholder="DL-1234567890"
-                      value={dlNumber}
-                      onChange={(e) => setDlNumber(e.target.value)}
-                      className="w-full bg-black border border-white/10 rounded-lg p-2 text-white text-[11px] font-mono uppercase mt-1 focus:border-red-500/50 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block">Full Name on DL</label>
-                    <input
-                      type="text"
-                      placeholder="John Doe"
-                      value={dlName}
-                      onChange={(e) => setDlName(e.target.value)}
-                      className="w-full bg-black border border-white/10 rounded-lg p-2 text-white text-[11px] mt-1 focus:border-red-500/50 outline-none"
-                    />
-                  </div>
-                </div>
+              {/* 3 Document Previews & On-Spot Recapture Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Document 1: Driving License */}
+                {(() => {
+                  const currentDl = dlPhoto || (booking as any)?.drivingLicenseUrl;
+                  return (
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      matchedDocs.dl ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
+                    } flex flex-col justify-between space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-white/80 uppercase">1. Driving License</span>
+                        {matchedDocs.dl && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
+                      </div>
 
-                {/* Camera Upload Button */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <label className="relative flex items-center justify-center gap-1.5 px-4 py-2.5 border border-dashed border-white/20 hover:border-white/40 rounded-xl bg-white/[0.02] hover:bg-white/5 text-[10px] font-bold text-white/80 cursor-pointer select-none transition">
+                      {/* Photo Thumbnail */}
+                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                        {currentDl ? (
+                          <img src={currentDl} alt="Driving License" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        ) : (
+                          <div className="text-center p-2">
+                            <span className="text-2xl opacity-40">🚗</span>
+                            <p className="text-[9px] text-white/40 mt-1">No DL uploaded</p>
+                          </div>
+                        )}
+                        {currentDl && (
+                          <button
+                            type="button"
+                            onClick={() => setActivePreviewDoc({ title: "Customer Driving License", url: currentDl, docType: "DL" })}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                          >
+                            👁️ View Full
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
+                          <input
+                            type="checkbox"
+                            checked={matchedDocs.dl}
+                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, dl: e.target.checked }))}
+                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
+                          />
+                          <span>Matches Physical Card</span>
+                        </label>
+                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
+                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("dl", e)} className="hidden" />
+                          <span>📸 On-Spot Recapture</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Document 2: Aadhaar Card Front */}
+                {(() => {
+                  const currentAadhaar = aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl;
+                  return (
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      matchedDocs.aadhaarFront ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
+                    } flex flex-col justify-between space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-white/80 uppercase">2. Aadhaar Front</span>
+                        {matchedDocs.aadhaarFront && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
+                      </div>
+
+                      {/* Photo Thumbnail */}
+                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                        {currentAadhaar ? (
+                          <img src={currentAadhaar} alt="Aadhaar Front" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        ) : (
+                          <div className="text-center p-2">
+                            <span className="text-2xl opacity-40">💳</span>
+                            <p className="text-[9px] text-white/40 mt-1">No Aadhaar uploaded</p>
+                          </div>
+                        )}
+                        {currentAadhaar && (
+                          <button
+                            type="button"
+                            onClick={() => setActivePreviewDoc({ title: "Customer Aadhaar Front", url: currentAadhaar, docType: "Aadhaar" })}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                          >
+                            👁️ View Full
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
+                          <input
+                            type="checkbox"
+                            checked={matchedDocs.aadhaarFront}
+                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, aadhaarFront: e.target.checked }))}
+                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
+                          />
+                          <span>Matches Physical Card</span>
+                        </label>
+                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
+                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("aadhaarFront", e)} className="hidden" />
+                          <span>📸 On-Spot Recapture</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Document 3: Aadhaar Card Back */}
+                {(() => {
+                  const currentBack = aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl;
+                  return (
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      matchedDocs.aadhaarBack ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
+                    } flex flex-col justify-between space-y-2`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-white/80 uppercase">3. Aadhaar Back</span>
+                        {matchedDocs.aadhaarBack && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
+                      </div>
+
+                      {/* Photo Thumbnail */}
+                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                        {currentBack ? (
+                          <img src={currentBack} alt="Aadhaar Back" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                        ) : (
+                          <div className="text-center p-2">
+                            <span className="text-2xl opacity-40">📄</span>
+                            <p className="text-[9px] text-white/40 mt-1">No Back uploaded</p>
+                          </div>
+                        )}
+                        {currentBack && (
+                          <button
+                            type="button"
+                            onClick={() => setActivePreviewDoc({ title: "Customer Aadhaar Back", url: currentBack, docType: "Aadhaar Back" })}
+                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                          >
+                            👁️ View Full
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="space-y-1.5 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
+                          <input
+                            type="checkbox"
+                            checked={matchedDocs.aadhaarBack}
+                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, aadhaarBack: e.target.checked }))}
+                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
+                          />
+                          <span>Address Verified</span>
+                        </label>
+                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
+                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("aadhaarBack", e)} className="hidden" />
+                          <span>📸 On-Spot Recapture</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* WhatsApp OTP Handover Verification Step */}
+              {kycStatus !== "approved" ? (
+                <div className="p-3.5 rounded-xl border border-white/10 bg-white/[0.02] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h5 className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                        <span>📲</span> WhatsApp Handover & KYC OTP Verification
+                      </h5>
+                      <p className="text-[9px] text-white/50 mt-0.5">
+                        Click below to send a 4-digit verification code to customer's WhatsApp ({maskPhone(booking?.customerPhone)}).
+                      </p>
+                    </div>
+                    {!otpSent ? (
+                      <button
+                        type="button"
+                        onClick={handleSendHandoverOtp}
+                        disabled={isSendingOtp}
+                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-[10px] rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSendingOtp ? "Sending OTP..." : "📲 Send WhatsApp OTP"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendHandoverOtp}
+                        disabled={isSendingOtp}
+                        className="text-[9px] text-emerald-400 hover:text-emerald-300 underline font-semibold bg-transparent border-none cursor-pointer"
+                      >
+                        Resend OTP
+                      </button>
+                    )}
+                  </div>
+
+                  {otpMessage && (
+                    <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10px] font-medium">
+                      {otpMessage}
+                    </div>
+                  )}
+
+                  {otpSent && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleDlPhotoChange}
-                        className="hidden"
+                        type="text"
+                        maxLength={6}
+                        placeholder="Enter 4-digit OTP"
+                        value={handoverOtpInput}
+                        onChange={(e) => setHandoverOtpInput(e.target.value)}
+                        className="w-36 bg-black border border-white/20 rounded-lg px-3 py-2 text-center text-sm font-mono tracking-widest text-white focus:border-emerald-500 outline-none"
                       />
-                      <span>📸 {dlPhoto ? "Change DL Photo" : "Snap DL Hard Copy"}</span>
-                    </label>
-                  </div>
-                  {dlPhoto && (
-                    <div className="w-10 h-10 rounded-lg border border-white/10 overflow-hidden shrink-0">
-                      <img src={dlPhoto} alt="DL Photo Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={handleVerifyHandoverOtp}
+                        disabled={isVerifyingOtp || !handoverOtpInput.trim()}
+                        className="flex-1 py-2 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 text-white font-black text-[11px] uppercase tracking-wider rounded-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
+                      >
+                        {isVerifyingOtp ? "Verifying..." : "✔️ Verify OTP & Grant 6-Month KYC"}
+                      </button>
                     </div>
                   )}
                 </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-[11px] text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">👑</span>
+                    <div>
+                      <p className="font-black text-white text-[11px]">Customer KYC 100% Verified</p>
+                      <p className="text-[9px] text-white/60 mt-0.5">
+                        Valid for 6 Months ({kycExpiresAt ? `Expires: ${new Date(kycExpiresAt).toLocaleDateString("en-IN")}` : "180 Days Express Checkout"}). Uploads bypassed on next booking!
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-400">PASSED ✅</span>
+                </div>
+              )}
+            </div>
 
-                {/* Submit KYC button */}
-                <button
-                  onClick={handleVerifyKyc}
-                  disabled={kycVerifying || !dlNumber || !dlName || !dlPhoto}
-                  className="w-full py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 disabled:from-white/5 disabled:to-white/5 disabled:text-white/40 font-black text-[10px] uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
-                >
-                  {kycVerifying ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    "✔️ Approve & Verify KYC Profile"
-                  )}
-                </button>
+            {/* Document Full View Modal */}
+            {activePreviewDoc && (
+              <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+                <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#121218] p-4 text-white space-y-3 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <h4 className="text-xs font-bold uppercase">{activePreviewDoc.title}</h4>
+                    <button
+                      type="button"
+                      onClick={() => setActivePreviewDoc(null)}
+                      className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="max-h-[60vh] flex items-center justify-center bg-black/60 rounded-xl overflow-hidden p-2">
+                    <img src={activePreviewDoc.url} alt={activePreviewDoc.title} className="max-h-[55vh] w-auto object-contain rounded-lg" />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setActivePreviewDoc(null)}
+                      className="py-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
             

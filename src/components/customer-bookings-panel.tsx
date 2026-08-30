@@ -25,6 +25,11 @@ type Booking = {
   createdAt: string;
   timezone?: string;
   handoverStatus?: string;
+  deliveryMode?: string;
+  deliveryAddress?: string;
+  deliveryLandmark?: string;
+  deliveryLat?: number;
+  deliveryLng?: number;
 };
 
 const STATUS_CONFIG: Record<
@@ -519,14 +524,20 @@ function BookingCard({
           
           <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-white/55 font-medium">
             <div className="flex items-center gap-1">
-              <span>📍</span>
-              <span className="capitalize">{booking.city} Hub</span>
+              <span>{booking.deliveryMode === "doorstep" ? "🚚" : "📍"}</span>
+              <span className="capitalize">
+                {booking.deliveryMode === "doorstep"
+                  ? `Doorstep: ${booking.deliveryAddress || "Hotel / Home Delivery"}`
+                  : (vehicleObj?.pickupAddress || `${booking.city} Hub`)}
+              </span>
             </div>
             
-            <div className="flex items-center gap-1">
-              <span>👤</span>
-              <span>KYC Verified</span>
-            </div>
+            {(booking.deliveryLandmark || vehicleObj?.pickupLandmark) && (
+              <div className="flex items-center gap-1 text-emerald-400 font-semibold">
+                <span>🏢</span>
+                <span>{booking.deliveryLandmark || vehicleObj?.pickupLandmark}</span>
+              </div>
+            )}
 
             <div className="flex items-center gap-1">
               <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot} inline-block`} />
@@ -548,6 +559,22 @@ function BookingCard({
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {booking.status === "confirmed" && booking.handoverStatus !== "RETURNED" && (
               <>
+                {/* 🗺️ 1-Tap Google Maps Navigation Button */}
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${
+                    booking.deliveryMode === "doorstep" && booking.deliveryLat
+                      ? `${booking.deliveryLat},${booking.deliveryLng}`
+                      : `${vehicleObj?.latitude || 28.5355},${vehicleObj?.longitude || 77.3910}`
+                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold text-emerald-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
+                  title="Open direct turn-by-turn route in Google Maps"
+                >
+                  <span>📍</span>
+                  <span>Navigate</span>
+                </a>
+
                 <button
                   onClick={() => onShowQR(booking)}
                   className="rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-[#ff4d4d] px-2.5 sm:px-3.5 py-1.5 text-[10px] sm:text-xs font-black text-white hover:brightness-110 active:scale-95 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-[0_3px_10px_rgba(225,29,72,0.2)] border-0"

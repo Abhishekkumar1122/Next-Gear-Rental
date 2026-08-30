@@ -30,6 +30,7 @@ export function VendorMonthlyEarningsChart({ bookings, totalEarningsINR }: Vendo
       const days = ["Day 1", "Day 4", "Day 7", "Day 10", "Day 13", "Day 16", "Day 19", "Day 22", "Day 25", "Day 28", "Day 30"];
       const now = new Date();
       const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
 
       const displayPoints = days.map((dayLabel, idx) => {
         const dayStart = idx * 3 + 1;
@@ -37,44 +38,38 @@ export function VendorMonthlyEarningsChart({ bookings, totalEarningsINR }: Vendo
 
         const sumBookings = bookings
           .filter((b) => {
-            if (b.status !== "CONFIRMED") return false;
+            if (b.status === "CANCELLED") return false;
             const d = new Date(b.startDate);
             const dateNum = d.getDate();
-            return d.getMonth() === currentMonth && dateNum >= dayStart && dateNum <= dayEnd;
+            return d.getFullYear() === currentYear && d.getMonth() === currentMonth && dateNum >= dayStart && dateNum <= dayEnd;
           })
-          .reduce((sum, b) => sum + b.totalAmountINR, 0);
+          .reduce((sum, b) => sum + Number(b.totalAmountINR || 0), 0);
 
-        const mockDailyBaseline = [1200, 2400, 1800, 3200, 2900, 4100, 3800, 4500, 4200, 3600, 4900];
-        const val = sumBookings > 0 ? sumBookings : mockDailyBaseline[idx];
-
-        return { month: dayLabel, val };
+        return { month: dayLabel, val: sumBookings };
       });
 
-      const maxVal = Math.max(...displayPoints.map((p) => p.val), 6000);
+      const maxVal = Math.max(...displayPoints.map((p) => p.val), 5000);
       return { displayPoints, maxVal, minVal: 0 };
     }
 
     const allMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
-    // Default baseline monthly trend (in INR)
-    const baselineTrend = [15000, 18000, 17000, 19000, 21000, 23000, 25000, 24000, 22000, 20000, 19000, 21000];
+    const currentYear = new Date().getFullYear();
 
     const fullYearPoints = allMonths.map((month, idx) => {
-      // Sum bookings for this month
+      // Sum real bookings for this month
       const sumBookings = bookings
         .filter((b) => {
-          if (b.status !== "CONFIRMED") return false;
+          if (b.status === "CANCELLED") return false;
           const d = new Date(b.startDate);
-          return d.getMonth() === idx;
+          return d.getFullYear() === currentYear && d.getMonth() === idx;
         })
-        .reduce((sum, b) => sum + b.totalAmountINR, 0);
+        .reduce((sum, b) => sum + Number(b.totalAmountINR || 0), 0);
 
-      const val = sumBookings > 0 ? sumBookings : baselineTrend[idx];
-      return { month, val };
+      return { month, val: sumBookings };
     });
 
     const displayPoints = timeframe === "6m" ? fullYearPoints.slice(6, 12) : fullYearPoints;
-    const maxVal = Math.max(...displayPoints.map((p) => p.val), 30000);
+    const maxVal = Math.max(...displayPoints.map((p) => p.val), 10000);
 
     return { displayPoints, maxVal, minVal: 0 };
   }, [bookings, timeframe]);
@@ -326,7 +321,11 @@ export function VendorMonthlyEarningsChart({ bookings, totalEarningsINR }: Vendo
                 textAnchor="end"
                 className="font-mono"
               >
-                ₹{(tick.val / 1000).toFixed(0)}k
+                {tick.val >= 100000
+                  ? `₹${(tick.val / 100000).toFixed(tick.val % 100000 === 0 ? 0 : 1)}L`
+                  : tick.val >= 1000
+                  ? `₹${Math.round(tick.val / 1000)}k`
+                  : `₹${tick.val}`}
               </text>
             </g>
           ))}

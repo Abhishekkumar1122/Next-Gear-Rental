@@ -130,6 +130,10 @@ model Vendor {
   businessName   String
   contactPhone   String
   commissionRate Decimal   @db.Decimal(5, 2)
+  garageAddress  String?
+  garageLandmark String?
+  garageLat      Float?
+  garageLng      Float?
   ownerUserId    String?   @unique
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -151,6 +155,11 @@ model Vehicle {
   operationalStatus VehicleAvailabilityStatus @default(AVAILABLE)
   cityId         String
   vendorId       String?
+  pickupAddress  String?
+  pickupLandmark String?
+  latitude       Float?
+  longitude      Float?
+  useCustomLocation Boolean @default(false)
   addonWaiverPrice  Int?
   addonRsaPrice     Int?
   addonHelmetPrice  Int?
@@ -183,6 +192,13 @@ model Booking {
   timezone       String        @default("Asia/Kolkata")
   status         BookingStatus @default(CONFIRMED)
   handoverStatus String        @default("PENDING") // PENDING, RELEASED, RETURNED
+  deliveryMode   String        @default("self_pickup") // "self_pickup" | "doorstep"
+  deliveryAddress String?
+  deliveryLandmark String?
+  deliveryLat    Float?
+  deliveryLng    Float?
+  deliveryFeeINR Float?        @default(0.0)
+  deliveryDistanceKm Float?
   startOdometer  Float?
   endOdometer    Float?
   startFuel      String?

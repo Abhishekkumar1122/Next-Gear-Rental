@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import jsQR from "jsqr";
 import { useRouter } from "next/navigation";
 import { VendorFleetManager } from "./vendor-fleet-manager";
-import { VendorProfileDocumentsPanel } from "./vendor-profile-documents-panel";
+import { VendorBusinessHub } from "./vendor-business-hub";
 import { BookingHandoverVerifier } from "./booking-handover-verifier";
 import { VendorMobileQrCard } from "./vendor-mobile-qr-card";
 import { VendorDashboardAnalytics } from "./vendor-dashboard-analytics";
@@ -91,7 +91,7 @@ export function VendorDashboardLayout({
   history,
   mobileDashboardUrl,
 }: VendorDashboardLayoutProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "fleet" | "earnings" | "documents">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "fleet" | "earnings" | "hub">("overview");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scannerError, setScannerError] = useState("");
   const router = useRouter();
@@ -565,7 +565,7 @@ export function VendorDashboardLayout({
                   { id: "overview", label: "Overview", icon: LayoutDashboard },
                   { id: "fleet", label: "My Fleet", icon: Bike },
                   { id: "earnings", label: "Earnings", icon: Wallet },
-                  { id: "documents", label: "Profile", icon: UserCheck },
+                  { id: "hub", label: "Business Hub", icon: Building2 },
                 ].map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -605,15 +605,39 @@ export function VendorDashboardLayout({
             <div className="space-y-6">
               {activeTab === "overview" && (
                 <>
-                  {/* Stats Cards Grid */}
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                    <StatCard label="Total Vehicles" value={fleetVehicles.length.toString()} />
-                    <StatCard label="Commission Rate" value={`${vendor.commissionRate}%`} />
-                    <StatCard label="Total Earnings" value={formatCurrency(financials.totalEarningsINR)} />
+                  {/* Interactive Stats Cards Grid (Clickable to switch tabs) */}
+                  <div className="grid grid-cols-2 gap-2.5 md:gap-4 md:grid-cols-4">
                     <StatCard
-                      label="Status"
+                      label="Total Vehicles"
+                      value={fleetVehicles.length.toString()}
+                      sublabel="Manage Fleet"
+                      icon={Bike}
+                      colorTheme="red"
+                      onClick={() => setActiveTab("fleet")}
+                    />
+                    <StatCard
+                      label="Commission Rate"
+                      value={`${vendor.commissionRate}%`}
+                      sublabel={`${100 - (Number(vendor.commissionRate) || 20)}% Payout Tier`}
+                      icon={Zap}
+                      colorTheme="amber"
+                      onClick={() => setActiveTab("hub")}
+                    />
+                    <StatCard
+                      label="Total Earnings"
+                      value={formatCurrency(financials.totalEarningsINR)}
+                      sublabel="Payout Ledger"
+                      icon={Wallet}
+                      colorTheme="emerald"
+                      onClick={() => setActiveTab("earnings")}
+                    />
+                    <StatCard
+                      label="Partner Status"
                       value={vendor.status === "approved" ? "Verified" : vendor.status}
-                      isSuccess={vendor.status === "approved"}
+                      sublabel="Gold Host Tier"
+                      icon={ShieldCheck}
+                      colorTheme="blue"
+                      onClick={() => setActiveTab("hub")}
                     />
                   </div>
 
@@ -661,24 +685,8 @@ export function VendorDashboardLayout({
                 </div>
               )}
 
-              {activeTab === "documents" && (
-                <div className="space-y-6">
-                  <VendorProfileDocumentsPanel />
-                  {/* Mobile Logout Card */}
-                  <div className="md:hidden rounded-2xl border border-white/10 bg-white/[0.02] p-6 shadow-2xl text-center space-y-4">
-                    <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider">Account Actions</h3>
-                    <p className="text-xs text-white/60">Logged in as <span className="font-semibold text-white">{user.email}</span></p>
-                    <button
-                      onClick={async () => {
-                        await fetch("/api/auth/logout", { method: "POST" });
-                        window.location.href = "/login";
-                      }}
-                      className="w-full rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:brightness-110 text-white py-3 text-sm font-bold transition shadow-lg"
-                    >
-                      Logout from Next Gear
-                    </button>
-                  </div>
-                </div>
+              {activeTab === "hub" && (
+                <VendorBusinessHub user={user} vendor={vendor} fleetCount={fleetVehicles.length} bookings={bookings} financials={financials} />
               )}
             </div>
           </>
@@ -1072,15 +1080,15 @@ export function VendorDashboardLayout({
               <span className="text-[9px]">Earnings</span>
             </button>
 
-            {/* Tab 4: Profile */}
+            {/* Tab 4: Business Hub */}
             <button
-              onClick={() => setActiveTab("documents")}
+              onClick={() => setActiveTab("hub")}
               className={`flex flex-col items-center justify-center w-14 h-12 transition ${
-                activeTab === "documents" ? "text-[var(--brand-red)] font-black" : "text-white/60 font-semibold"
+                activeTab === "hub" ? "text-[var(--brand-red)] font-black" : "text-white/60 font-semibold"
               }`}
             >
-              <UserCheck className="w-5 h-5 mb-0.5" />
-              <span className="text-[9px]">Profile</span>
+              <Building2 className="w-5 h-5 mb-0.5" />
+              <span className="text-[9px]">Biz Hub</span>
             </button>
           </div>
         </nav>
@@ -1092,22 +1100,60 @@ export function VendorDashboardLayout({
 function StatCard({
   label,
   value,
-  isSuccess,
+  sublabel,
+  icon: Icon,
+  colorTheme = "red",
+  onClick,
 }: {
   label: string;
   value: string;
-  isSuccess?: boolean;
+  sublabel?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  colorTheme?: "red" | "amber" | "emerald" | "blue";
+  onClick?: () => void;
 }) {
+  const themeStyles = {
+    red: "from-red-950/40 via-neutral-900/70 to-neutral-950/90 border-red-500/20 hover:border-red-500/50 shadow-red-950/20 text-red-400",
+    amber: "from-amber-950/40 via-neutral-900/70 to-neutral-950/90 border-amber-500/20 hover:border-amber-500/50 shadow-amber-950/20 text-amber-400",
+    emerald: "from-emerald-950/40 via-neutral-900/70 to-neutral-950/90 border-emerald-500/20 hover:border-emerald-500/50 shadow-emerald-950/20 text-emerald-400",
+    blue: "from-blue-950/40 via-neutral-900/70 to-neutral-950/90 border-blue-500/20 hover:border-blue-500/50 shadow-blue-950/20 text-blue-400",
+  }[colorTheme];
+
+  const iconBg = {
+    red: "bg-red-500/10 text-red-400 border-red-500/30",
+    amber: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    blue: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  }[colorTheme];
+
   return (
-    <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.02] to-[var(--brand-red)]/[0.04] backdrop-blur-md p-5 shadow-xl hover:border-[var(--brand-red)]/30 hover:shadow-[0_0_30px_rgba(225,29,72,0.15)] transition-all duration-500 group">
-      <p className="text-[10px] font-extrabold uppercase tracking-wider text-white/40 group-hover:text-white/60 transition-colors">{label}</p>
-      <p
-        className={`mt-2 text-3xl font-black tracking-tight ${
-          isSuccess ? "text-emerald-400" : "gradient-text"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
+    <button
+      onClick={onClick}
+      className={`group relative overflow-hidden rounded-2xl md:rounded-3xl border bg-gradient-to-br p-3.5 md:p-5 backdrop-blur-md shadow-xl transition-all duration-300 active:scale-95 cursor-pointer text-left w-full hover:shadow-2xl ${themeStyles}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[10px] md:text-[11px] font-extrabold uppercase tracking-wider text-white/50 group-hover:text-white/80 transition-colors truncate">
+          {label}
+        </span>
+        {Icon && (
+          <div className={`w-6 h-6 md:w-8 md:h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-110 ${iconBg}`}>
+            <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-1.5 md:mt-2.5 flex items-baseline justify-between">
+        <p className="text-xl md:text-3xl font-black tracking-tight text-white group-hover:scale-105 transition-transform origin-left font-mono truncate">
+          {value}
+        </p>
+      </div>
+
+      {sublabel && (
+        <div className="mt-1.5 flex items-center justify-between text-[9px] md:text-[10px] font-semibold text-white/40 group-hover:text-white/80 transition-colors pt-0.5 border-t border-white/5">
+          <span className="truncate">{sublabel}</span>
+          <span className="text-white/40 group-hover:translate-x-1 transition-transform shrink-0 font-bold">→</span>
+        </div>
+      )}
+    </button>
   );
 }

@@ -16,6 +16,7 @@ const updateVendorVehicleSchema = z
     availableDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     vehicleNumber: z.union([z.string().min(4).max(30), z.literal("")]).optional(),
     imageUrl: z.union([z.string().url(), z.literal("")]).optional(),
+    imageUrls: z.array(z.string()).optional(),
     addonWaiverPrice: z.number().int().nonnegative().nullable().optional(),
     addonRsaPrice: z.number().int().nonnegative().nullable().optional(),
     addonHelmetPrice: z.number().int().nonnegative().nullable().optional(),
@@ -31,6 +32,7 @@ const updateVendorVehicleSchema = z
       payload.pricePerDayINR !== undefined ||
       payload.availableDates !== undefined ||
       payload.imageUrl !== undefined ||
+      payload.imageUrls !== undefined ||
       payload.vehicleNumber !== undefined ||
       payload.addonWaiverPrice !== undefined ||
       payload.addonRsaPrice !== undefined ||
@@ -118,8 +120,13 @@ export async function PATCH(request: Request, { params }: Props) {
       await setVehicleNumberForVehicle(vehicleId, payload.vehicleNumber);
     }
 
-    if (payload.imageUrl !== undefined) {
-      await setImageUrlsForVehicle(vehicleId, payload.imageUrl ? [payload.imageUrl] : []);
+    if (payload.imageUrls !== undefined || payload.imageUrl !== undefined) {
+      const finalImages = Array.isArray(payload.imageUrls)
+        ? payload.imageUrls.filter(Boolean)
+        : payload.imageUrl
+        ? [payload.imageUrl]
+        : [];
+      await setImageUrlsForVehicle(vehicleId, finalImages);
     }
 
     const map = await getAvailabilityMapForVehicles([vehicleId]);
@@ -208,8 +215,13 @@ export async function PATCH(request: Request, { params }: Props) {
     vehicles[index].vehicleNumber = payload.vehicleNumber?.trim() || undefined;
   }
 
-  if (payload.imageUrl !== undefined) {
-    const media = await setImageUrlsForVehicle(vehicleId, payload.imageUrl ? [payload.imageUrl] : []);
+  if (payload.imageUrls !== undefined || payload.imageUrl !== undefined) {
+    const finalImages = Array.isArray(payload.imageUrls)
+      ? payload.imageUrls.filter(Boolean)
+      : payload.imageUrl
+      ? [payload.imageUrl]
+      : [];
+    const media = await setImageUrlsForVehicle(vehicleId, finalImages);
     vehicles[index].imageUrls = media;
   }
 

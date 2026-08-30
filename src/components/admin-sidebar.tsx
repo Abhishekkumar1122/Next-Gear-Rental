@@ -33,7 +33,7 @@ export function AdminSidebar({ activeSection, email, userName, links }: AdminSid
     },
     {
       title: "Config & Operations",
-      items: links.filter(link => ["broadcasts", "settings", "footer", "alerts", "mail-inbox", "email-templates", "webhooks"].includes(link.id))
+      items: links.filter(link => ["broadcasts", "settings", "maintenance", "footer", "alerts", "mail-inbox", "email-templates", "webhooks"].includes(link.id))
     }
   ];
 

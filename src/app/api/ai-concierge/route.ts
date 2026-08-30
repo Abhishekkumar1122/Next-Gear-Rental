@@ -51,11 +51,10 @@ async function generateWithGemini(userPrompt: string, contextData: { city: strin
   if (!apiKey) return null;
 
   const modelsToTry = [
-    process.env.GEMINI_MODEL || "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro-latest",
-    "gemini-2.0-flash-exp",
-    "gemini-2.0-flash",
+    process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest",
   ];
 
   const systemPrompt = `You are NextGo AI, the official AI representative for Next Gear Rentals (India's premier self-drive car & bike rental platform).

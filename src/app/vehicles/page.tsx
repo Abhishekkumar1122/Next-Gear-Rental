@@ -179,7 +179,7 @@ function VehicleCatalogCard({
           setHoveredVehicleId(vehicle.id);
           setIsHovered(true);
         }}
-        className={`group tilt-card rounded-2xl border ${theme.border} bg-gradient-to-br from-black via-black to-red-950/10 p-4 shadow-xl ${theme.glowShadow} transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-[475px] max-h-[475px]`}
+        className={`group tilt-card rounded-2xl border ${theme.border} bg-gradient-to-br from-black via-black to-red-950/10 p-4 shadow-xl ${theme.glowShadow} transition-all duration-300 relative overflow-hidden flex flex-col justify-between min-h-[485px] h-full`}
       >
         {/* Dynamic ambient glow gradient */}
         <div className={`absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-gradient-to-br ${theme.glowBg} blur-xl opacity-100 group-hover:opacity-100 transition-all duration-500 pointer-events-none`} />
@@ -189,7 +189,7 @@ function VehicleCatalogCard({
 
         <div className="relative z-10 flex-1 flex flex-col justify-between h-full">
           <div>
-            <div className="mb-3.5 overflow-hidden rounded-xl border border-white/10 aspect-video relative group-hover:border-white/20 transition-colors h-40 w-full bg-neutral-900">
+            <div className="mb-3 overflow-hidden rounded-xl border border-white/10 aspect-video relative group-hover:border-white/20 transition-colors h-40 w-full bg-neutral-900">
               {/* Permanent Base Image layer so card never flashes black */}
               <img
                 src={images[0] || defaultImage}
@@ -255,7 +255,7 @@ function VehicleCatalogCard({
                 <p className="text-base font-black gradient-text line-clamp-1 h-6 flex items-center tracking-tight">
                   {vehicle.title}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 min-h-[26px]">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold tracking-wider border uppercase ${theme.badgeClass}`}>
                     <span>{theme.icon}</span>
                     <span>{theme.label}</span>
@@ -263,6 +263,12 @@ function VehicleCatalogCard({
                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-950/50 border border-blue-800/30 px-2.5 py-0.5 text-[9px] font-semibold text-blue-300">
                     📍 {vehicle.city.split(",")[0].trim()}
                   </span>
+                  {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 px-2.5 py-0.5 text-[9px] font-black text-emerald-300 shadow-sm animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span>📍 {vehicle.distanceKm} km away</span>
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[9px] font-semibold text-white/70">
                     👤 {vehicle.seats} Seats
                   </span>
@@ -270,7 +276,7 @@ function VehicleCatalogCard({
               </div>
             </div>
 
-            <div className="mt-3.5 space-y-2">
+            <div className="mt-3 space-y-2">
               {/* Specs breakdown */}
               <div className="flex items-center gap-2 text-[11px] text-white/70 min-h-[22px] whitespace-nowrap overflow-hidden">
                 <span className="inline-flex items-center gap-1 shrink-0">⛽ {vehicle.fuel}</span>
@@ -316,24 +322,22 @@ function VehicleCatalogCard({
 
             {/* Date badges if present */}
             {vehicle.availableDates && vehicle.availableDates.length > 0 ? (
-              <div className="mt-3.5 flex items-center gap-1.5 overflow-hidden min-h-[26px]">
-                <span className="text-[9px] text-white/30 font-bold whitespace-nowrap">Dates:</span>
-                <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+              <div className="mt-3 flex items-center gap-1.5 overflow-hidden min-h-[26px]" suppressHydrationWarning>
+                <span className="text-[9px] text-white/30 font-bold whitespace-nowrap" suppressHydrationWarning>Dates:</span>
+                <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth" suppressHydrationWarning>
                   {vehicle.availableDates.slice(0, 3).map((date) => (
-                    <span key={date} className="shrink-0 rounded bg-white/5 border border-white/5 px-1.5 py-0.5 text-[9px] text-white/50 font-mono">
+                    <span key={date} className="shrink-0 rounded bg-white/5 border border-white/5 px-1.5 py-0.5 text-[9px] text-white/50 font-mono" suppressHydrationWarning>
                       {date}
                     </span>
                   ))}
                 </div>
               </div>
-            ) : (
-              <div className="mt-3.5 min-h-[26px]" />
-            )}
+            ) : null}
           </div>
 
           <div className="mt-auto">
             {/* Daily Rate block */}
-            <div className="mt-4 pt-3 border-t border-white/5 flex items-baseline justify-between">
+            <div className="mt-3 pt-3 border-t border-white/5 flex items-baseline justify-between">
               <span className="text-[11px] uppercase tracking-wider text-white/40 font-semibold">DAILY RATE</span>
               <div className="text-right">
                 <span className={`text-lg font-black tracking-tight ${theme.priceText}`}>
@@ -344,18 +348,18 @@ function VehicleCatalogCard({
             </div>
 
             {/* Action buttons */}
-            <div className="mt-3.5 flex gap-2">
+            <div className="mt-3 flex gap-2">
               <Link
                 href={`/vehicles/${vehicle.id}`}
                 prefetch={true}
-                className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 py-2 text-xs font-bold text-white transition-all hover:-translate-y-0.5"
+                className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 py-2.5 text-xs font-bold text-white transition-all hover:-translate-y-0.5 cursor-pointer"
               >
                 Details
               </Link>
               {isAvailable ? (
                 <Link
                   href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`}
-                  className={`flex-1 text-center rounded-xl ${theme.btnBg} py-2 text-xs font-extrabold text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0`}
+                  className={`flex-1 text-center rounded-xl ${theme.btnBg} py-2.5 text-xs font-extrabold text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer`}
                 >
                   Book Now
                 </Link>
@@ -364,7 +368,7 @@ function VehicleCatalogCard({
                   <WaitlistButton
                     vehicleId={vehicle.id}
                     city={vehicle.city}
-                    className="w-full text-center rounded-xl border border-white/10 hover:border-white/20 bg-white/5 py-2 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full text-center rounded-xl border border-white/10 hover:border-white/20 bg-white/5 py-2.5 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               )}
@@ -449,6 +453,11 @@ function VehicleCatalogCard({
               <div className="bg-cyan-950/30 border border-cyan-500/20 py-1 rounded text-cyan-300">⚙️ {vehicle.transmission}</div>
               <div className="bg-cyan-950/30 border border-cyan-500/20 py-1 rounded text-cyan-300">{vehicle.airportPickup ? "✈️ Air" : "🏙️ Hub"}</div>
             </div>
+            {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+              <div className="mt-1.5 text-center font-mono text-[10px] bg-emerald-950/50 border border-emerald-500/30 text-emerald-300 py-0.5 rounded font-bold">
+                📍 {vehicle.distanceKm} KM AWAY
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-cyan-500/20">
@@ -542,7 +551,16 @@ function VehicleCatalogCard({
             <h3 className="text-base font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-1 h-6 flex items-center">
               {vehicle.title}
             </h3>
-            <p className="text-xs text-white/50 mt-1">📍 {vehicle.city.split(",")[0].trim()} · {vehicle.seats} Seats · {vehicle.fuel}</p>
+            <p className="text-xs text-white/50 mt-1 flex flex-wrap items-center gap-1.5">
+              <span>📍 {vehicle.city.split(",")[0].trim()}</span>
+              {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+                <span className="text-amber-300 font-bold bg-amber-950/50 border border-amber-400/30 px-2 py-0.5 rounded-full text-[10px]">
+                  · {vehicle.distanceKm} km away
+                </span>
+              )}
+              <span>· {vehicle.seats} Seats</span>
+              <span>· {vehicle.fuel}</span>
+            </p>
           </div>
 
           <div className="mt-4 pt-3 border-t border-amber-400/15">
@@ -634,8 +652,13 @@ function VehicleCatalogCard({
             <h3 className="text-base font-black text-white group-hover:text-orange-400 transition-colors line-clamp-1 h-6 flex items-center">
               {vehicle.title}
             </h3>
-            <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/70">
               <span>📍 {vehicle.city.split(",")[0].trim()}</span>
+              {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-950/60 border border-orange-500/30 px-2 py-0.5 text-[10px] font-bold text-orange-300">
+                  ⚡ {vehicle.distanceKm} km away
+                </span>
+              )}
               <span>•</span>
               <span>⛽ {vehicle.fuel}</span>
               <span>•</span>
@@ -729,6 +752,9 @@ function VehicleCatalogCard({
             </h3>
             <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
               <span className="px-2 py-0.5 rounded-md bg-purple-950/50 border border-purple-500/20 text-purple-300">📍 {vehicle.city.split(",")[0].trim()}</span>
+              {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold">📍 {vehicle.distanceKm} km</span>
+              )}
               <span className="px-2 py-0.5 rounded-md bg-indigo-950/50 border border-indigo-500/20 text-indigo-300">⛽ {vehicle.fuel}</span>
               <span className="px-2 py-0.5 rounded-md bg-pink-950/50 border border-pink-500/20 text-pink-300">⚙️ {vehicle.transmission}</span>
             </div>
@@ -772,7 +798,7 @@ function VehicleCatalogCard({
         setHoveredVehicleId(vehicle.id);
         setIsHovered(true);
       }}
-      className="group relative rounded-3xl border border-white/[0.08] bg-[#0d0d14]/90 backdrop-blur-2xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.8)] hover:shadow-[0_20px_50px_rgba(239,68,68,0.2)] hover:border-red-500/40 transition-all duration-500 flex flex-col justify-between overflow-hidden h-[475px] max-h-[475px]"
+      className="group relative rounded-2xl border border-white/[0.08] bg-[#0d0d14]/90 backdrop-blur-2xl p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.8)] hover:shadow-[0_20px_50px_rgba(239,68,68,0.2)] hover:border-red-500/40 transition-all duration-500 flex flex-col justify-between overflow-hidden h-[440px] min-h-[440px] max-h-[440px]"
     >
       <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-red-600/15 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       <div className="absolute -bottom-20 -left-20 w-48 h-48 rounded-full bg-blue-600/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
@@ -780,7 +806,7 @@ function VehicleCatalogCard({
 
       <div className="relative z-10 flex-1 flex flex-col justify-between h-full">
         <div>
-          <div className="mb-3.5 overflow-hidden rounded-2xl border border-white/10 aspect-video relative h-40 w-full bg-black/80 shadow-inner group-hover:border-white/20 transition-all">
+          <div className="mb-2.5 overflow-hidden rounded-xl border border-white/10 aspect-video relative h-36 w-full bg-black/80 shadow-inner group-hover:border-white/20 transition-all">
             {/* Permanent Base Image layer */}
             <img
               src={images[0] || defaultImage}
@@ -805,16 +831,16 @@ function VehicleCatalogCard({
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
-          <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-black tracking-wider uppercase backdrop-blur-md border shadow-lg ${theme.badgeClass}`}>
+          <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8.5px] font-black tracking-wider uppercase backdrop-blur-md border shadow-lg ${theme.badgeClass}`}>
               <span>{theme.icon}</span>
               <span>{theme.label}</span>
             </span>
           </div>
 
-          <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+          <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
             {vehicle.rating ? (
-              <div className="flex items-center gap-1 rounded-full bg-black/75 backdrop-blur-md px-2.5 py-0.5 text-[10px] font-black text-amber-400 border border-white/15 shadow-xl">
+              <div className="flex items-center gap-1 rounded-full bg-black/75 backdrop-blur-md px-2 py-0.5 text-[8.5px] font-black text-amber-400 border border-white/15 shadow-xl">
                 <span>⭐</span>
                 <span>{vehicle.rating.toFixed(1)}</span>
               </div>
@@ -822,13 +848,7 @@ function VehicleCatalogCard({
           </div>
 
           {images.length > 1 && (
-            <div className="absolute bottom-2.5 right-2.5 z-20 bg-black/70 backdrop-blur-md border border-white/15 px-2 py-0.5 rounded-full text-[9px] font-bold text-white/80 flex items-center gap-1">
-              <span>📷 {currentImageIndex + 1}/{images.length}</span>
-            </div>
-          )}
-
-          {images.length > 1 && (
-            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow-lg">
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 shadow-lg">
               {images.map((_, idx) => (
                 <button
                   key={idx}
@@ -846,83 +866,84 @@ function VehicleCatalogCard({
           )}
         </div>
         
-        <div className="space-y-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-base font-black gradient-text line-clamp-1 tracking-tight h-6 flex items-center">
+        <div className="space-y-1">
+          <div className="flex items-start justify-between gap-1.5">
+            <h3 className="text-sm font-black gradient-text line-clamp-1 tracking-tight h-5 flex items-center">
               {vehicle.title}
             </h3>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-lg bg-blue-950/40 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
+          <div className="flex flex-wrap items-center gap-1 min-h-[22px]">
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-950/40 border border-blue-500/20 px-1.5 py-0.5 text-[8.5px] font-bold text-blue-300">
               📍 {vehicle.city.split(",")[0].trim()}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-lg bg-white/[0.04] border border-white/10 px-2 py-0.5 text-[10px] font-medium text-white/70">
+            {vehicle.distanceKm !== undefined && vehicle.distanceKm !== null && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-950/70 border border-emerald-500/40 px-1.5 py-0.5 text-[8.5px] font-black text-emerald-300 shadow-sm animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>📍 {vehicle.distanceKm} km away</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] border border-white/10 px-1.5 py-0.5 text-[8.5px] font-medium text-white/70">
               👤 {vehicle.seats} Seats
             </span>
             {vehicle.airportPickup && (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-purple-950/40 border border-purple-500/20 px-2 py-0.5 text-[10px] font-bold text-purple-300">
-                ✈️ Airport Handover
+              <span className="inline-flex items-center gap-1 rounded-md bg-purple-950/40 border border-purple-500/20 px-1.5 py-0.5 text-[8.5px] font-bold text-purple-300">
+                ✈️ Airport
               </span>
             )}
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
-            <p className="text-[9px] uppercase font-bold text-white/40">Fuel</p>
-            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">⛽ {vehicle.fuel}</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
-            <p className="text-[9px] uppercase font-bold text-white/40">Gear</p>
-            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">⚙️ {vehicle.transmission}</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-1.5">
-            <p className="text-[9px] uppercase font-bold text-white/40">Pickup</p>
-            <p className="text-xs font-bold text-white/90 capitalize mt-0.5">{vehicle.airportPickup ? "✈️ Airport" : "🏙️ Hub"}</p>
-          </div>
+        {/* Specs breakdown */}
+        <div className="mt-2 flex items-center gap-2 text-[10.5px] text-white/70 whitespace-nowrap overflow-hidden">
+          <span className="inline-flex items-center gap-1 shrink-0">⛽ {vehicle.fuel}</span>
+          <span className="text-white/20 shrink-0">•</span>
+          <span className="inline-flex items-center gap-1 shrink-0">⚙️ {vehicle.transmission}</span>
+          <span className="text-white/20 shrink-0">•</span>
+          <span className="inline-flex items-center gap-1 shrink-0">
+            {vehicle.airportPickup ? "✈️ Airport" : "🏙️ Hub"}
+          </span>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/5 pt-2.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="mt-1.5 flex items-center justify-between gap-1.5 min-h-[22px]">
+          <div className="flex items-center gap-1 flex-wrap">
             {isAvailable ? (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 px-2.5 py-0.5 text-[9px] font-black text-emerald-400 border border-emerald-500/30">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/60 px-2 py-0.5 text-[8.5px] font-black text-emerald-400 border border-emerald-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   AVAILABLE
                 </span>
                 {availableCount !== undefined && availableCount === 1 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/60 px-2.5 py-0.5 text-[9px] font-black text-amber-400 border border-amber-500/30 animate-pulse">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/60 px-2 py-0.5 text-[8.5px] font-black text-amber-400 border border-amber-500/30 animate-pulse">
                     🔥 Only 1 left!
                   </span>
                 ) : availableCount !== undefined && availableCount > 1 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-950/60 px-2.5 py-0.5 text-[9px] font-bold text-sky-300 border border-sky-500/20">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-950/60 px-2 py-0.5 text-[8.5px] font-bold text-sky-300 border border-sky-500/20">
                     ⚡ {availableCount} Available
                   </span>
                 ) : null}
               </>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-950/60 px-2.5 py-0.5 text-[9px] font-black text-rose-400 border border-rose-500/30">
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/60 px-2 py-0.5 text-[8.5px] font-black text-rose-400 border border-rose-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
                 BOOKED
               </span>
             )}
           </div>
 
-          <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/20">
+          <span className="text-[8.5px] font-extrabold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-500/20">
             ₹0 Deposit
           </span>
         </div>
       </div>
 
-      <div className="mt-auto pt-3 border-t border-white/[0.08] relative z-10">
-        <div className="flex items-baseline justify-between mb-3">
+      <div className="mt-auto pt-2 border-t border-white/[0.08] relative z-10">
+        <div className="flex items-baseline justify-between mb-2">
           <div className="space-y-0.5">
-            <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Daily Rental</span>
-            <p className="text-[10px] text-white/30">Taxes & Insurance included</p>
+            <span className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Daily Rental</span>
           </div>
           <div className="text-right">
-            <span className="text-2xl font-black text-green-400 tracking-tight">
+            <span className="text-lg font-black text-green-400 tracking-tight">
               {toCurrency(vehicle.pricePerDayINR, "INR")}
             </span>
             <span className="text-xs text-white/40 font-normal"> /day</span>
@@ -933,14 +954,14 @@ function VehicleCatalogCard({
           <Link
             href={`/vehicles/${vehicle.id}`}
             prefetch={true}
-            className="flex-1 text-center rounded-2xl border border-white/10 hover:border-white/25 bg-white/[0.04] hover:bg-white/[0.08] py-2.5 text-xs font-bold text-white transition-all hover:-translate-y-0.5 cursor-pointer"
+            className="flex-1 text-center rounded-xl border border-white/10 hover:border-white/25 bg-white/[0.04] hover:bg-white/[0.08] py-2 text-xs font-bold text-white transition-all hover:-translate-y-0.5 cursor-pointer"
           >
             Details
           </Link>
           {isAvailable ? (
             <Link
               href={`/book-vehicle?vehicleId=${encodeURIComponent(vehicle.id)}&city=${encodeURIComponent(vehicle.city)}`}
-              className="flex-1 text-center rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 py-2.5 text-xs font-black text-white shadow-[0_4px_20px_rgba(225,29,72,0.4)] hover:shadow-[0_6px_25px_rgba(225,29,72,0.6)] transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+              className="flex-1 text-center rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 py-2 text-xs font-black text-white shadow-[0_4px_15px_rgba(225,29,72,0.4)] transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
             >
               Book Now ⚡
             </Link>
@@ -949,43 +970,130 @@ function VehicleCatalogCard({
               <WaitlistButton
                 vehicleId={vehicle.id}
                 city={vehicle.city}
-                className="w-full text-center rounded-2xl border border-white/10 hover:border-white/20 bg-white/5 py-2.5 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-center rounded-xl border border-white/10 hover:border-white/20 bg-white/5 py-2 text-xs font-bold text-white/90 hover:text-white transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
           )}
         </div>
       </div>
     </div>
-  </div>
-);
+    </div>
+  );
 }
 
 // Global client-side memory cache for instant 0ms vehicle catalog rendering
 let cachedVehiclesData: { vehicles: Vehicle[]; totalCount?: number; cities: string[]; timestamp: number } | null = null;
-const CITY_COORDINATES: Record<string, { lat: number; lng: number; displayName: string }> = {
+
+export const CITY_COORDINATES: Record<string, { lat: number; lng: number; displayName: string }> = {
+  // Metros & Major State Capitals
   "delhi": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
+  "new delhi": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
   "delhi-ncr": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
+  "delhi ncr": { lat: 28.6139, lng: 77.2090, displayName: "Delhi NCR" },
   "noida": { lat: 28.5355, lng: 77.3910, displayName: "Noida" },
+  "greater noida": { lat: 28.4744, lng: 77.5040, displayName: "Greater Noida" },
+  "dadri": { lat: 28.5520, lng: 77.5540, displayName: "Dadri, Greater Noida" },
+  "gurugram": { lat: 28.4595, lng: 77.0266, displayName: "Gurugram" },
+  "gurgaon": { lat: 28.4595, lng: 77.0266, displayName: "Gurugram" },
+  "ghaziabad": { lat: 28.6692, lng: 77.4538, displayName: "Ghaziabad" },
+  "faridabad": { lat: 28.4089, lng: 77.3178, displayName: "Faridabad" },
   "mumbai": { lat: 19.0760, lng: 72.8777, displayName: "Mumbai" },
+  "bombay": { lat: 19.0760, lng: 72.8777, displayName: "Mumbai" },
+  "navi mumbai": { lat: 19.0330, lng: 73.0297, displayName: "Navi Mumbai" },
+  "thane": { lat: 19.2183, lng: 72.9781, displayName: "Thane" },
+  "pune": { lat: 18.5204, lng: 73.8567, displayName: "Pune" },
   "bengaluru": { lat: 12.9716, lng: 77.5946, displayName: "Bengaluru" },
   "bangalore": { lat: 12.9716, lng: 77.5946, displayName: "Bengaluru" },
-  "goa": { lat: 15.2993, lng: 74.1240, displayName: "Goa" },
   "hyderabad": { lat: 17.3850, lng: 78.4867, displayName: "Hyderabad" },
-  "jaipur": { lat: 26.9124, lng: 75.7873, displayName: "Jaipur" },
-  "kochi": { lat: 9.9312, lng: 76.2673, displayName: "Kochi" },
-  "chandigarh": { lat: 30.7333, lng: 76.7794, displayName: "Chandigarh" },
-  "phagwara": { lat: 31.2240, lng: 75.7708, displayName: "Phagwara, Punjab" },
+  "secunderabad": { lat: 17.4399, lng: 78.4983, displayName: "Hyderabad" },
   "chennai": { lat: 13.0827, lng: 80.2707, displayName: "Chennai" },
   "kolkata": { lat: 22.5726, lng: 88.3639, displayName: "Kolkata" },
-  "pune": { lat: 18.5204, lng: 73.8567, displayName: "Pune" },
   "ahmedabad": { lat: 23.0225, lng: 72.5714, displayName: "Ahmedabad" },
+  "surat": { lat: 21.1702, lng: 72.8311, displayName: "Surat" },
+  "vadodara": { lat: 22.3072, lng: 73.1812, displayName: "Vadodara" },
+  "jaipur": { lat: 26.9124, lng: 75.7873, displayName: "Jaipur" },
+  "udaipur": { lat: 24.5854, lng: 73.7125, displayName: "Udaipur" },
+  "jodhpur": { lat: 26.2389, lng: 73.0243, displayName: "Jodhpur" },
+  "goa": { lat: 15.2993, lng: 74.1240, displayName: "Goa" },
+  "panaji": { lat: 15.4909, lng: 73.8278, displayName: "Panaji, Goa" },
+  "margao": { lat: 15.2832, lng: 73.9862, displayName: "Margao, Goa" },
+  "calangute": { lat: 15.5439, lng: 73.7554, displayName: "Calangute, Goa" },
+  "kochi": { lat: 9.9312, lng: 76.2673, displayName: "Kochi" },
+  "cochin": { lat: 9.9312, lng: 76.2673, displayName: "Kochi" },
+  "thiruvananthapuram": { lat: 8.5241, lng: 76.9366, displayName: "Thiruvananthapuram" },
+  "trivandrum": { lat: 8.5241, lng: 76.9366, displayName: "Thiruvananthapuram" },
+  "kozhikode": { lat: 11.2588, lng: 75.7804, displayName: "Kozhikode" },
+  "calicut": { lat: 11.2588, lng: 75.7804, displayName: "Kozhikode" },
+  "chandigarh": { lat: 30.7333, lng: 76.7794, displayName: "Chandigarh" },
+  "mohali": { lat: 30.7046, lng: 76.7179, displayName: "Mohali, Punjab" },
+  "panchkula": { lat: 30.6942, lng: 76.8606, displayName: "Panchkula, Haryana" },
+  "amritsar": { lat: 31.6340, lng: 74.8723, displayName: "Amritsar, Punjab" },
+  "jalandhar": { lat: 31.3260, lng: 75.5762, displayName: "Jalandhar, Punjab" },
+  "phagwara": { lat: 31.2240, lng: 75.7708, displayName: "Phagwara, Punjab" },
+  "ludhiana": { lat: 30.9010, lng: 75.8573, displayName: "Ludhiana, Punjab" },
+  "dehradun": { lat: 30.3165, lng: 78.0322, displayName: "Dehradun, Uttarakhand" },
+  "rishikesh": { lat: 30.0869, lng: 78.2676, displayName: "Rishikesh, Uttarakhand" },
+  "haridwar": { lat: 29.9457, lng: 78.1642, displayName: "Haridwar, Uttarakhand" },
+  "shimla": { lat: 31.1048, lng: 77.1734, displayName: "Shimla, Himachal" },
+  "manali": { lat: 32.2432, lng: 77.1892, displayName: "Manali, Himachal" },
   "patna": { lat: 25.5941, lng: 85.1376, displayName: "Patna, Bihar" },
   "gaya": { lat: 24.7955, lng: 85.0002, displayName: "Gaya, Bihar" },
   "muzaffarpur": { lat: 26.1209, lng: 85.3647, displayName: "Muzaffarpur, Bihar" },
   "bhagalpur": { lat: 25.2425, lng: 86.9842, displayName: "Bhagalpur, Bihar" },
+  "darbhanga": { lat: 26.1542, lng: 85.8918, displayName: "Darbhanga, Bihar" },
+  "ranchi": { lat: 23.3441, lng: 85.3096, displayName: "Ranchi, Jharkhand" },
+  "jamshedpur": { lat: 22.8046, lng: 86.2029, displayName: "Jamshedpur, Jharkhand" },
+  "dhanbad": { lat: 23.7957, lng: 86.4304, displayName: "Dhanbad, Jharkhand" },
+  "bhubaneswar": { lat: 20.2961, lng: 85.8245, displayName: "Bhubaneswar, Odisha" },
+  "cuttack": { lat: 20.4625, lng: 85.8828, displayName: "Cuttack, Odisha" },
+  "puri": { lat: 19.8135, lng: 85.8312, displayName: "Puri, Odisha" },
+  "lucknow": { lat: 26.8467, lng: 80.9462, displayName: "Lucknow, UP" },
+  "kanpur": { lat: 26.4499, lng: 80.3319, displayName: "Kanpur, UP" },
+  "varanasi": { lat: 25.3176, lng: 82.9739, displayName: "Varanasi, UP" },
+  "agra": { lat: 27.1767, lng: 78.0081, displayName: "Agra, UP" },
+  "prayagraj": { lat: 25.4358, lng: 81.8463, displayName: "Prayagraj, UP" },
+  "allahabad": { lat: 25.4358, lng: 81.8463, displayName: "Prayagraj, UP" },
+  "meerut": { lat: 28.9845, lng: 77.7064, displayName: "Meerut, UP" },
+  "bhopal": { lat: 23.2599, lng: 77.4126, displayName: "Bhopal, MP" },
+  "indore": { lat: 22.7196, lng: 75.8577, displayName: "Indore, MP" },
+  "gwalior": { lat: 26.2183, lng: 78.1828, displayName: "Gwalior, MP" },
+  "jabalpur": { lat: 23.1815, lng: 79.9864, displayName: "Jabalpur, MP" },
+  "raipur": { lat: 21.2514, lng: 81.6296, displayName: "Raipur, Chhattisgarh" },
+  "nagpur": { lat: 21.1458, lng: 79.0882, displayName: "Nagpur, Maharashtra" },
+  "nashik": { lat: 19.9975, lng: 73.7898, displayName: "Nashik, Maharashtra" },
+  "aurangabad": { lat: 19.8762, lng: 75.3433, displayName: "Chhatrapati Sambhajinagar" },
+  "guwahati": { lat: 26.1445, lng: 91.7362, displayName: "Guwahati, Assam" },
+  "shillong": { lat: 25.5788, lng: 91.8933, displayName: "Shillong, Meghalaya" },
+  "coimbatore": { lat: 11.0168, lng: 76.9558, displayName: "Coimbatore, Tamil Nadu" },
+  "madurai": { lat: 9.9252, lng: 78.1198, displayName: "Madurai, Tamil Nadu" },
+  "mysuru": { lat: 12.2958, lng: 76.6394, displayName: "Mysore, Karnataka" },
+  "mysore": { lat: 12.2958, lng: 76.6394, displayName: "Mysore, Karnataka" },
+  "mangalore": { lat: 12.9141, lng: 74.8560, displayName: "Mangalore, Karnataka" },
+  "visakhapatnam": { lat: 17.6868, lng: 83.2185, displayName: "Visakhapatnam, AP" },
+  "vizag": { lat: 17.6868, lng: 83.2185, displayName: "Visakhapatnam, AP" },
+  "vijayawada": { lat: 16.5062, lng: 80.6480, displayName: "Vijayawada, AP" },
+  "tirupati": { lat: 13.6288, lng: 79.4192, displayName: "Tirupati, AP" },
+  "puducherry": { lat: 11.9416, lng: 79.8083, displayName: "Puducherry" },
+  "pondicherry": { lat: 11.9416, lng: 79.8083, displayName: "Puducherry" },
+  "srinagar": { lat: 34.0837, lng: 74.7973, displayName: "Srinagar, J&K" },
+  "jammu": { lat: 32.7266, lng: 74.8570, displayName: "Jammu, J&K" },
+  "leh": { lat: 34.1526, lng: 77.5771, displayName: "Leh, Ladakh" },
+  "ladakh": { lat: 34.1526, lng: 77.5771, displayName: "Leh, Ladakh" },
+  "kota": { lat: 25.2138, lng: 75.8648, displayName: "Kota, Rajasthan" },
+  "ajmer": { lat: 26.4499, lng: 74.6399, displayName: "Ajmer, Rajasthan" },
+  "rajkot": { lat: 22.3039, lng: 70.8022, displayName: "Rajkot, Gujarat" },
+  "siliguri": { lat: 26.7271, lng: 88.3953, displayName: "Siliguri, West Bengal" },
+  "durgapur": { lat: 23.5204, lng: 87.3119, displayName: "Durgapur, West Bengal" },
+  "asansol": { lat: 23.6739, lng: 86.9524, displayName: "Asansol, West Bengal" },
+  "agartala": { lat: 23.8315, lng: 91.2868, displayName: "Agartala, Tripura" },
+  "imphal": { lat: 24.8170, lng: 93.9368, displayName: "Imphal, Manipur" },
+  "aizawl": { lat: 23.7271, lng: 92.7176, displayName: "Aizawl, Mizoram" },
+  "kohima": { lat: 25.6751, lng: 94.1086, displayName: "Kohima, Nagaland" },
+  "gangtok": { lat: 27.3389, lng: 88.6065, displayName: "Gangtok, Sikkim" },
+  "itanagar": { lat: 27.0844, lng: 93.6053, displayName: "Itanagar, Arunachal" },
 };
 
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth radius in KM
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -996,7 +1104,28 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
+  return Math.round(R * c * 10) / 10; // 1 decimal precision
+}
+
+export function getCityCoordinates(cityName: string): { lat: number; lng: number } | null {
+  if (!cityName) return null;
+  const clean = cityName.toLowerCase().trim();
+  
+  // 1. Direct match
+  if (CITY_COORDINATES[clean]) return CITY_COORDINATES[clean];
+  
+  // 2. City before comma e.g. "Mumbai, Maharashtra" -> "mumbai"
+  const firstPart = clean.split(",")[0].trim();
+  if (CITY_COORDINATES[firstPart]) return CITY_COORDINATES[firstPart];
+  
+  // 3. Substring matching
+  for (const [key, coords] of Object.entries(CITY_COORDINATES)) {
+    if (clean.includes(key) || key.includes(firstPart) || firstPart.includes(key)) {
+      return coords;
+    }
+  }
+  
+  return null;
 }
 
 type ActiveHub = {
@@ -1027,9 +1156,11 @@ function VehiclesCatalogContent() {
   const [activeHubs, setActiveHubs] = useState<ActiveHub[]>(() => DEFAULT_ACTIVE_HUBS);
   const [status, setStatus] = useState<React.ReactNode>("");
   const [locationStatus, setLocationStatus] = useState<React.ReactNode | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [detectedState, setDetectedState] = useState("");
   const [detectedLocationLabel, setDetectedLocationLabel] = useState("");
   const [outOfRangeInfo, setOutOfRangeInfo] = useState<{ areaName: string; distanceKm: number; nearestHub: string } | null>(null);
+  const [extendedHubInfo, setExtendedHubInfo] = useState<{ nearestHub: string; distanceKm: number; areaName: string } | null>(null);
   const [waitlistName, setWaitlistName] = useState("");
   const [waitlistPhone, setWaitlistPhone] = useState("");
   const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
@@ -1119,8 +1250,19 @@ function VehiclesCatalogContent() {
   }, [city]);
 
   const filteredVehicles = useMemo(() => {
-    let result = vehicles;
+    // 1. Calculate distance from userCoords for every vehicle
+    let result = vehicles.map((v) => {
+      let distanceKm: number | null = null;
+      if (userCoords) {
+        const vCoords = getCityCoordinates(v.city);
+        if (vCoords) {
+          distanceKm = calculateHaversineDistance(userCoords.lat, userCoords.lng, vCoords.lat, vCoords.lng);
+        }
+      }
+      return { ...v, distanceKm };
+    });
 
+    // 2. Hub Filter
     if (selectedHub) {
       const normalizedCity = city.toLowerCase();
       const cityKey = normalizedCity.includes("delhi")
@@ -1137,7 +1279,7 @@ function VehiclesCatalogContent() {
         if (cityHubs.length > 0) {
           const targetHub = cityHubs.find((h) => h.name === selectedHub);
           if (targetHub) {
-            result = vehicles.filter((vehicle, index) => {
+            result = result.filter((vehicle, index) => {
               if (vehicle.airportPickup) {
                 const airportHub = cityHubs.find((h) => h.airport);
                 return airportHub?.id === targetHub.id;
@@ -1154,7 +1296,27 @@ function VehiclesCatalogContent() {
       }
     }
 
-    // Sort available vehicles first
+    // 3. 🎯 GPS 150 KM RANGE FILTER & NEAREST-FIRST SORTING
+    if (userCoords) {
+      // Filter strictly within 150 KM
+      result = result.filter((v) => v.distanceKm !== null && v.distanceKm <= 150);
+
+      // Sort from NEAREST (0 km) to FARTHEST (150 km)
+      return result.sort((a, b) => {
+        const distA = a.distanceKm ?? 99999;
+        const distB = b.distanceKm ?? 99999;
+        if (distA !== distB) return distA - distB;
+        
+        // Secondary sort: available first
+        const isAvailA = (a.availabilityStatus ?? "available").toLowerCase() === "available";
+        const isAvailB = (b.availabilityStatus ?? "available").toLowerCase() === "available";
+        if (isAvailA && !isAvailB) return -1;
+        if (!isAvailA && isAvailB) return 1;
+        return 0;
+      });
+    }
+
+    // Default sorting when GPS is not active: Available vehicles first
     return [...result].sort((a, b) => {
       const statusA = (a.availabilityStatus ?? "available").toLowerCase();
       const statusB = (b.availabilityStatus ?? "available").toLowerCase();
@@ -1164,7 +1326,7 @@ function VehiclesCatalogContent() {
       if (!isAvailA && isAvailB) return 1;
       return 0;
     });
-  }, [vehicles, selectedHub, city]);
+  }, [vehicles, selectedHub, city, userCoords]);
 
   // Auto-center Coverflow carousel to middle vehicle card on initial load & filter changes
   useEffect(() => {
@@ -1212,11 +1374,12 @@ function VehiclesCatalogContent() {
     }
 
     setIsDetectingLocation(true);
-    setStatus("Detecting your location...");
+    setStatus("Detecting your location & scanning 150 km fleet...");
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        setUserCoords({ lat: latitude, lng: longitude });
 
         try {
           const geoResponse = await fetch(
@@ -1250,6 +1413,10 @@ function VehiclesCatalogContent() {
             return prevOptions;
           });
 
+          // Fetch full vehicle fleet to evaluate 150 km radius distances
+          setCity(fullDetailedLocation);
+          await fetchVehiclesWith({ city: "" });
+
           // Calculate distance to nearest hub
           let nearestHubName = "";
           let minDistanceKm = Infinity;
@@ -1264,46 +1431,51 @@ function VehiclesCatalogContent() {
             }
           }
 
-          // Check if direct active operating territory or within 150 km radius
-          const directMatchedHub = activeHubs.find((h) => {
-            const hCity = h.cityName.toLowerCase().trim();
-            const hState = h.stateName.toLowerCase().trim();
-            const cName = cityName.toLowerCase().trim();
-            const dist = district.toLowerCase().trim();
-            const stName = stateName.toLowerCase().trim();
-            return (
-              (cName && (hCity === cName || hCity.includes(cName) || cName.includes(hCity))) ||
-              (dist && (hCity === dist || dist.includes(hCity))) ||
-              (stName && hState && stName === hState && cName && hCity.includes(cName))
-            );
-          });
-
-          const isServiced = Boolean(directMatchedHub) || minDistanceKm <= 150;
-
-          setCity(fullDetailedLocation);
-          await fetchVehiclesWith({ city: fullDetailedLocation });
-
-          if (isServiced) {
+          if (minDistanceKm <= 150) {
+            // Zone 1: Active Fleet within 150 KM
             setOutOfRangeInfo(null);
-            const hubLabel = (directMatchedHub?.displayName || matchedCityName || "Operating Hub").split(",")[0].trim();
-            const distText = minDistanceKm < Infinity && minDistanceKm > 0 ? `${minDistanceKm} km from ` : "";
+            setExtendedHubInfo(null);
+            const distText = minDistanceKm < Infinity && minDistanceKm > 0 ? `~${Math.round(minDistanceKm)} km` : "0 km";
 
             setLocationStatus(
               <span className="inline-flex items-center gap-1.5 font-sans font-bold text-xs tracking-wide text-emerald-400">
                 <MapPin className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{fullDetailedLocation}</span>
-                <span className="text-white/60 font-medium">({distText}{hubLabel} Hub - Serviced ✅)</span>
+                <span className="text-white/75 font-semibold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                  ⚡ Nearest Fleet {distText} • 150 km Active Radius ✅
+                </span>
+              </span>
+            );
+          } else if (minDistanceKm <= 180) {
+            // Zone 2: Nearest Hub Buffer Zone (150 KM - 180 KM)
+            setOutOfRangeInfo(null);
+            setExtendedHubInfo({
+              nearestHub: matchedCityName || "Delhi NCR",
+              distanceKm: Math.round(minDistanceKm),
+              areaName: fullDetailedLocation,
+            });
+
+            setLocationStatus(
+              <span className="inline-flex items-center gap-1.5 font-sans font-bold text-xs tracking-wide text-amber-400">
+                <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                <span>{fullDetailedLocation}</span>
+                <span className="text-white/75 font-semibold bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                  📍 Nearest Hub: {matchedCityName || "Delhi NCR"} ~{Math.round(minDistanceKm)} km away
+                </span>
               </span>
             );
           } else {
+            // Zone 3: Out of Range (> 180 KM) -> Show Launching Soon VIP Waitlist
+            setExtendedHubInfo(null);
             setOutOfRangeInfo({
               areaName: fullDetailedLocation,
               nearestHub: matchedCityName || "Delhi NCR",
               distanceKm: Math.round(minDistanceKm),
             });
+
             setLocationStatus(
-              <span className="inline-flex items-center gap-1.5 font-sans font-bold text-xs tracking-wide text-amber-400">
-                <MapPin className="h-3.5 w-3.5 text-amber-400" />
+              <span className="inline-flex items-center gap-1.5 font-sans font-bold text-xs tracking-wide text-rose-400">
+                <MapPin className="h-3.5 w-3.5 text-rose-400" />
                 <span>{fullDetailedLocation}</span>
                 <span className="text-white/60 font-medium">(Nearest Hub: {matchedCityName || "Delhi NCR"} ~{Math.round(minDistanceKm)} km)</span>
               </span>
@@ -1402,7 +1574,10 @@ function VehiclesCatalogContent() {
 
     const params = new URLSearchParams();
     if (values.query) params.set("q", values.query);
-    if (values.city) params.set("city", values.city);
+    // If GPS userCoords is active, do NOT filter backend SQL by city string so full fleet is evaluated for 150km radius!
+    if (values.city && !userCoords && overrides?.city !== "") {
+      params.set("city", values.city);
+    }
     if (values.type) params.set("type", values.type);
     if (values.fuel) params.set("fuel", values.fuel);
     if (values.transmission) params.set("transmission", values.transmission);
@@ -1467,11 +1642,13 @@ function VehiclesCatalogContent() {
     setType("");
     setFuel("");
     setTransmission("");
+    setUserCoords(null);
     setSelectedHub(null);
     setLocationStatus(null);
     setDetectedState("");
     setDetectedLocationLabel("");
     setOutOfRangeInfo(null);
+    setExtendedHubInfo(null);
     void fetchVehiclesWith({
       query: "",
       city: "",
@@ -1729,20 +1906,65 @@ function VehiclesCatalogContent() {
         </form>
       </section>
 
-      {/* 150 KM Radius Coming Soon Banner & Request Form */}
+      {/* Zone 2: 150 KM - 180 KM Nearest Hub Alert Banner */}
+      {extendedHubInfo && (
+        <div className="mt-3 sm:mt-6 rounded-2xl sm:rounded-3xl border border-amber-500/40 bg-gradient-to-r from-amber-950/80 via-neutral-900 to-black p-4 sm:p-5 shadow-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative overflow-hidden animate-[fade-up_0.5s_ease_forwards]">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0 shadow-lg">
+              <MapPin className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[9px] font-extrabold text-amber-300 uppercase tracking-wider">
+                  📍 Nearest Active Hub (~{extendedHubInfo.distanceKm} km)
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-white mt-1">
+                You are near our <strong className="text-amber-400">{extendedHubInfo.nearestHub}</strong> Hub (~{extendedHubInfo.distanceKm} km)
+              </h4>
+              <p className="text-xs text-white/70 mt-0.5">
+                Next Gear fleet is active in {extendedHubInfo.nearestHub}. You can book direct hub pickup or doorstep regional delivery!
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setCity(extendedHubInfo.nearestHub);
+                setUserCoords(null);
+                setExtendedHubInfo(null);
+                void fetchVehiclesWith({ city: extendedHubInfo.nearestHub });
+              }}
+              className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 px-4 py-2.5 text-xs font-black text-black shadow-lg shadow-amber-500/20 transition hover:scale-105 active:scale-95 cursor-pointer text-center"
+            >
+              Explore {extendedHubInfo.nearestHub} Fleet ➔
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setExtendedHubInfo(null)}
+              className="text-white/40 hover:text-white text-base p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Zone 3: > 180 KM Out of Range Launching Soon Banner & VIP Request Form */}
       {outOfRangeInfo && (
-        <div className="mt-3 sm:mt-6 rounded-2xl sm:rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-950/70 via-neutral-900 to-black p-4 sm:p-6 shadow-2xl space-y-3 text-white relative overflow-hidden animate-[fade-up_0.5s_ease_forwards]">
+        <div className="mt-3 sm:mt-6 rounded-2xl sm:rounded-3xl border border-red-500/30 bg-gradient-to-br from-red-950/70 via-neutral-900 to-black p-4 sm:p-6 shadow-2xl space-y-3 text-white relative overflow-hidden animate-[fade-up_0.5s_ease_forwards]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <span className="inline-block rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">
+              <span className="inline-block rounded-full bg-red-500/20 border border-red-500/40 px-2.5 py-0.5 text-[10px] font-extrabold text-red-400 uppercase tracking-wider">
                 🚀 Service Launch Request
               </span>
               <h3 className="text-base sm:text-xl font-black mt-1.5 text-white">
-                We are coming soon to <span className="text-amber-400">{outOfRangeInfo.areaName}</span>!
+                We are coming soon to <span className="text-red-400">{outOfRangeInfo.areaName}</span>!
               </h3>
               <p className="text-xs sm:text-sm text-white/70 mt-1 max-w-2xl">
                 Your detected location is <strong>{outOfRangeInfo.distanceKm} km</strong> away from our nearest active hub ({outOfRangeInfo.nearestHub}). 
-                Our current active fleet delivery radius is <strong>150 km</strong>. Request Next Gear in your area below to be first in line when we launch!
+                Our active service range is up to <strong>180 km</strong>. Request Next Gear in your area below to be first in line when we launch!
               </p>
             </div>
             <button 
@@ -1817,9 +2039,15 @@ function VehiclesCatalogContent() {
         {/* Left catalog panel */}
         <div className={`lg:col-span-7 space-y-3 sm:space-y-6 ${activeMobileTab === "list" ? "block" : "hidden lg:block"}`}>
           <section className="space-y-3 sm:space-y-4 rounded-2xl sm:rounded-3xl border-0 sm:border border-white/10 bg-transparent sm:bg-white/[0.03] backdrop-blur-none sm:backdrop-blur-xl p-0 sm:p-6 shadow-none sm:shadow-2xl text-white">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2.5 px-1 sm:px-0">
+            {/* Header row: Results title + Available count + Mobile view toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 sm:px-0 pb-2 border-b border-white/5">
               <div className="flex items-center justify-between w-full sm:w-auto">
-                <h2 className="text-base sm:text-lg font-bold text-white tracking-wide">Results</h2>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-lg sm:text-xl font-black text-white tracking-wide">Results</h2>
+                  <span className="text-xs font-bold text-white/60 bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full">
+                    {filteredVehicles.length} {filteredVehicles.length === 1 ? "vehicle" : "vehicles"}
+                  </span>
+                </div>
 
                 {/* Mobile Layout Switcher - Top Right on Mobile */}
                 <div className="flex sm:hidden items-center flex-shrink-0 bg-white/[0.06] border border-white/15 p-0.5 rounded-xl backdrop-blur-md shadow-inner">
@@ -1850,89 +2078,89 @@ function VehiclesCatalogContent() {
                 </div>
               </div>
 
-              <div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-white/70 font-mono font-medium">{status}</span>
-                  {detectedLocationLabel && city && city === detectedLocationLabel && (
-                    <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full shadow-sm">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                      <span className="truncate max-w-[200px] sm:max-w-none">{detectedLocationLabel}</span>
-                    </span>
-                  )}
-                </div>
-
+              {/* Desktop Status / GPS Radius badge */}
+              <div className="hidden sm:flex items-center gap-2">
+                {userCoords && (
+                  <span className="inline-flex items-center gap-1.5 font-bold text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-full shadow-sm">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>GPS 150 km Radius Active (Nearest First)</span>
+                  </span>
+                )}
                 {selectedHub && (
-                  <p className="text-xs text-white/50 mt-1">
-                    Filtered by Pick-up Hub: <span className="font-semibold text-[var(--brand-red-soft)]">{selectedHub}</span>
-                  </p>
+                  <span className="text-xs text-white/60 font-medium">
+                    Hub: <strong className="text-red-400">{selectedHub}</strong>
+                  </span>
                 )}
               </div>
-
-              {locationStatus && city && city === detectedLocationLabel && (
-                <div className="hidden sm:block text-xs font-bold text-emerald-400">
-                  {locationStatus}
-                </div>
-              )}
             </div>
 
-            {/* Show selected filters as tags */}
+            {/* Show selected filters as clean pill tags (Single, elegant line) */}
             {(city || type || fuel || transmission || query || selectedHub) && (
-              <div className="flex flex-wrap gap-2 px-4 sm:px-0">
+              <div className="flex flex-wrap items-center gap-2 pt-1 px-1 sm:px-0">
                 {city && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-950/50 px-3 py-1.5 text-xs font-semibold text-blue-300 border border-blue-800/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-950/60 px-3 py-1 text-xs font-semibold text-blue-300 border border-blue-800/40 shadow-sm">
                     <MapPin className="h-3.5 w-3.5 text-blue-400" />
                     <span className="truncate max-w-[220px] sm:max-w-none">{city}</span>
                     <button 
                       type="button" 
                       onClick={() => {
                         setCity("");
+                        setUserCoords(null);
                         setDetectedLocationLabel("");
                         setLocationStatus(null);
                         setOutOfRangeInfo(null);
+                        setExtendedHubInfo(null);
+                        void fetchVehiclesWith({ city: "" });
                       }} 
-                      className="ml-1 hover:text-white cursor-pointer transition-colors"
-                      title="Clear City Filter"
+                      className="ml-1 text-white/60 hover:text-white cursor-pointer transition-colors"
+                      title="Clear Location Filter"
                     >
                       ✕
                     </button>
                   </span>
                 )}
                 {selectedHub && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-950/50 px-3 py-1.5 text-xs font-semibold text-[var(--brand-red-soft)] border border-red-800/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-950/60 px-3 py-1 text-xs font-semibold text-[var(--brand-red-soft)] border border-red-800/40 shadow-sm">
                     <Building2 className="h-3.5 w-3.5 text-red-400" />
                     <span>Hub: {selectedHub}</span>
-                    <button type="button" onClick={() => setSelectedHub(null)} className="ml-1 hover:text-white cursor-pointer transition-colors">✕</button>
+                    <button type="button" onClick={() => setSelectedHub(null)} className="ml-1 text-white/60 hover:text-white cursor-pointer transition-colors">✕</button>
                   </span>
                 )}
                 {type && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-950/50 px-3 py-1.5 text-xs font-semibold text-purple-300 border border-purple-800/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-950/60 px-3 py-1 text-xs font-semibold text-purple-300 border border-purple-800/40 shadow-sm">
                     <Car className="h-3.5 w-3.5 text-purple-400" />
                     <span className="capitalize">{type}</span>
-                    <button type="button" onClick={() => setType("")} className="ml-1 hover:text-white cursor-pointer transition-colors">✕</button>
+                    <button type="button" onClick={() => setType("")} className="ml-1 text-white/60 hover:text-white cursor-pointer transition-colors">✕</button>
                   </span>
                 )}
                 {fuel && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/50 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-800/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/60 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-800/40 shadow-sm">
                     <Fuel className="h-3.5 w-3.5 text-emerald-400" />
                     <span className="capitalize">{fuel}</span>
-                    <button type="button" onClick={() => setFuel("")} className="ml-1 hover:text-white cursor-pointer transition-colors">✕</button>
+                    <button type="button" onClick={() => setFuel("")} className="ml-1 text-white/60 hover:text-white cursor-pointer transition-colors">✕</button>
                   </span>
                 )}
                 {transmission && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-950/50 px-3 py-1.5 text-xs font-semibold text-orange-300 border border-orange-800/30 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-950/60 px-3 py-1 text-xs font-semibold text-orange-300 border border-orange-800/40 shadow-sm">
                     <Settings className="h-3.5 w-3.5 text-orange-400" />
                     <span className="capitalize">{transmission}</span>
-                    <button type="button" onClick={() => setTransmission("")} className="ml-1 hover:text-white cursor-pointer transition-colors">✕</button>
+                    <button type="button" onClick={() => setTransmission("")} className="ml-1 text-white/60 hover:text-white cursor-pointer transition-colors">✕</button>
                   </span>
                 )}
-
                 {query && (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/85 border border-white/10">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white border border-white/15">
                     🔍 {query}
-                    <button type="button" onClick={() => setQuery("")} className="ml-1 hover:text-white cursor-pointer">✕</button>
+                    <button type="button" onClick={() => setQuery("")} className="ml-1 text-white/60 hover:text-white cursor-pointer">✕</button>
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="text-xs text-white/40 hover:text-red-400 transition-colors ml-auto underline cursor-pointer"
+                >
+                  Clear all
+                </button>
               </div>
             )}
 

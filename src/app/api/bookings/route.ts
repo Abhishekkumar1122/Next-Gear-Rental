@@ -268,6 +268,13 @@ export async function POST(request: NextRequest) {
     referralCode,
     phone,
     quantity,
+    deliveryMode,
+    deliveryAddress,
+    deliveryLandmark,
+    deliveryLat,
+    deliveryLng,
+    deliveryFeeINR,
+    deliveryDistanceKm,
   } = payload;
 
   const qty = Math.max(1, Number(quantity ?? 1));
@@ -364,6 +371,11 @@ export async function POST(request: NextRequest) {
               },
             })) > 0;
 
+        if (hasActiveBooking) {
+          conflictError = "This vehicle is already booked for the selected dates. Please select different dates or choose another ride.";
+          throw new Error(conflictError);
+        }
+
         const override = await getVehicleAvailabilityOverride(vehicleId);
         const availability = isTestRideVehicle ? "available" : resolveVehicleAvailability({ vehicleId, hasActiveBooking, override });
         if (availability !== "available") {
@@ -371,37 +383,22 @@ export async function POST(request: NextRequest) {
           throw new Error("AV_CONFLICT");
         }
 
-        // Link with existing user by phone or email
-        if (cleanPhone) {
-          userResult = await tx.user.findFirst({
-            where: { phone: cleanPhone },
-          });
-        }
-        if (!userResult && effectiveEmail) {
-          userResult = await tx.user.findUnique({
-            where: { email: effectiveEmail },
-          });
-        }
-
-        if (!userResult) {
-          userResult = await tx.user.create({
-            data: {
-              name: userName,
-              email: effectiveEmail || `${cleanPhone}@guest.next-gear.app`,
-              phone: cleanPhone || undefined,
-              role: "CUSTOMER",
-            },
-          });
-        } else {
-          userResult = await tx.user.update({
-            where: { id: userResult.id },
-            data: {
-              name: userName,
-              ...(cleanPhone ? { phone: cleanPhone } : {}),
-              ...(effectiveEmail && !userResult.email?.includes("@guest.") ? { email: effectiveEmail } : {}),
-            },
-          });
-        }
+        // Upsert user inside the transaction
+        userResult = await tx.user.upsert({
+          where: { email: effectiveEmail },
+          update: {
+            name: userName,
+            ...(cleanPhone ? { phone: cleanPhone } : {}),
+            timezone: timezone ?? "Asia/Kolkata",
+          },
+          create: {
+            email: effectiveEmail,
+            name: userName,
+            phone: cleanPhone || null,
+            role: "CUSTOMER",
+            timezone: timezone ?? "Asia/Kolkata",
+          },
+        });
 
         // Compute price details (safe inside transaction since it's just JS calculations)
         units = useHourly
@@ -428,7 +425,8 @@ export async function POST(request: NextRequest) {
         }
 
         const addOnTotal = getAddOnTotalForVehicle(addOnIds, useHourly, units, qty, vehicle);
-        subtotalAmountINR = vehicleCost + addOnTotal;
+        const deliveryFee = deliveryMode === "doorstep" && Number(deliveryFeeINR) > 0 ? Number(deliveryFeeINR) : 0;
+        subtotalAmountINR = vehicleCost + addOnTotal + deliveryFee;
 
         const bookingCount = await tx.booking.count({ where: { userId: userResult.id } });
         promotionResult = await computePromotionBreakdown({
@@ -452,6 +450,13 @@ export async function POST(request: NextRequest) {
             currency: currency ?? "INR",
             timezone: timezone ?? "Asia/Kolkata",
             status: "CONFIRMED",
+            deliveryMode: deliveryMode === "doorstep" ? "doorstep" : "self_pickup",
+            deliveryAddress: deliveryAddress ? String(deliveryAddress) : null,
+            deliveryLandmark: deliveryLandmark ? String(deliveryLandmark) : null,
+            deliveryLat: deliveryLat ? Number(deliveryLat) : null,
+            deliveryLng: deliveryLng ? Number(deliveryLng) : null,
+            deliveryFeeINR: deliveryFee,
+            deliveryDistanceKm: deliveryDistanceKm ? Number(deliveryDistanceKm) : null,
           },
         });
       });

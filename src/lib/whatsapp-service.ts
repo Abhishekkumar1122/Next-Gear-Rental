@@ -31,6 +31,16 @@ export function resolveHubMapsUrl(cityName: string, pickupAddress?: string): str
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Next Gear Rentals Station Hub, ${cleanCity}`)}`;
 }
 
+export async function sendWhatsAppAlert(phone: string, message: string) {
+  const cleanPhone = normalizeWhatsAppPhone(phone);
+  if (!cleanPhone) return { ok: false, error: "Invalid phone number" };
+  return await dispatchAlert({
+    channel: "whatsapp",
+    to: cleanPhone,
+    message,
+  });
+}
+
 export async function sendWhatsAppOtp(input: {
   phone: string;
   otp: string;

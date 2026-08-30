@@ -91,9 +91,25 @@ type SiteSettingsForm = {
   faq2Question: string; faq2Answer: string;
   faq3Question: string; faq3Answer: string;
   vehicleCardStyle: string;
+  // Vendor Business Hub & Tier Customizations
+  tier1Name?: string;
+  tier1Subtitle?: string;
+  tier1Trips?: string;
+  tier2Name?: string;
+  tier2Subtitle?: string;
+  tier2Trips?: string;
+  tier3Name?: string;
+  tier3Subtitle?: string;
+  tier3Trips?: string;
+  tier4Name?: string;
+  tier4Subtitle?: string;
+  tierRoadmapTitle?: string;
+  tierRatingLabel?: string;
+  tierHandoverLabel?: string;
+  tierCancellationLabel?: string;
 };
 
-type SiteSettingsSection = "cardTheme" | "brand" | "description" | "contact" | "social" | "discounts" | "fairness" | "receipt" | "integrations" | "operational" | "promotions" | "homepage" | "seo";
+type SiteSettingsSection = "cardTheme" | "brand" | "description" | "contact" | "social" | "discounts" | "fairness" | "receipt" | "integrations" | "operational" | "promotions" | "homepage" | "seo" | "vendorHub";
 
 const themesList = [
   { id: "red", hex: "#dc2626", label: "Ferrari Red", soft: "#fca5a5", glow: "rgba(220, 38, 38, 0.15)" },
@@ -191,6 +207,21 @@ const initialForm: SiteSettingsForm = {
   faq1Question: "", faq1Answer: "",
   faq2Question: "", faq2Answer: "",
   faq3Question: "", faq3Answer: "",
+  tier1Name: "Bronze Partner",
+  tier1Subtitle: "Standard Partner Fleet",
+  tier1Trips: "6",
+  tier2Name: "Silver Host",
+  tier2Subtitle: "Instant Payouts Enabled",
+  tier2Trips: "16",
+  tier3Name: "Gold SuperHost",
+  tier3Subtitle: "Search Priority + VIP Benefits",
+  tier3Trips: "31",
+  tier4Name: "Diamond Elite",
+  tier4Subtitle: "Lowest Platform Fee + VIP Legend Badge",
+  tierRoadmapTitle: "Tier Progression Roadmap",
+  tierRatingLabel: "4.9 Partner Rating",
+  tierHandoverLabel: "100% On-Time Handover",
+  tierCancellationLabel: "0% Cancellation Rate",
 };
 
 export function AdminSiteSettingsPanel() {
@@ -398,6 +429,7 @@ export function AdminSiteSettingsPanel() {
             { id: "receipt", label: "E-Receipt Editor" },
             { id: "integrations", label: "Integrations & Verification" },
             { id: "operational", label: "⚡ Operational Controls" },
+            { id: "vendorHub", label: "🏆 Vendor Hub & Tiers" },
             { id: "promotions", label: "🎁 Promotions & Popups" },
             { id: "homepage", label: "🏠 Homepage Layout" },
             { id: "seo", label: "🔍 SEO Metadata" },
@@ -1267,6 +1299,235 @@ export function AdminSiteSettingsPanel() {
                       className="w-full rounded-lg border border-white/5 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none focus:border-white/10"
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSection === "vendorHub" && (
+          <div className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
+            <div className="border-b border-white/5 pb-3 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                  <span>🏆</span> Vendor Business Hub, Tiers & Badges Customizer
+                </h4>
+                <p className="text-xs text-white/50 mt-1">
+                  Customize the gamified tier ranks, booking milestones, subtitles, and performance badge texts shown on every vendor's dashboard.
+                </p>
+              </div>
+            </div>
+
+            {/* 4 Gamified Tiers Grid */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Level 1 Tier */}
+              <div className="rounded-2xl border border-amber-500/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <span className="text-lg">🥉</span>
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wider text-amber-400">Level 1 Tier Rank</h5>
+                    <p className="text-[10px] text-white/40">Starting tier for new vendor partners</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Tier Name / Title</label>
+                    <input
+                      type="text"
+                      value={form.tier1Name || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier1Name: e.target.value }))}
+                      placeholder="Bronze Partner"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-amber-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Benefit / Subtitle Note</label>
+                    <input
+                      type="text"
+                      value={form.tier1Subtitle || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier1Subtitle: e.target.value }))}
+                      placeholder="Standard Partner Fleet"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-amber-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Target Completed Trips Required</label>
+                    <input
+                      type="number"
+                      value={form.tier1Trips || "6"}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier1Trips: e.target.value }))}
+                      placeholder="6"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-amber-500/40"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Level 2 Tier */}
+              <div className="rounded-2xl border border-slate-400/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <span className="text-lg">🥈</span>
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-300">Level 2 Tier Rank</h5>
+                    <p className="text-[10px] text-white/40">Intermediate tier with instant payouts</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Tier Name / Title</label>
+                    <input
+                      type="text"
+                      value={form.tier2Name || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier2Name: e.target.value }))}
+                      placeholder="Silver Host"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-slate-400/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Benefit / Subtitle Note</label>
+                    <input
+                      type="text"
+                      value={form.tier2Subtitle || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier2Subtitle: e.target.value }))}
+                      placeholder="Instant Payouts Enabled"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-slate-400/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Target Completed Trips Required</label>
+                    <input
+                      type="number"
+                      value={form.tier2Trips || "16"}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier2Trips: e.target.value }))}
+                      placeholder="16"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-slate-400/40"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Level 3 Tier */}
+              <div className="rounded-2xl border border-yellow-500/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <span className="text-lg">🥇</span>
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wider text-yellow-400">Level 3 Tier Rank</h5>
+                    <p className="text-[10px] text-white/40">SuperHost tier with top search priority</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Tier Name / Title</label>
+                    <input
+                      type="text"
+                      value={form.tier3Name || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier3Name: e.target.value }))}
+                      placeholder="Gold SuperHost"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-yellow-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Benefit / Subtitle Note</label>
+                    <input
+                      type="text"
+                      value={form.tier3Subtitle || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier3Subtitle: e.target.value }))}
+                      placeholder="Search Priority + VIP Benefits"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-yellow-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Target Completed Trips Required</label>
+                    <input
+                      type="number"
+                      value={form.tier3Trips || "31"}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier3Trips: e.target.value }))}
+                      placeholder="31"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-yellow-500/40"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Level 4 Tier */}
+              <div className="rounded-2xl border border-teal-500/20 bg-black/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                  <span className="text-lg">💎</span>
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wider text-teal-400">Level 4 Tier Rank</h5>
+                    <p className="text-[10px] text-white/40">Elite pinnacle tier with VIP Legend Badge</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Tier Name / Title</label>
+                    <input
+                      type="text"
+                      value={form.tier4Name || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier4Name: e.target.value }))}
+                      placeholder="Diamond Elite"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-teal-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Benefit / Subtitle Note</label>
+                    <input
+                      type="text"
+                      value={form.tier4Subtitle || ""}
+                      onChange={(e) => setForm((prev) => ({ ...prev, tier4Subtitle: e.target.value }))}
+                      placeholder="Lowest Platform Fee + VIP Legend Badge"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-teal-500/40"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Indicators & Roadmap Headers */}
+            <div className="rounded-2xl border border-white/5 bg-black/30 p-5 space-y-4">
+              <h5 className="text-xs font-black uppercase tracking-wider text-white border-b border-white/5 pb-2">
+                📈 Roadmap Title & Performance Badges
+              </h5>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Progress Bar Title</label>
+                  <input
+                    type="text"
+                    value={form.tierRoadmapTitle || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, tierRoadmapTitle: e.target.value }))}
+                    placeholder="Tier Progression Roadmap"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Partner Rating Badge Text</label>
+                  <input
+                    type="text"
+                    value={form.tierRatingLabel || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, tierRatingLabel: e.target.value }))}
+                    placeholder="4.9 Partner Rating"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">On-Time Handover Badge Text</label>
+                  <input
+                    type="text"
+                    value={form.tierHandoverLabel || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, tierHandoverLabel: e.target.value }))}
+                    placeholder="100% On-Time Handover"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-white/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-white/50 block mb-1">Cancellation Rate Badge Text</label>
+                  <input
+                    type="text"
+                    value={form.tierCancellationLabel || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, tierCancellationLabel: e.target.value }))}
+                    placeholder="0% Cancellation Rate"
+                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-white/20"
+                  />
                 </div>
               </div>
             </div>

@@ -92,6 +92,22 @@ export type SiteSettings = {
   faq3Question: string; faq3Answer: string;
   // Vehicle Card Theme
   vehicleCardStyle: "classic" | "glassmorphism" | "cyberpunk" | "platinum" | "boldsport" | "holographic";
+  // Vendor Business Hub & Tier Customizations
+  tier1Name?: string;
+  tier1Subtitle?: string;
+  tier1Trips?: string;
+  tier2Name?: string;
+  tier2Subtitle?: string;
+  tier2Trips?: string;
+  tier3Name?: string;
+  tier3Subtitle?: string;
+  tier3Trips?: string;
+  tier4Name?: string;
+  tier4Subtitle?: string;
+  tierRoadmapTitle?: string;
+  tierRatingLabel?: string;
+  tierHandoverLabel?: string;
+  tierCancellationLabel?: string;
 };
 
 export const defaultSiteSettings: SiteSettings = {
@@ -188,6 +204,22 @@ export const defaultSiteSettings: SiteSettings = {
   faq2Answer: "You get the vehicle with a full tank. Return with a full tank to avoid charges.",
   faq3Question: "Can I extend my booking?",
   faq3Answer: "Yes! Extend through the app anytime. Subject to vehicle availability.",
+  // Vendor Business Hub & Tier Customizations
+  tier1Name: "Bronze Partner",
+  tier1Subtitle: "Standard Partner Fleet",
+  tier1Trips: "6",
+  tier2Name: "Silver Host",
+  tier2Subtitle: "Instant Payouts Enabled",
+  tier2Trips: "16",
+  tier3Name: "Gold SuperHost",
+  tier3Subtitle: "Search Priority + VIP Benefits",
+  tier3Trips: "31",
+  tier4Name: "Diamond Elite",
+  tier4Subtitle: "Lowest Platform Fee + VIP Legend Badge",
+  tierRoadmapTitle: "Tier Progression Roadmap",
+  tierRatingLabel: "4.9 Partner Rating",
+  tierHandoverLabel: "100% On-Time Handover",
+  tierCancellationLabel: "0% Cancellation Rate",
 };
 
 // Server-side retrieval and update helpers decoupled to site-settings-server.ts

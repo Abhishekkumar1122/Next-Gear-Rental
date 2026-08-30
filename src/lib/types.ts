@@ -40,6 +40,12 @@ export type Vehicle = {
   price12HrINR?: number | null;
   operationalStatus?: "AVAILABLE" | "UNAVAILABLE" | "MAINTENANCE";
   weekendSurgeActive?: boolean;
+  distanceKm?: number | null;
+  pickupAddress?: string | null;
+  pickupLandmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  useCustomLocation?: boolean;
 };
 
 export type BookingStatus = "confirmed" | "cancelled" | "completed";
@@ -79,6 +85,13 @@ export type Booking = {
   timezone: string;
   quantity?: number;
   handoverStatus?: string;
+  deliveryMode?: "self_pickup" | "doorstep";
+  deliveryAddress?: string;
+  deliveryLandmark?: string;
+  deliveryLat?: number;
+  deliveryLng?: number;
+  deliveryFeeINR?: number;
+  deliveryDistanceKm?: number;
   startOdometer?: number | null;
   endOdometer?: number | null;
   startFuel?: string | null;

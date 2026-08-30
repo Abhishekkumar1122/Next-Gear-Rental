@@ -19,7 +19,13 @@ const createVendorVehicleSchema = z.object({
   seats: z.number().int().min(1).max(12),
   pricePerDayINR: z.number().int().positive(),
   vehicleNumber: z.string().min(4).max(30).optional(),
-  imageUrl: z.string().url(),
+  imageUrl: z.string().optional(),
+  imageUrls: z.array(z.string()).optional(),
+  pickupAddress: z.string().max(250).nullable().optional(),
+  pickupLandmark: z.string().max(150).nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  useCustomLocation: z.boolean().optional(),
   addonWaiverPrice: z.number().int().nonnegative().nullable().optional(),
   addonRsaPrice: z.number().int().nonnegative().nullable().optional(),
   addonHelmetPrice: z.number().int().nonnegative().nullable().optional(),
@@ -100,6 +106,11 @@ export async function POST(request: Request) {
         airportPickup: true,
         vendorId: vendor.id,
         cityId: city.id,
+        pickupAddress: payload.pickupAddress,
+        pickupLandmark: payload.pickupLandmark,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        useCustomLocation: payload.useCustomLocation ?? false,
         addonWaiverPrice: payload.addonWaiverPrice,
         addonRsaPrice: payload.addonRsaPrice,
         addonHelmetPrice: payload.addonHelmetPrice,
@@ -111,8 +122,14 @@ export async function POST(request: Request) {
       include: { city: true },
     });
 
+    const finalImages = Array.isArray(payload.imageUrls) && payload.imageUrls.length > 0
+      ? payload.imageUrls.filter(Boolean)
+      : payload.imageUrl
+      ? [payload.imageUrl]
+      : [];
+
     const dates = defaultDates();
-    const imageUrls = await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+    const imageUrls = await setImageUrlsForVehicle(created.id, finalImages);
     await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
     await setAvailabilityDatesForVehicle(created.id, dates);
 
@@ -133,11 +150,22 @@ export async function POST(request: Request) {
           vehicleNumber: payload.vehicleNumber?.trim() || undefined,
           airportPickup: created.airportPickup,
           imageUrls,
+          pickupAddress: created.pickupAddress,
+          pickupLandmark: created.pickupLandmark,
+          latitude: created.latitude,
+          longitude: created.longitude,
+          useCustomLocation: created.useCustomLocation,
         },
       },
       { status: 201 }
     );
   }
+
+  const finalImages = Array.isArray(payload.imageUrls) && payload.imageUrls.length > 0
+    ? payload.imageUrls.filter(Boolean)
+    : payload.imageUrl
+    ? [payload.imageUrl]
+    : [];
 
   const vehicleId = `veh-local-${Date.now()}`;
   const dates = defaultDates();
@@ -154,7 +182,7 @@ export async function POST(request: Request) {
     vendorId: vendor.id,
     vehicleNumber: payload.vehicleNumber?.trim() || undefined,
     airportPickup: true,
-    imageUrls: [payload.imageUrl],
+    imageUrls: finalImages,
     addonWaiverPrice: payload.addonWaiverPrice,
     addonRsaPrice: payload.addonRsaPrice,
     addonHelmetPrice: payload.addonHelmetPrice,
@@ -165,7 +193,7 @@ export async function POST(request: Request) {
   };
 
   vehicles.unshift(created);
-  await setImageUrlsForVehicle(created.id, [payload.imageUrl]);
+  await setImageUrlsForVehicle(created.id, finalImages);
   await setVehicleNumberForVehicle(created.id, payload.vehicleNumber);
   await setAvailabilityDatesForVehicle(created.id, dates);
 

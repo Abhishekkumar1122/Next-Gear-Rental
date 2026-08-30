@@ -38,6 +38,7 @@ import { getCachedAttentionCenterData } from "@/lib/attention-center";
 import { getCachedAdminKpiAggregates } from "@/lib/admin-kpi-aggregates";
 
 import { AdminOverviewClient } from "@/components/admin-overview-client";
+import { AdminDataMaintenancePanel } from "@/components/admin-data-maintenance-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
   const daysParam = typeof params.days === "string" ? params.days : "30";
   const sectionParam = typeof params.section === "string" ? params.section : "overview";
 
-  const allowedSections = ["overview", "attention-center", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "cities", "inspections", "contact-requests", "alerts", "broadcasts", "mail-inbox", "email-templates", "settings", "footer", "support", "webhooks", "deliveries", "careers-jobs"] as const;
+  const allowedSections = ["overview", "attention-center", "ops", "finance", "bookings", "users-fleet", "vendor-applications", "vehicles", "cities", "inspections", "contact-requests", "alerts", "broadcasts", "mail-inbox", "email-templates", "settings", "maintenance", "footer", "support", "webhooks", "deliveries", "careers-jobs"] as const;
   let activeSection = allowedSections.includes(sectionParam as (typeof allowedSections)[number])
     ? (sectionParam as (typeof allowedSections)[number])
     : "overview";
@@ -277,6 +278,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
     { id: "mail-inbox", label: "Mail Command Center", icon: "📬" },
     { id: "email-templates", label: "Email & WhatsApp Templates", icon: "✉️" },
     { id: "settings", label: "Site Settings", icon: "⚙️" },
+    { id: "maintenance", label: "Data Maintenance & Clean Slate", icon: "🧹" },
     { id: "webhooks", label: "Webhooks", icon: "⚡" },
   ] as const;
 
@@ -1021,6 +1023,10 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
 
           {activeSection === "email-templates" && (
             <AdminEmailTemplatesPanel />
+          )}
+
+          {activeSection === "maintenance" && (
+            <AdminDataMaintenancePanel />
           )}
         </main>
       </div>
