@@ -16,18 +16,7 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
     const searchEmail = email && !email.endsWith("@guest.next-gear.app") ? email : null;
 
     const bookings = await prisma.booking.findMany({
-      where: {
-        OR: [
-          ...(userId ? [{ userId }] : []),
-          ...(searchEmail ? [{ user: { email: { equals: searchEmail, mode: "insensitive" as const } } }] : []),
-          ...(cleanPhone
-            ? [
-                { user: { phone: cleanPhone } },
-                { user: { email: { equals: `${cleanPhone}@guest.next-gear.app`, mode: "insensitive" as const } } },
-              ]
-            : []),
-        ],
-      },
+      where: userId ? { userId } : searchEmail ? { user: { email: searchEmail } } : { id: "none" },
       select: {
         id: true,
         vehicleId: true,
@@ -94,19 +83,10 @@ export default async function CustomerDashboardPage() {
   const user = await getServerSessionUser();
   if (!user) redirect("/login?next=%2Fdashboard%2Fcustomer");
 
-  let dbUser = null;
-  try {
-    if (process.env.DATABASE_URL) {
-      dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { name: true },
-      });
-    }
-  } catch {
-    // Graceful fallback
-  }
-
-  const [bookings, moderation] = await Promise.all([
+  const [dbUser, bookings, moderation] = await Promise.all([
+    process.env.DATABASE_URL
+      ? prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }).catch(() => null)
+      : null,
     fetchUserBookingsDirect(user.id, user.email, user.phone),
     getUserModerationDetails(user.id, "approved").catch(() => ({ status: "approved", reason: null, customMessage: null })),
   ]);

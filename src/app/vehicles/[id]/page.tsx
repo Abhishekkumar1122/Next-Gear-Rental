@@ -206,14 +206,31 @@ export default async function VehicleDetailPage({ params }: Props) {
                 <Sparkles className="w-3.5 h-3.5" /> Vehicle Specifications
               </h3>
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+                {/* Core specs */}
                 <DetailCard label="Fuel Type" value={vehicle.fuel} icon="⛽" />
                 <DetailCard label="Transmission" value={vehicle.transmission} icon="⚙️" />
-                <DetailCard label="Pickup Point" value={vehicle.airportPickup ? "Airport Pickup" : "City Hub"} icon="📍" />
                 <DetailCard label="Seating" value={`${vehicle.seats} Seats`} icon="👤" />
-                {vehicle.vehicleNumber ? <DetailCard label="Vehicle No." value={vehicle.vehicleNumber} icon="🔢" /> : null}
                 {vehicle.mileageKmpl ? <DetailCard label="Mileage" value={`${vehicle.mileageKmpl} km/l`} icon="🏎️" /> : null}
                 {vehicle.engineCc ? <DetailCard label="Engine" value={`${vehicle.engineCc} cc`} icon="⚡" /> : null}
                 {vehicle.rangeKm ? <DetailCard label="EV Range" value={`${vehicle.rangeKm} km`} icon="🔋" /> : null}
+                {vehicle.vehicleNumber ? <DetailCard label="Vehicle No." value={vehicle.vehicleNumber} icon="🔢" /> : null}
+
+                {/* Perks always shown */}
+                <DetailCard
+                  label="Delivery"
+                  value={vehicle.airportPickup ? "Airport + Doorstep" : "Doorstep or Hub"}
+                  icon="🚚"
+                />
+                <DetailCard
+                  label="Helmets"
+                  value={vehicle.type === "car" ? "Not Applicable" : "2 Free (Sanitized)"}
+                  icon="🪖"
+                />
+                <DetailCard label="Security Deposit" value="₹0 Zero Deposit" icon="🛡️" />
+                <DetailCard label="Roadside Assist" value="24x7 RSA Covered" icon="🚨" />
+                {vehicle.type === "car" && (
+                  <DetailCard label="FASTag" value="Installed & Ready" icon="🛣️" />
+                )}
               </div>
             </div>
 

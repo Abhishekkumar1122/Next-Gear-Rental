@@ -1524,13 +1524,18 @@ function VehiclesCatalogContent() {
 
   useEffect(() => {
     const cityParam = searchParams.get("city") ?? "";
-    if (cityParam) {
-      setCity(cityParam);
-      void fetchVehiclesWith({ city: cityParam });
-      return;
-    }
+    const typeParam = searchParams.get("type") ?? "";
+    const searchParam = searchParams.get("search") ?? searchParams.get("q") ?? "";
 
-    void fetchVehiclesWith();
+    if (cityParam) setCity(cityParam);
+    if (typeParam) setType(typeParam);
+    if (searchParam) setQuery(searchParam);
+
+    void fetchVehiclesWith({
+      city: cityParam || undefined,
+      type: typeParam || undefined,
+      query: searchParam || undefined,
+    });
   }, [searchParams]);
 
   // Debounce filter changes to reduce API calls (skip on initial mount to avoid double fetch)
@@ -2164,7 +2169,7 @@ function VehiclesCatalogContent() {
               </div>
             )}
 
-            {isLoading ? (
+            {isLoading && vehicles.length === 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <VehicleCardSkeleton />
                 <VehicleCardSkeleton />

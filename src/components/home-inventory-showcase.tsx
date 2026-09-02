@@ -279,12 +279,16 @@ export function HomeInventoryShowcase() {
     >
       {/* Header & Vector Category Controls */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="space-y-1">
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-950/60 border border-red-800/40 text-[10px] font-extrabold uppercase tracking-wider text-red-400">
+            <span>🔥</span>
+            <span>Trending Fleet Preview</span>
+          </div>
           <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-wider text-white">
             Explore <span className="gradient-text">Bikes & Cars</span>
           </h2>
           <p className="text-xs text-white/60 max-w-xl">
-            Pick your ride across 120+ Indian cities with instant confirmation & verified fleets.
+            A quick sneak-peek of trending rides across India. Select your city to check full availability.
           </p>
         </div>
 
@@ -420,10 +424,11 @@ export function HomeInventoryShowcase() {
                   </div>
 
                   <Link
-                    href={`/book-vehicle?vehicleId=${encodeURIComponent(item.id)}&city=${encodeURIComponent(item.cityName)}`}
-                    className="py-2.5 px-4 bg-[var(--brand-red)] hover:bg-red-600 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-lg shadow-red-500/40 flex items-center gap-1 uppercase tracking-wider"
+                    href={`/vehicles?type=${encodeURIComponent(item.category === "scooty" ? "scooty" : item.category)}&search=${encodeURIComponent(item.title)}`}
+                    prefetch={true}
+                    className="py-2.5 px-3.5 sm:px-4 bg-gradient-to-r from-[var(--brand-red)] to-red-600 hover:from-red-600 hover:to-red-500 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-lg shadow-red-500/30 flex items-center gap-1.5 uppercase tracking-wider cursor-pointer"
                   >
-                    <span>Book Now</span>
+                    <span>Check Availability</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
@@ -447,6 +452,27 @@ export function HomeInventoryShowcase() {
             aria-label={`Rotate to slide ${idx + 1}`}
           />
         ))}
+      </div>
+
+      {/* Master Link to 150+ Vehicles Catalogue */}
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-950/40 via-white/[0.03] to-white/[0.01] border border-white/10 text-center sm:text-left shadow-xl">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-red-950/60 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+            <MapPin className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs sm:text-sm font-bold text-white">Looking for more rides in Delhi, Goa, Mumbai, or Bangalore?</p>
+            <p className="text-[11px] text-white/60 mt-0.5">Explore our complete catalog of 150+ verified bikes, luxury cars, and scooties.</p>
+          </div>
+        </div>
+        <Link
+          href="/vehicles"
+          prefetch={true}
+          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs uppercase tracking-wider transition hover:-translate-y-0.5 shadow-md flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
+        >
+          <span>View All 150+ Vehicles</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
     </div>
   );

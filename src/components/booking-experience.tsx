@@ -1605,7 +1605,7 @@ export function BookingExperience({
     }
   };
 
-  if (isLoadingPrefilled) {
+  if (isLoadingPrefilled && !selectedVehicle) {
     return (
       <section className="fade-up space-y-6 rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-2xl text-white relative overflow-hidden animate-pulse">
         <div className="flex flex-col gap-4">

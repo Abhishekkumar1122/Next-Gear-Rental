@@ -124,7 +124,9 @@ const jsonLdOrgSchema = {
   ]
 };
 
+import { Suspense } from "react";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { NavigationProgressBar } from "@/components/navigation-progress-bar";
 
 export default function RootLayout({
   children,
@@ -147,6 +149,9 @@ export default function RootLayout({
         className={`${brandDisplay.variable} ${bodySans.variable} antialiased`}
         suppressHydrationWarning
       >
+        <Suspense fallback={null}>
+          <NavigationProgressBar />
+        </Suspense>
         <AnalyticsTracker />
         {children}
       </body>

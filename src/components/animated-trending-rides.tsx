@@ -335,19 +335,16 @@ export function AnimatedTrendingRides({ rides }: AnimatedTrendingRidesProps) {
                           <p className="text-sm font-black text-[var(--brand-red)]">{ride.price}</p>
                         </div>
                         <Link
-                          href={
-                            ride.id 
-                              ? `/book-vehicle?vehicleId=${encodeURIComponent(ride.id)}&city=${encodeURIComponent(ride.city || "")}`
-                              : `/vehicles?q=${encodeURIComponent(ride.title)}`
-                          }
+                          href={`/vehicles?search=${encodeURIComponent(ride.title)}`}
+                          prefetch={true}
                           onClick={(e) => e.stopPropagation()}
-                          className={`rounded-full text-xs font-bold px-4 py-2 flex items-center gap-1 transition-all duration-300 shadow-lg active:scale-95 ${
+                          className={`rounded-full text-xs font-bold px-4 py-2 flex items-center gap-1 transition-all duration-300 shadow-lg active:scale-95 cursor-pointer ${
                             isCenter
                               ? "bg-gradient-to-r from-red-600 to-red-500 text-white shadow-red-500/40 hover:from-red-500 hover:to-red-400 hover:scale-105"
                               : "bg-[var(--brand-red)] text-white shadow-red-500/30 hover:bg-red-600 hover:scale-105"
                           }`}
                         >
-                          <span>Book Now</span>
+                          <span>Check Availability</span>
                           <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                         </Link>
                       </div>

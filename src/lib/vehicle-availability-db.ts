@@ -33,25 +33,33 @@ async function ensureTable() {
 
 export async function getVehicleAvailabilityOverrides() {
   if (!process.env.DATABASE_URL) return new Map<string, VehicleAvailabilityOverride>();
-  await ensureTable();
 
-  const rows = await prisma.$queryRawUnsafe<
-    Array<{ vehicle_id: string; status: string; note: string | null; unavailable_until: Date | null }>
-  >(
-    `SELECT vehicle_id, status, note, unavailable_until FROM "VehicleAvailabilityOverride"`,
-  );
+  try {
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{ vehicle_id: string; status: string; note: string | null; unavailable_until: Date | null }>
+    >(
+      `SELECT vehicle_id, status, note, unavailable_until FROM "VehicleAvailabilityOverride"`,
+    );
 
-  const map = new Map<string, VehicleAvailabilityOverride>();
-  for (const row of rows) {
-    map.set(row.vehicle_id, {
-      status: normalizeAvailabilityStatus(row.status),
-      note: row.note ?? undefined,
-      unavailableUntil: row.unavailable_until
-        ? row.unavailable_until.toISOString().slice(0, 10)
-        : undefined,
-    });
+    const map = new Map<string, VehicleAvailabilityOverride>();
+    for (const row of rows) {
+      map.set(row.vehicle_id, {
+        status: normalizeAvailabilityStatus(row.status),
+        note: row.note ?? undefined,
+        unavailableUntil: row.unavailable_until
+          ? row.unavailable_until.toISOString().slice(0, 10)
+          : undefined,
+      });
+    }
+    return map;
+  } catch (err: any) {
+    if (!ensuredTable) {
+      try {
+        await ensureTable();
+      } catch {}
+    }
+    return new Map<string, VehicleAvailabilityOverride>();
   }
-  return map;
 }
 
 export async function setVehicleAvailabilityOverride(
