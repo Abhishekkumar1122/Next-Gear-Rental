@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 function normalizeStatus(status: string): BookingStatus {
   if (status.toUpperCase() === "CANCELLED") return "cancelled";
   if (status.toUpperCase() === "COMPLETED") return "completed";
+  if (status.toUpperCase() === "PENDING") return "pending";
   return "confirmed";
 }
 
@@ -439,6 +440,9 @@ export async function POST(request: NextRequest) {
         });
         totalAmountINR = promotionResult.payableAmountINR;
 
+        const isOnlinePayment = Boolean(payload.paymentProvider === "payu" || payload.paymentProvider === "razorpay" || payload.paymentProvider === "stripe") && totalAmountINR > 0;
+        const initialStatus = isOnlinePayment ? "PENDING" : "CONFIRMED";
+
         bookingResult = await tx.booking.create({
           data: {
             userId: userResult.id,
@@ -449,7 +453,7 @@ export async function POST(request: NextRequest) {
             totalAmountINR,
             currency: currency ?? "INR",
             timezone: timezone ?? "Asia/Kolkata",
-            status: "CONFIRMED",
+            status: initialStatus,
             deliveryMode: deliveryMode === "doorstep" ? "doorstep" : "self_pickup",
             deliveryAddress: deliveryAddress ? String(deliveryAddress) : null,
             deliveryLandmark: deliveryLandmark ? String(deliveryLandmark) : null,
@@ -470,6 +474,7 @@ export async function POST(request: NextRequest) {
     const booking = bookingResult;
     const user = userResult;
     const promotion = promotionResult;
+    const isOnlinePayment = Boolean(payload.paymentProvider === "payu" || payload.paymentProvider === "razorpay" || payload.paymentProvider === "stripe") && totalAmountINR > 0;
 
     const confirmMsg = `🚗 *NEXT GEAR RENTALS - BOOKING CONFIRMED* 📄\n\n` +
       `Hello *${userName || userEmail.split("@")[0]}*,\nYour booking has been placed successfully!\n\n` +
@@ -505,6 +510,13 @@ export async function POST(request: NextRequest) {
           phone,
           preferredChannel: phone ? "whatsapp" : "email",
         });
+
+        // ⚠️ CRITICAL: If this booking requires online payment gateway verification (PayU/Razorpay/Stripe),
+        // DO NOT send confirmation emails, WhatsApp, or vendor notifications yet!
+        // Those alerts will be triggered ONLY after payment gateway verifies success in the callback/webhook.
+        if (isOnlinePayment) {
+          return;
+        }
 
         const { getImageMapForVehicles } = await import("@/lib/vendor-fleet-media");
         const imageMap = await getImageMapForVehicles([vehicleId]);

@@ -217,6 +217,14 @@ export async function POST(request: NextRequest) {
           endDate: endDateStr,
           totalAmountINR: totalAmount,
         });
+
+        // 4. Dispatch Tri-Party & In-App Alerts
+        try {
+          const { dispatchTriPartyBookingAlerts } = await import("@/lib/booking-alerts");
+          void dispatchTriPartyBookingAlerts(bookingId);
+        } catch (aErr) {
+          console.error("[PayU Alert Dispatch Error]", aErr);
+        }
       }
 
       return NextResponse.redirect(
@@ -237,6 +245,16 @@ export async function POST(request: NextRequest) {
               }),
             },
           });
+
+          // Explicitly update booking status to CANCELLED so it never appears confirmed in admin/vendor portals
+          if (bookingId) {
+            await prisma.booking.updateMany({
+              where: { id: bookingId },
+              data: {
+                status: "CANCELLED",
+              },
+            });
+          }
         } catch (e) {
           console.warn("[PayU Payment Fail Update Warn]", e);
         }

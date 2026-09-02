@@ -48,7 +48,7 @@ export type Vehicle = {
   useCustomLocation?: boolean;
 };
 
-export type BookingStatus = "confirmed" | "cancelled" | "completed";
+export type BookingStatus = "confirmed" | "cancelled" | "completed" | "pending";
 
 export type BookingAddOnId = "helmet" | "child-seat" | "insurance" | "waiver" | "rsa" | "jacket" | "gloves" | "guards" | "mount" | "saddlebags" | "cam-mount" | "tent" | "sleeping-bag" | "camp-set" | "carrier" | "cooler" | string;
 
