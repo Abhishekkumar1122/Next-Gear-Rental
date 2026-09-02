@@ -161,6 +161,17 @@ export async function POST(request: Request) {
         });
         if (isPaid) {
           await sendPaymentSuccessAlertByProviderPaymentId(payment.order_id);
+        } else {
+          const p = await prisma.payment.findFirst({
+            where: { providerPaymentId: payment.order_id },
+            select: { bookingId: true },
+          });
+          if (p?.bookingId) {
+            await prisma.booking.updateMany({
+              where: { id: p.bookingId, status: "PENDING" },
+              data: { status: "CANCELLED" },
+            });
+          }
         }
       }
 
@@ -209,6 +220,17 @@ export async function POST(request: Request) {
         });
         if (paymentIntent.status === "succeeded") {
           await sendPaymentSuccessAlertByProviderPaymentId(paymentIntentId);
+        } else if (paymentIntent.status === "canceled") {
+          const p = await prisma.payment.findFirst({
+            where: { providerPaymentId: paymentIntentId },
+            select: { bookingId: true },
+          });
+          if (p?.bookingId) {
+            await prisma.booking.updateMany({
+              where: { id: p.bookingId, status: "PENDING" },
+              data: { status: "CANCELLED" },
+            });
+          }
         }
       }
 

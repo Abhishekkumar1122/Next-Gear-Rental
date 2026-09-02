@@ -518,106 +518,8 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        const { getImageMapForVehicles } = await import("@/lib/vendor-fleet-media");
-        const imageMap = await getImageMapForVehicles([vehicleId]);
-        const vehiclePhotoUrl = imageMap.get(vehicleId)?.[0] || "";
-
-        const { generateBookingConfirmationEmailHtml } = await import("@/lib/email-templates");
-        const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
-        const { generateBookingReceiptPdfBuffer } = await import("@/lib/pdf-generator");
-
-        const emailHtml = generateBookingConfirmationEmailHtml({
-          bookingId: booking.id,
-          customerName: userName || userEmail.split("@")[0],
-          vehicleTitle: vehicle.title,
-          vehicleType: vehicle.type,
-          vehicleImage: vehiclePhotoUrl,
-          cityName: city,
-          startDate: `${startDate}${startTime ? ` ${startTime}` : ""}`,
-          endDate: `${endDate}${endTime ? ` ${endTime}` : ""}`,
-          totalAmountINR,
-          subtotalAmountINR,
-          discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
-          baseUrl,
-        });
-
-        let pdfBuffer: Buffer | undefined;
-        try {
-          pdfBuffer = await generateBookingReceiptPdfBuffer({
-            bookingId: booking.id,
-            customerName: userName || userEmail.split("@")[0],
-            customerPhone: phone,
-            vehicleTitle: vehicle.title,
-            vehicleType: vehicle.type,
-            vehicleImage: vehiclePhotoUrl,
-            cityName: city,
-            startDate: `${startDate}${startTime ? ` ${startTime}` : ""}`,
-            endDate: `${endDate}${endTime ? ` ${endTime}` : ""}`,
-            totalAmountINR,
-            subtotalAmountINR,
-            discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
-          });
-        } catch (pdfErr) {
-          console.error("[PDF Generation Error]", pdfErr);
-        }
-
-        if (effectiveEmail && !effectiveEmail.includes("@guest.") && !effectiveEmail.endsWith("@example.com")) {
-          await dispatchHtmlEmail({
-            to: effectiveEmail,
-            subject: `🚗 Booking Confirmed #${booking.id} - ${vehicle.title}`,
-            html: emailHtml,
-            attachments: pdfBuffer
-              ? [
-                  {
-                    filename: `NextGear-Booking-Receipt-${booking.id}.pdf`,
-                    content: pdfBuffer,
-                  },
-                ]
-              : undefined,
-          });
-        }
       } catch (err) {
-        console.error("[Booking Confirmation HTML Email Error]", err);
-      }
-
-      try {
-        await sendBookingAlert({
-          bookingId: booking.id,
-          userEmail: effectiveEmail,
-          eventType: "booking_confirmed",
-          phone: cleanPhone || phone,
-          message: confirmMsg,
-          dedupeKey: `booking-confirmed-${booking.id}`,
-        });
-
-        if (phone) {
-          void sendWhatsAppBookingReceipt({
-            bookingId: booking.id,
-            customerName: userName || userEmail.split("@")[0],
-            customerPhone: phone,
-            vehicleTitle: vehicle.title,
-            cityName: city,
-            startDate: `${startDate}${startTime ? ` ${startTime}` : ""}`,
-            endDate: `${endDate}${endTime ? ` ${endTime}` : ""}`,
-            totalAmountINR,
-            subtotalAmountINR,
-            discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
-          });
-        }
-
-        const { sendVendorBookingNotification } = await import("@/lib/whatsapp-service");
-        void sendVendorBookingNotification({
-          bookingId: booking.id,
-          customerName: userName || userEmail.split("@")[0],
-          customerPhone: phone,
-          vehicleTitle: vehicle.title,
-          cityName: city,
-          startDate: `${startDate}${startTime ? ` ${startTime}` : ""}`,
-          endDate: `${endDate}${endTime ? ` ${endTime}` : ""}`,
-          totalAmountINR,
-        });
-      } catch (vErr) {
-        console.error("[Vendor WhatsApp Alert Error]", vErr);
+        console.error("[Booking Alert Profile Setup Error]", err);
       }
 
       // Send notifications to vendor and admin in background
@@ -948,15 +850,6 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await sendBookingAlert({
-        bookingId: booking.id,
-        userEmail,
-        eventType: "booking_confirmed",
-        phone,
-        message: confirmMsg,
-        dedupeKey: `booking-confirmed-${booking.id}`,
-      });
-
       if (phone) {
         void sendWhatsAppBookingReceipt({
           bookingId: booking.id,

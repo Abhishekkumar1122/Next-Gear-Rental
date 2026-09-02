@@ -287,68 +287,43 @@ export async function sendPaymentSuccessAlertByProviderPaymentId(providerPayment
 
   const payment = await prisma.payment.findFirst({
     where: { providerPaymentId },
-    include: {
-      booking: {
-        include: {
-          user: true,
-          vehicle: true,
-        },
-      },
-    },
+    select: { bookingId: true },
   });
 
-  if (!payment?.booking?.user?.email) return;
-
-  const userEmail = payment.booking.user.email;
-  const booking = payment.booking;
-  const userPhone = booking.user.phone || undefined;
-  const vehicleTitle = booking.vehicle?.title || "Rental Vehicle";
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://next-gear.app";
-  const passLink = `${baseUrl.replace(/\/$/, "")}/api/bookings/${booking.id}/pass`;
-
-  const prettyId = formatBookingId(booking.id, booking.cityName, booking.startDate);
-
-  // Send rich HTML Booking Confirmation & QR Pass Email
-  try {
-    const { generateBookingConfirmationEmailHtml } = await import("@/lib/email-templates");
-    const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
-    const html = generateBookingConfirmationEmailHtml({
-      bookingId: prettyId,
-      customerName: booking.user?.name || "Valued Customer",
-      vehicleTitle,
-      cityName: booking.cityName,
-      startDate: new Date(booking.startDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
-      endDate: new Date(booking.endDate).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
-      totalAmountINR: booking.totalAmountINR,
-      baseUrl,
+  if (payment?.bookingId) {
+    await prisma.booking.updateMany({
+      where: { id: payment.bookingId, status: "PENDING" },
+      data: { status: "CONFIRMED" },
     });
-    void dispatchHtmlEmail({
-      to: userEmail,
-      subject: `Booking Confirmed #${prettyId} - ${vehicleTitle}`,
-      html,
-    });
-  } catch (err) {
-    console.error("[Booking Confirmation Email Failed]", err);
+    await dispatchTriPartyBookingAlerts(payment.bookingId);
   }
-
-  const message = `💳 *NEXT GEAR RENTALS - PAYMENT & BOOKING CONFIRMED* ✅\n\nHello *${booking.user?.name || "Rider"}*,\nYour payment & rental booking have been confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${vehicleTitle}*\n📍 *City:* ${booking.cityName}\n🗓️ *Dates:* ${booking.startDate.toISOString().slice(0, 10)} to ${booking.endDate.toISOString().slice(0, 10)}\n💰 *Total Paid:* *₹${booking.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
-
-  await sendBookingAlert({
-    bookingId: booking.id,
-    userEmail,
-    phone: userPhone,
-    eventType: "payment_success",
-    message,
-    forceChannel: userPhone ? "whatsapp" : "email",
-    dedupeKey: `payment-success-${providerPaymentId}`,
-  });
-
-  // Trigger Tri-Party Alerts (Customer, Vendor, Super Admin)
-  void dispatchTriPartyBookingAlerts(booking.id);
 }
+
+const triPartyDispatchedDedupe = new Set<string>();
 
 export async function dispatchTriPartyBookingAlerts(bookingId: string) {
   if (!bookingId || !bookingId.trim()) return;
+
+  const cleanId = bookingId.trim();
+
+  // Auto-transition booking from PENDING to CONFIRMED if database is active
+  if (process.env.DATABASE_URL) {
+    try {
+      await prisma.booking.updateMany({
+        where: { id: cleanId, status: "PENDING" },
+        data: { status: "CONFIRMED" },
+      });
+    } catch (e) {
+      console.error("[Booking Confirm Status Sync Error]", e);
+    }
+  }
+
+  if (triPartyDispatchedDedupe.has(cleanId)) {
+    console.log(`[TriParty Alert Dedupe] Suppressing duplicate tri-party alert dispatch for booking ${cleanId}`);
+    return;
+  }
+  triPartyDispatchedDedupe.add(cleanId);
+  setTimeout(() => triPartyDispatchedDedupe.delete(cleanId), 60 * 60 * 1000);
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://next-gear.app";
   const passLink = `${baseUrl.replace(/\/$/, "")}/api/bookings/${bookingId}/pass`;
@@ -366,6 +341,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
     vendorPhone?: string;
     vendorEmail?: string;
     vendorName?: string;
+    vendorUserId?: string;
   } | null = null;
 
   if (process.env.DATABASE_URL) {
@@ -400,6 +376,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
           vendorPhone: b.vehicle.vendor?.ownerUser?.phone || b.vehicle.vendor?.contactPhone || undefined,
           vendorEmail: b.vehicle.vendor?.ownerUser?.email || undefined,
           vendorName: b.vehicle.vendor?.businessName || b.vehicle.vendor?.ownerUser?.name || "Hub Vendor",
+          vendorUserId: b.vehicle.vendor?.ownerUser?.id || undefined,
         };
       }
     } catch (e) {
@@ -453,10 +430,36 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
         totalAmountINR: bookingData.totalAmountINR,
         baseUrl,
       });
+
+      let pdfBuffer: Buffer | undefined;
+      try {
+        const { generateBookingReceiptPdfBuffer } = await import("@/lib/pdf-generator");
+        pdfBuffer = await generateBookingReceiptPdfBuffer({
+          bookingId: bookingData.id,
+          customerName: bookingData.customerName,
+          customerPhone: bookingData.customerPhone,
+          vehicleTitle: bookingData.vehicleTitle,
+          cityName: bookingData.cityName,
+          startDate: bookingData.startDate,
+          endDate: bookingData.endDate,
+          totalAmountINR: bookingData.totalAmountINR,
+        });
+      } catch (pdfErr) {
+        console.error("[Customer PDF Pass Generation Error]", pdfErr);
+      }
+
       void dispatchHtmlEmail({
         to: bookingData.customerEmail,
-        subject: `Booking Confirmed #${prettyId} - ${bookingData.vehicleTitle}`,
+        subject: `🚗 Booking Confirmed #${prettyId} - ${bookingData.vehicleTitle}`,
         html,
+        attachments: pdfBuffer
+          ? [
+              {
+                filename: `NextGear-Booking-Pass-${prettyId}.pdf`,
+                content: pdfBuffer,
+              },
+            ]
+          : undefined,
       });
     } catch (err) {
       console.error("[Customer Email Alert Failed]", err);
@@ -466,55 +469,182 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
   const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
   if (bookingData.customerPhone) {
-    void dispatchAlert({
-      channel: "whatsapp",
-      to: bookingData.customerPhone,
-      message: customerWaMsg,
-      templateName: "booking_confirmed_receipt",
-      templateParams: [
-        bookingData.customerName,
-        prettyId,
-        bookingData.vehicleTitle,
-        bookingData.cityName,
-        bookingData.startDate,
-        bookingData.endDate,
-        bookingData.totalAmountINR.toLocaleString("en-IN"),
-        `https://maps.google.com/?q=Next+Gear+Rentals+${encodeURIComponent(bookingData.cityName)}`,
-        passLink,
-      ],
-    });
+    try {
+      const { sendWhatsAppBookingReceipt } = await import("@/lib/whatsapp-service");
+      void sendWhatsAppBookingReceipt({
+        bookingId: bookingData.id,
+        customerName: bookingData.customerName,
+        customerPhone: bookingData.customerPhone,
+        vehicleTitle: bookingData.vehicleTitle,
+        cityName: bookingData.cityName,
+        startDate: bookingData.startDate,
+        endDate: bookingData.endDate,
+        totalAmountINR: bookingData.totalAmountINR,
+      });
+    } catch (waErr) {
+      console.error("[Customer WhatsApp Alert Failed]", waErr);
+    }
     void dispatchAlert({ channel: "sms", to: bookingData.customerPhone, message: customerWaMsg });
   }
 
   // 2. VENDOR ALERT (WhatsApp + SMS)
   if (bookingData.vendorPhone) {
     const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
-    void dispatchAlert({
-      channel: "whatsapp",
-      to: bookingData.vendorPhone,
-      message: vendorWaMsg,
-      templateName: "vendor_new_booking_alert",
-      templateParams: [
-        bookingData.vendorName || "Fleet Partner",
-        prettyId,
-        bookingData.vehicleTitle,
-        bookingData.customerName,
-        bookingData.customerPhone || "N/A",
-        bookingData.cityName,
-        bookingData.startDate,
-        bookingData.endDate,
-        Math.round(bookingData.totalAmountINR * 0.8).toLocaleString("en-IN"),
-      ],
-    });
+    try {
+      const { sendVendorBookingNotification } = await import("@/lib/whatsapp-service");
+      void sendVendorBookingNotification({
+        bookingId: bookingData.id,
+        vendorPhone: bookingData.vendorPhone,
+        vendorName: bookingData.vendorName,
+        customerName: bookingData.customerName,
+        customerPhone: bookingData.customerPhone,
+        vehicleTitle: bookingData.vehicleTitle,
+        cityName: bookingData.cityName,
+        startDate: bookingData.startDate,
+        endDate: bookingData.endDate,
+        totalAmountINR: bookingData.totalAmountINR,
+      });
+    } catch (vErr) {
+      console.error("[Vendor WhatsApp Alert Failed]", vErr);
+    }
     void dispatchAlert({ channel: "sms", to: bookingData.vendorPhone, message: vendorWaMsg });
   }
 
-  // 3. SUPER ADMIN ALERT (WhatsApp + SMS to 9523765172 & admin@next-gear.app)
+  // 3. SUPER ADMIN ALERT (WhatsApp + SMS + Email + In-App to Super Admin)
   const adminPhone = process.env.ADMIN_ALERT_PHONE || "9523765172";
-  const adminWaMsg = `⚡ *NEXT GEAR ADMIN ALERT - NEW PLATFORM BOOKING!* 🚀\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerEmail})\n🏢 *Vendor:* ${bookingData.vendorName}\n💰 *Revenue:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}`;
+  const vendorPayoutEst = Math.round(bookingData.totalAmountINR * 0.8);
+  const platformMarginEst = bookingData.totalAmountINR - vendorPayoutEst;
 
-  void dispatchAlert({ channel: "whatsapp", to: adminPhone, message: adminWaMsg });
+  const adminWaMsg = `⚡ *NEXT GEAR ADMIN ALERT - NEW BOOKING CONFIRMED!* 🚀\n\n` +
+    `📌 *Booking ID:* \`${prettyId}\`\n` +
+    `🚘 *Vehicle Booked:* *${bookingData.vehicleTitle}*\n` +
+    `📍 *City Hub:* ${bookingData.cityName}\n\n` +
+    `🏢 *VENDOR (VEHICLE OWNER):*\n` +
+    `▫️ *Vendor:* *${bookingData.vendorName || "Fleet Partner"}*\n` +
+    (bookingData.vendorPhone ? `▫️ *Phone:* ${bookingData.vendorPhone}\n` : "") +
+    (bookingData.vendorEmail ? `▫️ *Email:* ${bookingData.vendorEmail}\n` : "") +
+    `\n` +
+    `👤 *CUSTOMER DETAILS:*\n` +
+    `▫️ *Name:* *${bookingData.customerName}*\n` +
+    (bookingData.customerPhone ? `▫️ *Phone:* ${bookingData.customerPhone}\n` : "") +
+    (bookingData.customerEmail ? `▫️ *Email:* ${bookingData.customerEmail}\n` : "") +
+    `\n` +
+    `💰 *PAYMENT & REVENUE:*\n` +
+    `▫️ *Total Paid by Customer:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n` +
+    `▫️ *Vendor Payout Share (80%):* ₹${vendorPayoutEst.toLocaleString("en-IN")}\n` +
+    `▫️ *Platform Commission (20%):* ₹${platformMarginEst.toLocaleString("en-IN")}\n\n` +
+    `🗓️ *Trip Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n\n` +
+    `🔗 *Admin Portal:* ${baseUrl}/dashboard/admin?section=bookings`;
+
+  void dispatchAlert({
+    channel: "whatsapp",
+    to: adminPhone,
+    message: adminWaMsg,
+    templateName: "admin_booking_alert",
+    templateParams: [
+      prettyId,
+      bookingData.vehicleTitle,
+      bookingData.cityName,
+      bookingData.vendorName || "Fleet Partner",
+      bookingData.vendorPhone || "N/A",
+      bookingData.customerName,
+      bookingData.customerPhone || "N/A",
+      `₹${bookingData.totalAmountINR.toLocaleString("en-IN")}`,
+      `₹${vendorPayoutEst.toLocaleString("en-IN")}`,
+      `₹${platformMarginEst.toLocaleString("en-IN")}`,
+      bookingData.startDate,
+      bookingData.endDate,
+    ],
+  });
   void dispatchAlert({ channel: "sms", to: adminPhone, message: adminWaMsg });
+
+  // 4. IN-APP NOTIFICATIONS (Specific Vendor + Admins)
+  if (process.env.DATABASE_URL) {
+    try {
+      // Notify ONLY the specific vendor who owns this booked vehicle
+      if (bookingData.vendorUserId) {
+        await prisma.notification.create({
+          data: {
+            userId: bookingData.vendorUserId,
+            bookingId: bookingData.id,
+            title: `New Booking: ${bookingData.vehicleTitle} 🎉`,
+            message: `${bookingData.customerName} booked your vehicle for ₹${bookingData.totalAmountINR.toLocaleString("en-IN")} from ${bookingData.startDate} to ${bookingData.endDate}.`,
+            type: "booking",
+          },
+        });
+      }
+
+      // Notify Super Admins
+      const adminUsers = await prisma.user.findMany({
+        where: { role: "ADMIN" },
+        select: { id: true },
+      });
+
+      for (const admin of adminUsers) {
+        await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            bookingId: bookingData.id,
+            title: `🚗 New Booking: ${bookingData.vehicleTitle} (Vendor: ${bookingData.vendorName})`,
+            message: `Customer ${bookingData.customerName} (${bookingData.customerPhone || "N/A"}) booked for ₹${bookingData.totalAmountINR.toLocaleString("en-IN")} in ${bookingData.cityName}. Vendor: ${bookingData.vendorName} (${bookingData.vendorPhone || "N/A"}).`,
+            type: "booking",
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.error("[In-App Notification Error]", notifErr);
+    }
+  }
+
+  // 5. SUPER ADMIN EMAIL ALERT
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || "admin@next-gear.app";
+  try {
+    const adminEmailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #334155;">
+        <div style="background: linear-gradient(135deg, #2563eb, #1e40af); padding: 20px; text-align: center;">
+          <h2 style="margin: 0; color: #ffffff; font-size: 20px; letter-spacing: 0.5px;">⚡ NEW PLATFORM BOOKING — ADMIN ALERT</h2>
+          <p style="margin: 6px 0 0; color: #93c5fd; font-size: 14px; font-weight: bold;">Booking ID: #${prettyId}</p>
+        </div>
+        <div style="padding: 24px;">
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #334155;">
+            <h3 style="margin-top: 0; color: #38bdf8; font-size: 15px; text-transform: uppercase; border-bottom: 1px solid #334155; padding-bottom: 8px;">🚘 Vehicle & Trip Details</h3>
+            <p style="margin: 6px 0;"><strong>Vehicle:</strong> ${bookingData.vehicleTitle}</p>
+            <p style="margin: 6px 0;"><strong>City Hub:</strong> ${bookingData.cityName}</p>
+            <p style="margin: 6px 0;"><strong>Rental Period:</strong> ${bookingData.startDate} to ${bookingData.endDate}</p>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #334155;">
+            <h3 style="margin-top: 0; color: #f59e0b; font-size: 15px; text-transform: uppercase; border-bottom: 1px solid #334155; padding-bottom: 8px;">🏢 Vendor (Vehicle Owner)</h3>
+            <p style="margin: 6px 0;"><strong>Business / Owner:</strong> ${bookingData.vendorName || "Fleet Partner"}</p>
+            <p style="margin: 6px 0;"><strong>Contact Phone:</strong> ${bookingData.vendorPhone || "N/A"}</p>
+            <p style="margin: 6px 0;"><strong>Email:</strong> ${bookingData.vendorEmail || "N/A"}</p>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #334155;">
+            <h3 style="margin-top: 0; color: #10b981; font-size: 15px; text-transform: uppercase; border-bottom: 1px solid #334155; padding-bottom: 8px;">👤 Customer Details</h3>
+            <p style="margin: 6px 0;"><strong>Full Name:</strong> ${bookingData.customerName}</p>
+            <p style="margin: 6px 0;"><strong>Phone:</strong> ${bookingData.customerPhone || "N/A"}</p>
+            <p style="margin: 6px 0;"><strong>Email:</strong> ${bookingData.customerEmail || "N/A"}</p>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155;">
+            <h3 style="margin-top: 0; color: #ec4899; font-size: 15px; text-transform: uppercase; border-bottom: 1px solid #334155; padding-bottom: 8px;">💰 Payment & Revenue Split</h3>
+            <p style="margin: 6px 0; font-size: 16px;"><strong>Total Paid:</strong> <span style="color: #4ade80; font-weight: bold;">₹${bookingData.totalAmountINR.toLocaleString("en-IN")}</span></p>
+            <p style="margin: 6px 0;"><strong>Vendor Payout Share (80%):</strong> ₹${vendorPayoutEst.toLocaleString("en-IN")}</p>
+            <p style="margin: 6px 0;"><strong>Platform Commission (20%):</strong> ₹${platformMarginEst.toLocaleString("en-IN")}</p>
+          </div>
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="${baseUrl}/dashboard/admin?section=bookings" style="background: #2563eb; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Open Admin Bookings Dashboard</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    void dispatchHtmlEmail({
+      to: adminEmail,
+      subject: `⚡ [ADMIN ALERT] New Booking: ${bookingData.vehicleTitle} - Vendor: ${bookingData.vendorName} (₹${bookingData.totalAmountINR})`,
+      html: adminEmailHtml,
+    });
+  } catch (adminMailErr) {
+    console.error("[Admin Email Alert Failed]", adminMailErr);
+  }
 }
 
 export type AlertLogListItem = {

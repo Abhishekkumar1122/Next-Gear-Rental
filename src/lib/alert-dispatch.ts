@@ -236,6 +236,8 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
   };
 }
 
+const sentEmailDedupe = new Set<string>();
+
 export async function dispatchHtmlEmail(input: {
   to: string;
   subject: string;
@@ -249,6 +251,18 @@ export async function dispatchHtmlEmail(input: {
   if (!to || !input.html.trim()) {
     return { provider: "mock", deliveryStatus: "failed", error: "Missing destination or html" };
   }
+
+  const dedupeKey = `${to.toLowerCase()}:${input.subject.trim()}`;
+  if (sentEmailDedupe.has(dedupeKey)) {
+    console.log(`[Email Dedupe Guard] Suppressing duplicate email to ${to} for subject "${input.subject}"`);
+    return {
+      provider: "mock",
+      deliveryStatus: "sent",
+      providerMessageId: `dedupe-suppressed-${Date.now()}`,
+    };
+  }
+  sentEmailDedupe.add(dedupeKey);
+  setTimeout(() => sentEmailDedupe.delete(dedupeKey), 10 * 60 * 1000);
 
   if (process.env.RESEND_API_KEY) {
     try {

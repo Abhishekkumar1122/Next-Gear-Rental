@@ -21,7 +21,7 @@ type Booking = {
   addons?: string[];
   totalAmountINR: number;
   currency: string;
-  status: "confirmed" | "cancelled" | "completed";
+  status: "confirmed" | "cancelled" | "completed" | "pending";
   createdAt: string;
   timezone?: string;
   handoverStatus?: string;
@@ -53,6 +53,12 @@ const STATUS_CONFIG: Record<
     bg: "bg-red-50/10",
     text: "text-red-400",
     dot: "bg-red-400",
+  },
+  pending: {
+    label: "Payment Pending",
+    bg: "bg-amber-50/10",
+    text: "text-amber-400",
+    dot: "bg-amber-400",
   },
 };
 

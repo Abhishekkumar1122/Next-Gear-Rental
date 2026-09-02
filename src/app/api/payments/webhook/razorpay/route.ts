@@ -138,6 +138,11 @@ export async function POST(request: Request) {
           metadataJson: buildWebhookMetadata(payment.metadataJson, eventId, payload.event),
         },
       });
+
+      await prisma.booking.updateMany({
+        where: { id: payment.bookingId, status: "PENDING" },
+        data: { status: "CANCELLED" },
+      });
     }
 
     await markWebhookProcessed(log.logId);

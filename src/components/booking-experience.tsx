@@ -1865,6 +1865,30 @@ export function BookingExperience({
         />
       )}
 
+      {message && message.startsWith("❌") && (
+        <div className="mb-4 rounded-2xl border border-red-500/40 bg-gradient-to-r from-red-950/80 via-red-900/40 to-black/80 p-4 text-white shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-[fade-up_0.3s_ease]">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-bounce">⚠️</span>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-red-400">{message}</p>
+              <p className="text-[11px] text-white/70 mt-0.5">Your ride details are preserved! You can easily retry with Google Pay, PhonePe, Paytm or Card.</p>
+            </div>
+          </div>
+          {selectedVehicle && (
+            <button
+              type="button"
+              onClick={() => {
+                setMessage("");
+                createBooking(selectedVehicle.id);
+              }}
+              className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-red-600 to-[var(--brand-red)] hover:brightness-110 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition cursor-pointer shadow-lg shadow-red-600/30 flex-shrink-0 text-center"
+            >
+              ⚡ Retry Payment Now
+            </button>
+          )}
+        </div>
+      )}
+
       {selectedVehicle ? (
         // Mode A: Vehicle Selected - Detailed Form Mode
         <div className="space-y-3 sm:space-y-6">
@@ -3198,6 +3222,23 @@ export function BookingExperience({
             {message && !message.startsWith("✅") && !message.startsWith("Payment cancelled") ? (
               message.includes("Confirming") || message.includes("PayU") || message.includes("Redirecting") || bookingVehicleId === selectedVehicle.id ? (
                 <PaymentRedirectingCard message={message} />
+              ) : message.startsWith("❌") ? (
+                <div className="col-span-1 md:col-span-2 rounded-2xl bg-gradient-to-r from-red-950/80 via-red-900/40 to-black/80 border border-red-500/40 p-4 text-white shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-[fade-up_0.3s_ease]">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl animate-bounce">⚠️</span>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-red-400">{message}</p>
+                      <p className="text-[11px] text-white/70 mt-0.5">Don't worry! Your vehicle & dates are preserved. You can retry with any UPI app or Card.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    form="booking-details-form"
+                    className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-red-600 to-[var(--brand-red)] hover:brightness-110 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white transition cursor-pointer shadow-lg shadow-red-600/30 flex-shrink-0 text-center"
+                  >
+                    ⚡ Retry Payment Now
+                  </button>
+                </div>
               ) : (
                 <div className="col-span-1 md:col-span-2 rounded-xl bg-red-500/10 border border-red-500/20 py-2.5 px-3.5 text-xs text-red-400">
                   {message}

@@ -108,7 +108,7 @@ export async function POST(request: Request) {
           provider: "stripe",
           providerPaymentId: paymentIntent.id,
         },
-        select: { id: true, metadataJson: true },
+        select: { id: true, bookingId: true, metadataJson: true },
       });
 
       if (payment) {
@@ -124,6 +124,13 @@ export async function POST(request: Request) {
             metadataJson: buildWebhookMetadata(payment.metadataJson, event.id, event.type),
           },
         });
+
+        if (payment.bookingId) {
+          await prisma.booking.updateMany({
+            where: { id: payment.bookingId, status: "PENDING" },
+            data: { status: "CANCELLED" },
+          });
+        }
       } else {
         await markWebhookIgnored(log.logId);
         return NextResponse.json({ received: true, ignored: true });

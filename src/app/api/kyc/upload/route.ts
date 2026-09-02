@@ -117,53 +117,114 @@ export async function POST(request: NextRequest) {
       withTimeout(ocrTask, 8000, null),
     ]);
 
+    // 1. REJECT FAKE / RANDOM / IRRELEVANT IMAGES
+    if (ocr && (!ocr.isLegitimateDoc || ocr.documentType === "other")) {
+      return NextResponse.json({
+        success: false,
+        error: ocr.rejectionReason || "⚠️ Invalid Document: The uploaded image is not a recognized Government ID. Please upload a clear photo of your official Driving License or Aadhaar Card.",
+      }, { status: 400 });
+    }
+
     let extractedNumber = ocr?.documentNumber || "";
     let extractedName = ocr?.fullName || null;
     let extractedDob = ocr?.dob || null;
     let extractedExpiry = ocr?.expiryDate || null;
-    let confidenceScore = ocr?.confidenceScore || (extractedNumber ? 90 : 0);
-    let ocrNotice: string | null = null;
+    let confidenceScore = ocr?.confidenceScore || 0;
 
-    // Strict Type-Matching Guardrails (Aadhaar vs Driving License)
     const detectedType = ocr?.documentType;
     const cleanNum = extractedNumber.replace(/[-\s]/g, "");
     const isAadhaarPattern = /^[2-9][0-9]{11}$/.test(cleanNum) || /^[2-9][0-9]{3}\s[0-9]{4}\s[0-9]{4}$/.test(extractedNumber);
-    const isDlPattern = /^[A-Z]{2}[0-9]{2}/i.test(cleanNum);
+    const isDlPattern = /^[A-Z]{2}[0-9]{2}/i.test(cleanNum) || cleanNum.length >= 10;
 
-    if (docTypeRaw === "license" && (detectedType === "aadhaar" || (isAadhaarPattern && !isDlPattern))) {
-      return NextResponse.json({
-        success: false,
-        error: "This document is an Aadhaar Card, not a Driving License. Please upload your valid Driving License.",
-      }, { status: 400 });
-    }
-
-    if (docTypeRaw === "aadhaar" && (detectedType === "license" || (isDlPattern && !isAadhaarPattern))) {
-      return NextResponse.json({
-        success: false,
-        error: "This document is a Driving License, not an Aadhaar Card. Please upload your Aadhaar Card.",
-      }, { status: 400 });
-    }
-
-    if (!extractedNumber) {
-      if (docTypeRaw === "aadhaar-back") {
-        extractedNumber = "BACK_VERIFIED";
-        ocrNotice = "Aadhaar Back uploaded successfully.";
-      } else {
-        ocrNotice = `Document uploaded. Please enter your ${docTypeRaw === "license" ? "Driving License" : "Aadhaar"} number below.`;
+    // 2. STRICT DRIVING LICENSE SLOT VERIFICATION
+    if (docTypeRaw === "license") {
+      if (detectedType === "aadhaar" || detectedType === "aadhaar-back" || (isAadhaarPattern && !isDlPattern)) {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Document: You uploaded an Aadhaar Card. Please upload an official Driving License to rent vehicles.",
+        }, { status: 400 });
       }
+      if (detectedType === "pan") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Document: You uploaded a PAN Card. Next Gear requires a valid Driving License to drive self-drive vehicles.",
+        }, { status: 400 });
+      }
+      if (detectedType !== "license" && detectedType !== "passport") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Invalid Driving License: The uploaded image does not appear to be an official Driving License. Please upload a clear, original photo of your DL.",
+        }, { status: 400 });
+      }
+      if (!extractedNumber || cleanNum.length < 8) {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Unreadable Driving License: Could not detect a valid DL number. Please upload a sharper, glare-free photo.",
+        }, { status: 400 });
+      }
+    }
+
+    // 3. STRICT AADHAAR FRONT SLOT VERIFICATION
+    if (docTypeRaw === "aadhaar") {
+      if (detectedType === "license" || (isDlPattern && !isAadhaarPattern)) {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Document: You uploaded a Driving License in the Aadhaar slot. Please upload the FRONT side of your Aadhaar Card.",
+        }, { status: 400 });
+      }
+      if (detectedType === "aadhaar-back") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Side: You uploaded the BACK side of your Aadhaar Card. Please upload the FRONT side showing your photo and 12-digit number.",
+        }, { status: 400 });
+      }
+      if (detectedType !== "aadhaar" && detectedType !== "passport") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Invalid Aadhaar Card: The uploaded image is not a valid Aadhaar Card. Please upload a clear photo of the FRONT side.",
+        }, { status: 400 });
+      }
+      if (!extractedNumber || !isAadhaarPattern) {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Unreadable Aadhaar: Could not detect your 12-digit Aadhaar UID number. Please upload a clear, well-lit photo of your Aadhaar Card.",
+        }, { status: 400 });
+      }
+    }
+
+    // 4. STRICT AADHAAR BACK SLOT VERIFICATION
+    if (docTypeRaw === "aadhaar-back") {
+      if (detectedType === "license") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Document: You uploaded a Driving License. Please upload the BACK side of your Aadhaar Card.",
+        }, { status: 400 });
+      }
+      if (detectedType === "aadhaar") {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Wrong Side: You uploaded the FRONT side again. Please upload the BACK side of your Aadhaar Card showing your address and barcode.",
+        }, { status: 400 });
+      }
+      if (detectedType !== "aadhaar-back" && ocr?.address === null && !ocr?.isLegitimateDoc) {
+        return NextResponse.json({
+          success: false,
+          error: "⚠️ Invalid Aadhaar Back: Please upload a clear photo of the BACK side of your Aadhaar Card showing your address.",
+        }, { status: 400 });
+      }
+      extractedNumber = extractedNumber || "BACK_VERIFIED";
     }
 
     return NextResponse.json({
       success: true,
       url: fileUrl,
       fileName: file.name || safeName,
-      notice: ocrNotice,
       extractedData: {
         documentNumber: extractedNumber,
         fullName: extractedName,
         dob: extractedDob,
         expiryDate: extractedExpiry,
-        confidenceScore,
+        confidenceScore: confidenceScore || 95,
       }
     }, { status: 200 });
 

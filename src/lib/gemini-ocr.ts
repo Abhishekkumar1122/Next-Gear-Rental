@@ -1,7 +1,5 @@
-import { isVideoUrl } from "@/lib/vendor-fleet-media";
-
 export interface OcrExtractedData {
-  documentType: "aadhaar" | "pan" | "license" | "passport" | "vehicle_rc" | "shop_photo" | "insurance" | "other";
+  documentType: "aadhaar" | "aadhaar-back" | "pan" | "license" | "passport" | "vehicle_rc" | "shop_photo" | "insurance" | "other";
   fullName: string | null;
   documentNumber: string | null;
   dob: string | null; // YYYY-MM-DD
@@ -12,90 +10,77 @@ export interface OcrExtractedData {
   vehicleNumber: string | null;
   confidenceScore: number; // 0 to 100
   isLegitimateDoc: boolean;
+  rejectionReason?: string | null;
   notes: string;
   rawTextPreview?: string;
 }
 
-const OCR_SYSTEM_PROMPT = `You are a high-precision Government ID & Automotive Document OCR Verification Engine for Next Gear Rentals India.
-Analyze the provided document image carefully and extract all identifiable structured details.
+const OCR_SYSTEM_PROMPT = `You are a strict Government ID Verification & OCR Engine for Next Gear Rentals India.
+Analyze the provided document image with forensic precision.
 
-MULTI-LINGUAL & PAN-INDIA SCRIPT CAPABILITY:
-- You support ALL 22 official Indian languages & regional scripts:
-  Hindi (हिन्दी/देवनागरी), Telugu (తెలుగు), Tamil (தமிழ்), Kannada (ಕನ್ನಡ), Malayalam (മലയാളം), 
-  Bengali (বাংলা), Marathi (मराठी), Gujarati (ગુજરાતી), Punjabi (ਪੰਜਾਬੀ/ਗੁਰਮੁਖੀ), Odia (ଓଡ଼ିଆ), 
-  Urdu (اردو), Assamese (অসমীয়া), and English.
-- BILINGUAL ID RULE: Most Indian IDs (Aadhaar/DL) have name printed in both regional language AND English. ALWAYS extract the English Full Name (e.g., "K Vijay Bhaskar Reddy", "Abhishek Kumar", "Suresh Patel").
-- MONOLINGUAL REGIONAL ID RULE: If an ID only has regional text, accurately read the regional script and transliterate the full name into standard English/Latin characters.
-- MULTI-LINGUAL DATE PARSING: Understand DOB in all regional labels, e.g.:
-  - Telugu: "పుట్టిన తేదీ / DOB"
-  - Hindi: "जन्म तिथि / जन्म वर्ष"
-  - Tamil: "பிறந்த தேதி / DOB"
-  - Kannada: "ಹುಟ್ಟಿದ ದಿನಾಂಕ"
-  - Malayalam: "ജനന തീയതി"
-  - Bengali: "জন্ম তারিখ"
-  - Gujarati: "જન્મ તારીખ"
-  - Marathi: "जन्म तारीख"
+STRICT CLASSIFICATION RULES:
+1. "license" (Driving License):
+   - Must be an official Indian Driving License (DL), Smart Card DL, or International Driving Permit (IDP).
+   - Must show official emblems (Ashoka Pillar, State Transport Department, Union of India).
+   - Must contain a valid Driving License Number (e.g. DL1420110012345, MH12 20180054321, UP3220200001234, KA05 20190001234).
+   - Must show validity dates and vehicle class (e.g. MCWG, LMV).
+   - If this is a valid Driving License, set "documentType": "license", "isLegitimateDoc": true, and extract the DL number.
 
-CRITICAL EXTRACTION RULES FOR ALL SUPPORTED DOCUMENTS:
-1. Aadhaar Card (Indian Citizen):
-   - Extract the 12-digit UID number (e.g., "1234 5678 9012" or masked "XXXX XXXX 1234").
-   - Extract the Full Name in English. Never return null if a name is visible in any script.
-   - Extract Date of Birth (DOB) (e.g. "01/07/1987" or "YYYY-MM-DD").
-   - Set "documentType": "aadhaar" and "documentNumber" to the Aadhaar number.
+2. "aadhaar" (Aadhaar Card - FRONT Side):
+   - Must be the FRONT side of an Indian Aadhaar Card.
+   - Must show "Government of India" / "Unique Identification Authority of India" / "भारत सरकार" / "आधार".
+   - Must contain a 12-digit Aadhaar UID number (e.g. "1234 5678 9012" or masked "XXXX XXXX 1234").
+   - Must show the person's photograph, English Name, and DOB / Year of Birth.
+   - If this is an Aadhaar Front, set "documentType": "aadhaar", "isLegitimateDoc": true, and extract the 12-digit number.
 
-2. Driving License (DL / IDP / Foreign License):
-   - Extract the DL number (e.g., "DL1420110012345", "MH12 20180054321", or International Driving Permit number).
-   - Extract the holder's Full Name and DOB.
-   - Set "documentType": "license" and "documentNumber" to the DL number.
+3. "aadhaar-back" (Aadhaar Card - BACK Side):
+   - Must be the BACK side of an Indian Aadhaar Card.
+   - Must contain the residential Address (पता), QR/Barcode, or UIDAI 1947 helpline text.
+   - If this is an Aadhaar Back, set "documentType": "aadhaar-back", "isLegitimateDoc": true.
 
-3. Passport (NRI / International Travelers & Foreign Tourists):
-   - Extract Passport Number (e.g., "Z1234567", "A2345678", "N12345678", etc.).
-   - Extract Full Name, Nationality, DOB, and Expiry Date.
-   - Set "documentType": "passport" and "documentNumber" to the Passport Number.
+4. "passport" (Passport):
+   - Must show Republic of India / Foreign Passport details, MRZ lines, Passport number.
+   - Set "documentType": "passport", "isLegitimateDoc": true.
 
-4. PAN Card (Vendor & Customer Tax ID):
-   - Extract 10-character alphanumeric PAN (format: ABCDE1234F).
-   - Extract Full Name and DOB.
-   - Set "documentType": "pan" and "documentNumber" to the PAN number.
-
-5. Vehicle RC Book / Smart Card / Insurance (Fleet Manager):
-   - Extract Vehicle Registration Number (e.g. "DL01AB1234"), Chassis Number, Engine Number, and Owner Name.
-   - Set "documentType": "vehicle_rc" or "insurance" and "documentNumber" to Registration/Policy Number.
+5. "other" (REJECT - FAKE / IRRELEVANT / RANDOM PHOTO):
+   - If the image is a selfie, animal, random person photo, car/bike photo, scenery, payment screenshot, utility bill, restaurant menu, blank paper, meme, or anything that is NOT an authentic Driving License, Aadhaar, or Passport:
+   - You MUST set "documentType": "other", "isLegitimateDoc": false, and provide a clear "rejectionReason".
 
 Output MUST be strictly valid JSON without markdown fences matching this exact schema:
 {
-  "documentType": "aadhaar" | "license" | "passport" | "pan" | "vehicle_rc" | "insurance" | "other",
+  "documentType": "aadhaar" | "aadhaar-back" | "license" | "passport" | "pan" | "vehicle_rc" | "insurance" | "other",
   "fullName": "Extracted English Name or null",
-  "documentNumber": "Extracted ID / Passport / DL Number or null",
+  "documentNumber": "Extracted ID / DL / UID Number or null",
   "dob": "DD/MM/YYYY or YYYY-MM-DD or null",
   "expiryDate": "YYYY-MM-DD or null",
   "fatherName": "Extracted Father/Spouse Name or null",
   "address": "Extracted Address or null",
-  "state": "State or Country name or null",
-  "vehicleNumber": "Vehicle Registration Number or null",
+  "state": "State name or null",
   "confidenceScore": 95,
   "isLegitimateDoc": true,
+  "rejectionReason": null,
   "notes": "Brief 1-sentence note"
 }`;
 
 /**
- * Perform Multimodal Vision OCR via Google Gemini 2.0 Flash / 1.5 Flash
+ * Perform Multimodal Vision OCR via Google Gemini 2.5 Flash / 2.0 Flash
  */
 export async function performGeminiOcr(imageBuffer: Buffer, mimeType: string): Promise<OcrExtractedData> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
 
   if (!apiKey) {
-    console.warn("[Gemini OCR] No GEMINI_API_KEY configured. Returning heuristic fallback.");
-    return generateFallbackOcrData(mimeType);
+    console.warn("[Gemini OCR] No GEMINI_API_KEY configured.");
+    return generateFallbackOcrData(mimeType, "API key not configured");
   }
 
   const base64Data = imageBuffer.toString("base64");
+  const preferredModel = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const modelsToTry = [
-    "gemini-3.5-flash-lite",
+    preferredModel,
     "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-flash-latest",
-  ];
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+  ].filter((v, i, a) => a.indexOf(v) === i);
 
   for (const model of modelsToTry) {
     try {
@@ -137,7 +122,6 @@ export async function performGeminiOcr(imageBuffer: Buffer, mimeType: string): P
       const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) continue;
 
-      // Clean markdown codeblocks if present
       const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
       const parsed = JSON.parse(cleaned);
 
@@ -152,18 +136,19 @@ export async function performGeminiOcr(imageBuffer: Buffer, mimeType: string): P
         state: parsed.state || null,
         vehicleNumber: parsed.vehicleNumber ? String(parsed.vehicleNumber).trim().toUpperCase() : null,
         confidenceScore: typeof parsed.confidenceScore === "number" ? parsed.confidenceScore : 90,
-        isLegitimateDoc: Boolean(parsed.isLegitimateDoc ?? true),
-        notes: parsed.notes || "OCR extracted successfully via Gemini AI",
+        isLegitimateDoc: Boolean(parsed.isLegitimateDoc),
+        rejectionReason: parsed.rejectionReason || null,
+        notes: parsed.notes || "Verified via Gemini Vision Engine",
       };
     } catch (err) {
       console.warn(`[Gemini OCR] Error with model ${model}:`, err);
     }
   }
 
-  return generateFallbackOcrData(mimeType);
+  return generateFallbackOcrData(mimeType, "Document could not be recognized by AI vision scanner");
 }
 
-function generateFallbackOcrData(mimeType: string): OcrExtractedData {
+function generateFallbackOcrData(mimeType: string, reason?: string): OcrExtractedData {
   return {
     documentType: "other",
     fullName: null,
@@ -174,8 +159,9 @@ function generateFallbackOcrData(mimeType: string): OcrExtractedData {
     address: null,
     state: null,
     vehicleNumber: null,
-    confidenceScore: 70,
-    isLegitimateDoc: true,
-    notes: `Document received (${mimeType}). Manual verification by admin enabled.`,
+    confidenceScore: 0,
+    isLegitimateDoc: false,
+    rejectionReason: reason || "Unable to read document. Please upload a clear photo of your official ID.",
+    notes: reason || "Unrecognized document",
   };
 }

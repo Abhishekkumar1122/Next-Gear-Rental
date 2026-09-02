@@ -46,7 +46,7 @@ type Booking = {
   endDate: string;
   totalAmountINR: number;
   currency: string;
-  status: "confirmed" | "cancelled" | "completed";
+  status: "confirmed" | "cancelled" | "completed" | "pending";
   createdAt: string;
   startOdometer?: number | null;
   endOdometer?: number | null;

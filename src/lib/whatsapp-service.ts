@@ -93,7 +93,21 @@ export type WhatsAppBookingReceiptInput = {
   currency?: string;
 };
 
+const sentWhatsAppReceiptDedupe = new Set<string>();
+const sentVendorNotificationDedupe = new Set<string>();
+
 export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptInput) {
+  const cleanBookingId = (input.bookingId || "").trim();
+  const cleanKey = `${cleanBookingId}:${(input.endDate || "").trim()}`;
+  if (cleanKey && sentWhatsAppReceiptDedupe.has(cleanKey)) {
+    console.log(`[WhatsApp Dedupe Guard] Suppressing duplicate customer receipt for key ${cleanKey}`);
+    return { ok: true, suppressed: true };
+  }
+  if (cleanKey) {
+    sentWhatsAppReceiptDedupe.add(cleanKey);
+    setTimeout(() => sentWhatsAppReceiptDedupe.delete(cleanKey), 60 * 60 * 1000);
+  }
+
   const phone = normalizeWhatsAppPhone(input.customerPhone);
   if (!phone) {
     return { ok: false, error: "Invalid customer phone number" };
@@ -166,6 +180,17 @@ export type VendorBookingNotificationInput = {
 };
 
 export async function sendVendorBookingNotification(input: VendorBookingNotificationInput) {
+  const cleanBookingId = (input.bookingId || "").trim();
+  const cleanKey = `${cleanBookingId}:${(input.endDate || "").trim()}`;
+  if (cleanKey && sentVendorNotificationDedupe.has(cleanKey)) {
+    console.log(`[WhatsApp Dedupe Guard] Suppressing duplicate vendor notification for key ${cleanKey}`);
+    return { ok: true, suppressed: true };
+  }
+  if (cleanKey) {
+    sentVendorNotificationDedupe.add(cleanKey);
+    setTimeout(() => sentVendorNotificationDedupe.delete(cleanKey), 60 * 60 * 1000);
+  }
+
   const targetPhone = input.vendorPhone || process.env.ADMIN_CONTACT_PHONE || "9523765172";
   const phone = normalizeWhatsAppPhone(targetPhone);
   if (!phone) {

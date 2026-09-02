@@ -4,7 +4,6 @@ import { runtimeBookings } from "@/lib/runtime-store";
 import { verifyPayUResponseHash, PayUResponseParams } from "@/lib/payu";
 import { dispatchHtmlEmail } from "@/lib/alert-dispatch";
 import { generateBookingConfirmationEmailHtml } from "@/lib/email-templates";
-import { sendWhatsAppBookingReceipt, sendVendorBookingNotification } from "@/lib/whatsapp-service";
 import { generateBookingReceiptPdfBuffer } from "@/lib/pdf-generator";
 
 export async function POST(request: NextRequest) {
@@ -142,83 +141,7 @@ export async function POST(request: NextRequest) {
           : String(confirmedBooking.endDate);
         const totalAmount = confirmedBooking.totalAmountINR || amountINR;
 
-        // 1. Dispatch Email with Attached PDF Pass
-        if (customerEmail) {
-          try {
-            const emailHtml = generateBookingConfirmationEmailHtml({
-              bookingId,
-              customerName,
-              vehicleTitle,
-              vehicleType,
-              cityName,
-              startDate: startDateStr,
-              endDate: endDateStr,
-              totalAmountINR: totalAmount,
-              baseUrl,
-            });
-
-            let pdfBuffer: Buffer | undefined;
-            try {
-              pdfBuffer = await generateBookingReceiptPdfBuffer({
-                bookingId,
-                customerName,
-                customerPhone,
-                vehicleTitle,
-                vehicleType,
-                cityName,
-                startDate: startDateStr,
-                endDate: endDateStr,
-                totalAmountINR: totalAmount,
-              });
-            } catch (pdfErr) {
-              console.error("[PayU PDF Generation Error]", pdfErr);
-            }
-
-            await dispatchHtmlEmail({
-              to: customerEmail,
-              subject: `✅ Booking Confirmed #${bookingId} - ${vehicleTitle} [PayU Paid]`,
-              html: emailHtml,
-              attachments: pdfBuffer
-                ? [
-                    {
-                      filename: `NextGear-Receipt-${bookingId}.pdf`,
-                      content: pdfBuffer,
-                    },
-                  ]
-                : undefined,
-            });
-          } catch (mailErr) {
-            console.error("[PayU Email Dispatch Error]", mailErr);
-          }
-        }
-
-        // 2. Dispatch Customer WhatsApp with 1-Click Google Maps Link
-        if (customerPhone) {
-          void sendWhatsAppBookingReceipt({
-            bookingId,
-            customerName,
-            customerPhone,
-            vehicleTitle,
-            cityName,
-            startDate: startDateStr,
-            endDate: endDateStr,
-            totalAmountINR: totalAmount,
-          });
-        }
-
-        // 3. Dispatch Vendor Booking Alert
-        void sendVendorBookingNotification({
-          bookingId,
-          customerName,
-          customerPhone,
-          vehicleTitle,
-          cityName,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          totalAmountINR: totalAmount,
-        });
-
-        // 4. Dispatch Tri-Party & In-App Alerts
+        // Unified Tri-Party & In-App Alerts (Customer, Vendor, Super Admin)
         try {
           const { dispatchTriPartyBookingAlerts } = await import("@/lib/booking-alerts");
           void dispatchTriPartyBookingAlerts(bookingId);

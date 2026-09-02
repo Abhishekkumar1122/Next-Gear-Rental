@@ -79,7 +79,7 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
       endDate: b.endDate.toISOString(),
       totalAmountINR: b.totalAmountINR,
       currency: b.currency,
-      status: b.status.toLowerCase() as "confirmed" | "cancelled" | "completed",
+      status: b.status.toLowerCase() as "confirmed" | "cancelled" | "completed" | "pending",
       createdAt: b.createdAt.toISOString(),
       vendorName: b.vehicle?.vendor?.businessName || null,
       vendorPhone: b.vehicle?.vendor?.contactPhone || null,
