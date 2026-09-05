@@ -214,8 +214,8 @@ export async function generateBookingReceiptPdfBuffer(details: BookingPdfDetails
   const priceBoxWidth = 92;
   const priceBoxX = pageWidth - margin - priceBoxWidth;
 
-  const bookingAmt = details.bookingAmount ?? Math.round(details.totalAmountINR * 0.3);
-  const balanceAmt = details.balanceAmount ?? Math.max(0, details.totalAmountINR - bookingAmt);
+  const bookingAmt = details.bookingAmount !== undefined ? details.bookingAmount : details.totalAmountINR;
+  const balanceAmt = details.balanceAmount !== undefined ? details.balanceAmount : Math.max(0, details.totalAmountINR - bookingAmt);
 
   doc.setDrawColor(203, 213, 225);
   doc.setFillColor(248, 250, 252);
@@ -229,13 +229,23 @@ export async function generateBookingReceiptPdfBuffer(details: BookingPdfDetails
   doc.setFont("helvetica", "bold");
   doc.text(`Rs. ${bookingAmt.toLocaleString("en-IN")}`, pageWidth - margin - 4, y + 7, { align: "right" });
 
-  // Total Yellow Row
-  doc.setFillColor(255, 215, 0);
-  doc.roundedRect(priceBoxX + 1, y + 11, priceBoxWidth - 2, 9, 1, 1, "F");
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text("Balance on Pickup:", priceBoxX + 4, y + 17);
-  doc.text(`Rs. ${balanceAmt.toLocaleString("en-IN")}`, pageWidth - margin - 4, y + 17, { align: "right" });
+  if (balanceAmt === 0) {
+    // Green Full Paid Row
+    doc.setFillColor(16, 185, 129); // #10b981
+    doc.roundedRect(priceBoxX + 1, y + 11, priceBoxWidth - 2, 9, 1, 1, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text("Status:", priceBoxX + 4, y + 17);
+    doc.text("PAID IN FULL (Rs. 0 Balance)", pageWidth - margin - 4, y + 17, { align: "right" });
+  } else {
+    // Total Yellow Row
+    doc.setFillColor(255, 215, 0);
+    doc.roundedRect(priceBoxX + 1, y + 11, priceBoxWidth - 2, 9, 1, 1, "F");
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Balance on Pickup:", priceBoxX + 4, y + 17);
+    doc.text(`Rs. ${balanceAmt.toLocaleString("en-IN")}`, pageWidth - margin - 4, y + 17, { align: "right" });
+  }
 
   // 6. Important Terms & Notes
   y = 148;

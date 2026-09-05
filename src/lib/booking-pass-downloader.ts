@@ -151,7 +151,7 @@ export async function downloadOfflinePass(booking: PassDetails) {
     const totalAmount = booking.totalAmountINR;
     const bookingAmount = booking.amountPaid !== undefined && booking.amountPaid !== null
       ? booking.amountPaid
-      : calculateBookingAmount(totalAmount);
+      : totalAmount;
     const balanceAmount = Math.max(0, totalAmount - bookingAmount);
 
     // Setup high-quality generic fallbacks matching the booking catalog page
@@ -592,13 +592,20 @@ export async function downloadOfflinePass(booking: PassDetails) {
           <!-- 5. Payment details right table -->
           <table class="pricing-table">
             <tr>
-              <td style="text-align: left; color: #64748b;">Booking Amount (Paid)</td>
+              <td style="text-align: left; color: #64748b;">Amount Paid</td>
               <td style="text-align: right; font-weight: 600; color: #0f172a;">₹${bookingAmount.toLocaleString("en-IN")}</td>
             </tr>
+            ${balanceAmount === 0 ? `
+            <tr class="total-row" style="background: #10b981; color: #ffffff;">
+              <td style="text-align: left;">Payment Status</td>
+              <td style="text-align: right;">PAID IN FULL (₹0 Balance)</td>
+            </tr>
+            ` : `
             <tr class="total-row">
               <td style="text-align: left;">Balance on Pickup</td>
               <td style="text-align: right;">₹${balanceAmount.toLocaleString("en-IN")}</td>
             </tr>
+            `}
           </table>
           <div class="clear-fix"></div>
 

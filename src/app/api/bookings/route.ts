@@ -195,6 +195,23 @@ export async function GET(request: NextRequest) {
         amountPaid: booking.payments
           .filter((p) => p.status === "PAID")
           .reduce((sum, p) => sum + p.amountINR, 0),
+        paymentStatus: booking.payments.some((p) => p.status === "PAID")
+          ? "PAID"
+          : booking.status === "CANCELLED"
+            ? "REFUNDED"
+            : booking.payments.some((p) => p.status === "FAILED")
+              ? "FAILED"
+              : booking.status === "CONFIRMED"
+                ? "PAID"
+                : "PENDING",
+        paymentProvider: booking.payments[0]?.provider ? booking.payments[0].provider.toUpperCase() : "PAYU",
+        payments: booking.payments.map((p) => ({
+          id: p.id,
+          provider: p.provider,
+          amountINR: p.amountINR,
+          status: p.status,
+          createdAt: p.createdAt.toISOString(),
+        })),
         currency: booking.currency,
         status: normalizeStatus(booking.status),
         createdAt: booking.createdAt.toISOString(),
@@ -566,7 +583,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { dispatchTriPartyBookingAlerts } = await import("@/lib/booking-alerts");
-        void dispatchTriPartyBookingAlerts(booking.id);
+        await dispatchTriPartyBookingAlerts(booking.id);
       } catch (notificationError) {
         console.error("Background notification error:", notificationError);
       }

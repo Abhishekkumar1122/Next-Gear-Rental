@@ -121,6 +121,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { formatBookingId } = await import("@/lib/pricing-tiers");
     const displayId = formatBookingId(bookingData.id, bookingData.cityName, bookingData.startDate);
 
+    const paidAmt = bookingData.amountPaid !== undefined ? bookingData.amountPaid : bookingData.totalAmountINR;
+    const balAmt = Math.max(0, bookingData.totalAmountINR - paidAmt);
+
     const pdfBuffer = await generateBookingReceiptPdfBuffer({
       bookingId: displayId,
       customerName: bookingData.customerName,
@@ -131,6 +134,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       startDate: bookingData.startDate,
       endDate: bookingData.endDate,
       totalAmountINR: bookingData.totalAmountINR,
+      bookingAmount: paidAmt,
+      balanceAmount: balAmt,
       pickupAddress: bookingData.pickupAddress,
     });
 

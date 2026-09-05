@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         // Unified Tri-Party & In-App Alerts (Customer, Vendor, Super Admin)
         try {
           const { dispatchTriPartyBookingAlerts } = await import("@/lib/booking-alerts");
-          void dispatchTriPartyBookingAlerts(bookingId);
+          await dispatchTriPartyBookingAlerts(bookingId);
         } catch (aErr) {
           console.error("[PayU Alert Dispatch Error]", aErr);
         }

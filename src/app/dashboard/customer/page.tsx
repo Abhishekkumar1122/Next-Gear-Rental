@@ -30,6 +30,7 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
         extraChargesPaid: true,
         extraChargesAmount: true,
         createdAt: true,
+        payments: true,
         user: {
           select: {
             name: true,
@@ -67,6 +68,19 @@ async function fetchUserBookingsDirect(userId: string, email: string, phone?: st
       startDate: b.startDate.toISOString(),
       endDate: b.endDate.toISOString(),
       totalAmountINR: b.totalAmountINR,
+      amountPaid: b.payments
+        .filter((p) => p.status === "PAID")
+        .reduce((sum, p) => sum + p.amountINR, 0),
+      paymentStatus: (b.payments.some((p) => p.status === "PAID")
+        ? "PAID"
+        : b.status === "CANCELLED"
+          ? "REFUNDED"
+          : b.payments.some((p) => p.status === "FAILED")
+            ? "FAILED"
+            : b.status === "CONFIRMED"
+              ? "PAID"
+              : "PENDING") as "PAID" | "PENDING" | "REFUNDED" | "FAILED",
+      paymentProvider: b.payments[0]?.provider?.toUpperCase() || "PAYU",
       currency: b.currency,
       status: b.status.toLowerCase() as "confirmed" | "cancelled" | "completed" | "pending",
       createdAt: b.createdAt.toISOString(),

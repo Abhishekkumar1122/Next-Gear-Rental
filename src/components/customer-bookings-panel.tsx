@@ -77,7 +77,7 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [showQRBooking, setShowQRBooking] = useState<Booking | null>(null);
   const [extendingBooking, setExtendingBooking] = useState<Booking | null>(null);
-  const [subTab, setSubTab] = useState<"active" | "past">("active");
+  const [subTab, setSubTab] = useState<"active" | "pending" | "completed" | "cancelled">("active");
 
   useEffect(() => {
     async function loadVehicles() {
@@ -133,7 +133,9 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
   }
 
   const active = bookings.filter((b) => b.status === "confirmed");
-  const past = bookings.filter((b) => b.status !== "confirmed");
+  const pending = bookings.filter((b) => b.status === "pending");
+  const completed = bookings.filter((b) => b.status === "completed");
+  const cancelled = bookings.filter((b) => b.status === "cancelled");
 
   if (loading) {
     return (
@@ -169,7 +171,30 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
         </div>
       )}
 
-      <div className="flex gap-2 border-b border-white/5 pb-3">
+      {/* Pending Payment Warning Banner */}
+      {pending.length > 0 && subTab !== "pending" && (
+        <div className="rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-neutral-900 to-amber-500/10 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg animate-[fade-in_0.2s_ease-out]">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-pulse">⏳</span>
+            <div className="text-left">
+              <p className="text-xs sm:text-sm font-bold text-amber-300">
+                You have {pending.length} booking with Payment Pending!
+              </p>
+              <p className="text-[11px] text-amber-300/70 mt-0.5">
+                Complete payment now so the hub vendor can prepare your ride for pickup.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSubTab("pending")}
+            className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-xs font-black text-black hover:brightness-110 active:scale-95 transition cursor-pointer border-0 shadow-md whitespace-nowrap"
+          >
+            Review & Pay ({pending.length})
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2 border-b border-white/5 pb-3 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setSubTab("active")}
           className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-200 cursor-pointer border-0 whitespace-nowrap ${
@@ -180,16 +205,43 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
         >
           Active ({active.length})
         </button>
+
+        {pending.length > 0 && (
+          <button
+            onClick={() => setSubTab("pending")}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-200 cursor-pointer border-0 whitespace-nowrap ${
+              subTab === "pending"
+                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-[0_4px_12px_rgba(245,158,11,0.3)]"
+                : "bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20"
+            }`}
+          >
+            ⏳ Pending ({pending.length})
+          </button>
+        )}
+
         <button
-          onClick={() => setSubTab("past")}
+          onClick={() => setSubTab("completed")}
           className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-200 cursor-pointer border-0 whitespace-nowrap ${
-            subTab === "past"
+            subTab === "completed"
               ? "bg-gradient-to-r from-[var(--brand-red)] to-[#ff4d4d] text-white shadow-[0_4px_12px_rgba(225,29,72,0.2)]"
               : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
           }`}
         >
-          Completed ({past.length})
+          Completed ({completed.length})
         </button>
+
+        {cancelled.length > 0 && (
+          <button
+            onClick={() => setSubTab("cancelled")}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-extrabold tracking-wide uppercase transition-all duration-200 cursor-pointer border-0 whitespace-nowrap ${
+              subTab === "cancelled"
+                ? "bg-gradient-to-r from-neutral-700 to-neutral-800 text-white shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            Cancelled ({cancelled.length})
+          </button>
+        )}
       </div>
 
       {subTab === "active" && (
@@ -226,10 +278,66 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
         </div>
       )}
 
-      {subTab === "past" && (
+      {subTab === "pending" && (
         <div className="space-y-3">
-          {past.length > 0 ? (
-            past.map((booking) => (
+          {pending.length > 0 ? (
+            pending.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                confirmCancel={confirmCancel}
+                setConfirmCancel={setConfirmCancel}
+                cancelReason={cancelReason}
+                setCancelReason={setCancelReason}
+                cancellingId={cancellingId}
+                onCancel={handleCancel}
+                vehicles={vehicles}
+                onShowQR={setShowQRBooking}
+                onExtend={setExtendingBooking}
+              />
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-white bg-white/[0.01]">
+              <div className="text-4xl mb-2">✅</div>
+              <p className="font-bold text-white/70 text-sm">No Pending Payments</p>
+              <p className="mt-1 text-xs text-white/40">All your bookings are fully confirmed and ready.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === "completed" && (
+        <div className="space-y-3">
+          {completed.length > 0 ? (
+            completed.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                confirmCancel={confirmCancel}
+                setConfirmCancel={setConfirmCancel}
+                cancelReason={cancelReason}
+                setCancelReason={setCancelReason}
+                cancellingId={cancellingId}
+                onCancel={handleCancel}
+                vehicles={vehicles}
+                onShowQR={setShowQRBooking}
+                onExtend={setExtendingBooking}
+              />
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-white bg-white/[0.01]">
+              <div className="text-4xl mb-2">🏁</div>
+              <p className="font-bold text-white/70 text-sm">No Completed Rides</p>
+              <p className="mt-1 text-xs text-white/40">Completed rentals will appear here after vehicle return.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === "cancelled" && (
+        <div className="space-y-3">
+          {cancelled.length > 0 ? (
+            cancelled.map((booking) => (
               <BookingCard
                 key={booking.id}
                 booking={booking}
@@ -247,8 +355,8 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
           ) : (
             <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-white bg-white/[0.01]">
               <div className="text-4xl mb-2">📁</div>
-              <p className="font-bold text-white/70 text-sm">No Completed Rides</p>
-              <p className="mt-1 text-xs text-white/40">You don't have any past or cancelled bookings yet.</p>
+              <p className="font-bold text-white/70 text-sm">No Cancelled Bookings</p>
+              <p className="mt-1 text-xs text-white/40">You don't have any cancelled bookings.</p>
             </div>
           )}
         </div>
@@ -360,6 +468,7 @@ export function CustomerBookingsPanel({ userEmail, initialBookings = [] }: Props
                     startDate: `${showQRBooking.startDate} ${showQRBooking.startTime || "09:00"}`,
                     endDate: `${showQRBooking.endDate} ${showQRBooking.endTime || "18:00"}`,
                     totalAmountINR: showQRBooking.totalAmountINR,
+                    amountPaid: (showQRBooking as any).amountPaid ?? (showQRBooking.status === "confirmed" || showQRBooking.status === "completed" ? showQRBooking.totalAmountINR : 0),
                     vehicleType: isCar ? "Car" : "Bike",
                     useHourly: Boolean(showQRBooking.rentalHours),
                     rentalHours: showQRBooking.rentalHours,
@@ -563,6 +672,44 @@ function BookingCard({
 
           {/* Action Buttons Row */}
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {booking.status === "pending" && (
+              <Link
+                href={`/book-vehicle?vehicleId=${booking.vehicleId}&resumeBookingId=${booking.id}`}
+                className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 py-1.5 text-[10px] sm:text-xs font-black text-black hover:brightness-110 active:scale-95 transition-all duration-150 cursor-pointer flex items-center gap-1 shadow-md border-0"
+              >
+                <span>⚡</span>
+                <span>Complete Payment</span>
+              </Link>
+            )}
+
+            {(booking.status === "completed" || booking.handoverStatus === "RETURNED") && (
+              <button
+                onClick={() => {
+                  const vehicleObj = vehicles.find((v) => v.id === booking.vehicleId);
+                  void downloadOfflinePass({
+                    id: booking.id,
+                    customerName: booking.userName,
+                    customerPhone: (booking as any).customerPhone || "Verified User",
+                    vehicleTitle: vehicleObj?.title || booking.vehicleId,
+                    cityName: booking.city,
+                    startDate: `${booking.startDate} ${booking.startTime || "09:00"}`,
+                    endDate: `${booking.endDate} ${booking.endTime || "18:00"}`,
+                    totalAmountINR: booking.totalAmountINR,
+                    amountPaid: (booking as any).amountPaid ?? booking.totalAmountINR,
+                    vehicleType: booking.vehicleId.toLowerCase().includes("car") ? "Car" : "Bike",
+                    useHourly: Boolean(booking.rentalHours),
+                    rentalHours: booking.rentalHours,
+                    vehicleImage: vehicleObj?.imageUrls?.[0] || "",
+                    airportPickup: vehicleObj?.airportPickup,
+                  });
+                }}
+                className="rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold text-white transition-all duration-150 cursor-pointer flex items-center gap-1"
+              >
+                <span>🧾</span>
+                <span>Invoice</span>
+              </button>
+            )}
+
             {booking.status === "confirmed" && booking.handoverStatus !== "RETURNED" && (
               <>
                 {/* 🗺️ 1-Tap Google Maps Navigation Button */}

@@ -417,6 +417,8 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
 
   const prettyId = formatBookingId(bookingData.id, bookingData.cityName, bookingData.startDate);
 
+  const dispatchTasks: Promise<unknown>[] = [];
+
   // 1. CUSTOMER ALERTS (Email + WhatsApp + SMS)
   if (bookingData.customerEmail) {
     try {
@@ -435,7 +437,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       try {
         const { generateBookingReceiptPdfBuffer } = await import("@/lib/pdf-generator");
         pdfBuffer = await generateBookingReceiptPdfBuffer({
-          bookingId: bookingData.id,
+          bookingId: prettyId,
           customerName: bookingData.customerName,
           customerPhone: bookingData.customerPhone,
           vehicleTitle: bookingData.vehicleTitle,
@@ -443,24 +445,28 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
           startDate: bookingData.startDate,
           endDate: bookingData.endDate,
           totalAmountINR: bookingData.totalAmountINR,
+          bookingAmount: bookingData.totalAmountINR,
+          balanceAmount: 0,
         });
       } catch (pdfErr) {
         console.error("[Customer PDF Pass Generation Error]", pdfErr);
       }
 
-      void dispatchHtmlEmail({
-        to: bookingData.customerEmail,
-        subject: `🚗 Booking Confirmed #${prettyId} - ${bookingData.vehicleTitle}`,
-        html,
-        attachments: pdfBuffer
-          ? [
-              {
-                filename: `NextGear-Booking-Pass-${prettyId}.pdf`,
-                content: pdfBuffer,
-              },
-            ]
-          : undefined,
-      });
+      dispatchTasks.push(
+        dispatchHtmlEmail({
+          to: bookingData.customerEmail,
+          subject: `🚗 Booking Confirmed #${prettyId} - ${bookingData.vehicleTitle}`,
+          html,
+          attachments: pdfBuffer
+            ? [
+                {
+                  filename: `NextGear-Booking-Pass-${prettyId}.pdf`,
+                  content: pdfBuffer,
+                },
+              ]
+            : undefined,
+        })
+      );
     } catch (err) {
       console.error("[Customer Email Alert Failed]", err);
     }
@@ -471,43 +477,48 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
   if (bookingData.customerPhone) {
     try {
       const { sendWhatsAppBookingReceipt } = await import("@/lib/whatsapp-service");
-      void sendWhatsAppBookingReceipt({
-        bookingId: bookingData.id,
-        customerName: bookingData.customerName,
-        customerPhone: bookingData.customerPhone,
-        vehicleTitle: bookingData.vehicleTitle,
-        cityName: bookingData.cityName,
-        startDate: bookingData.startDate,
-        endDate: bookingData.endDate,
-        totalAmountINR: bookingData.totalAmountINR,
-      });
+      dispatchTasks.push(
+        sendWhatsAppBookingReceipt({
+          bookingId: bookingData.id,
+          customerName: bookingData.customerName,
+          customerPhone: bookingData.customerPhone,
+          vehicleTitle: bookingData.vehicleTitle,
+          cityName: bookingData.cityName,
+          startDate: bookingData.startDate,
+          endDate: bookingData.endDate,
+          totalAmountINR: bookingData.totalAmountINR,
+        })
+      );
     } catch (waErr) {
       console.error("[Customer WhatsApp Alert Failed]", waErr);
     }
-    void dispatchAlert({ channel: "sms", to: bookingData.customerPhone, message: customerWaMsg });
+    dispatchTasks.push(dispatchAlert({ channel: "sms", to: bookingData.customerPhone, message: customerWaMsg }));
   }
 
   // 2. VENDOR ALERT (WhatsApp + SMS)
-  if (bookingData.vendorPhone) {
-    const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
+  const vendorTargetPhone = bookingData.vendorPhone || process.env.ADMIN_CONTACT_PHONE || "9523765172";
+  if (vendorTargetPhone) {
+    const vendorWaMsg = `🔔 *NEXT GEAR VENDOR ALERT - NEW BOOKING RECEIVED!* 🚘\n\nHello *${bookingData.vendorName || "Fleet Partner"}*,\nA new booking has been placed for your vehicle!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n👤 *Customer:* *${bookingData.customerName}* (${bookingData.customerPhone || "Mobile"})\n📍 *City:* ${bookingData.cityName}\n🗓️ *Rental Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Booking Value:* ₹${bookingData.totalAmountINR.toLocaleString("en-IN")}\n\nPlease inspect and prepare the vehicle for handover. 🛵`;
     try {
       const { sendVendorBookingNotification } = await import("@/lib/whatsapp-service");
-      void sendVendorBookingNotification({
-        bookingId: bookingData.id,
-        vendorPhone: bookingData.vendorPhone,
-        vendorName: bookingData.vendorName,
-        customerName: bookingData.customerName,
-        customerPhone: bookingData.customerPhone,
-        vehicleTitle: bookingData.vehicleTitle,
-        cityName: bookingData.cityName,
-        startDate: bookingData.startDate,
-        endDate: bookingData.endDate,
-        totalAmountINR: bookingData.totalAmountINR,
-      });
+      dispatchTasks.push(
+        sendVendorBookingNotification({
+          bookingId: bookingData.id,
+          vendorPhone: vendorTargetPhone,
+          vendorName: bookingData.vendorName || "Fleet Partner",
+          customerName: bookingData.customerName,
+          customerPhone: bookingData.customerPhone,
+          vehicleTitle: bookingData.vehicleTitle,
+          cityName: bookingData.cityName,
+          startDate: bookingData.startDate,
+          endDate: bookingData.endDate,
+          totalAmountINR: bookingData.totalAmountINR,
+        })
+      );
     } catch (vErr) {
       console.error("[Vendor WhatsApp Alert Failed]", vErr);
     }
-    void dispatchAlert({ channel: "sms", to: bookingData.vendorPhone, message: vendorWaMsg });
+    dispatchTasks.push(dispatchAlert({ channel: "sms", to: vendorTargetPhone, message: vendorWaMsg }));
   }
 
   // 3. SUPER ADMIN ALERT (WhatsApp + SMS + Email + In-App to Super Admin)
@@ -536,27 +547,31 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
     `🗓️ *Trip Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n\n` +
     `🔗 *Admin Portal:* ${baseUrl}/dashboard/admin?section=bookings`;
 
-  void dispatchAlert({
-    channel: "whatsapp",
-    to: adminPhone,
-    message: adminWaMsg,
-    templateName: "admin_booking_alert",
-    templateParams: [
-      prettyId,
-      bookingData.vehicleTitle,
-      bookingData.cityName,
-      bookingData.vendorName || "Fleet Partner",
-      bookingData.vendorPhone || "N/A",
-      bookingData.customerName,
-      bookingData.customerPhone || "N/A",
-      `₹${bookingData.totalAmountINR.toLocaleString("en-IN")}`,
-      `₹${vendorPayoutEst.toLocaleString("en-IN")}`,
-      `₹${platformMarginEst.toLocaleString("en-IN")}`,
-      bookingData.startDate,
-      bookingData.endDate,
-    ],
-  });
-  void dispatchAlert({ channel: "sms", to: adminPhone, message: adminWaMsg });
+  dispatchTasks.push(
+    dispatchAlert({
+      channel: "whatsapp",
+      to: adminPhone,
+      message: adminWaMsg,
+      templateName: "admin_booking_alert",
+      templateParams: [
+        prettyId,
+        bookingData.vehicleTitle,
+        bookingData.cityName,
+        bookingData.vendorName || "Fleet Partner",
+        bookingData.vendorPhone || "N/A",
+        bookingData.customerName,
+        bookingData.customerPhone || "N/A",
+        `₹${bookingData.totalAmountINR.toLocaleString("en-IN")}`,
+        `₹${vendorPayoutEst.toLocaleString("en-IN")}`,
+        `₹${platformMarginEst.toLocaleString("en-IN")}`,
+        bookingData.startDate,
+        bookingData.endDate,
+      ],
+    })
+  );
+  dispatchTasks.push(dispatchAlert({ channel: "sms", to: adminPhone, message: adminWaMsg }));
+
+  await Promise.allSettled(dispatchTasks);
 
   // 4. IN-APP NOTIFICATIONS (Specific Vendor + Admins)
   if (process.env.DATABASE_URL) {

@@ -45,6 +45,9 @@ type Booking = {
   startDate: string;
   endDate: string;
   totalAmountINR: number;
+  amountPaid?: number;
+  paymentStatus?: "PAID" | "PENDING" | "CREATED" | "FAILED" | "REFUNDED";
+  paymentProvider?: string;
   currency: string;
   status: "confirmed" | "cancelled" | "completed" | "pending";
   createdAt: string;
@@ -1494,6 +1497,7 @@ export function CustomerDashboardClient({
                       startDate: currentBookingForQr.startDate,
                       endDate: currentBookingForQr.endDate,
                       totalAmountINR: currentBookingForQr.totalAmountINR,
+                      amountPaid: currentBookingForQr.amountPaid ?? (currentBookingForQr.status === "confirmed" || currentBookingForQr.status === "completed" ? currentBookingForQr.totalAmountINR : 0),
                     });
                   }}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-[#ff4d4d] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border-0"
@@ -1568,6 +1572,7 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
       provider: string;
       status: string;
       amountINR: number;
+      amountPaid?: number;
       currency: string;
       bookingId: string;
       cityName: string;
@@ -1639,7 +1644,11 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
         bookings.map(
           (b: { 
             id: string; 
+            vehicleId: string;
             totalAmountINR: number; 
+            amountPaid?: number;
+            paymentStatus?: string;
+            paymentProvider?: string;
             currency: string; 
             city: string; 
             status: string;
@@ -1651,11 +1660,27 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
               : b.status === "completed" 
                 ? (b.id.charCodeAt(b.id.length - 1) || 4) % 10 * 15 + 100 
                 : null;
+
+            let resolvedStatus: "PAID" | "REFUNDED" | "PENDING" | "FAILED" = "PENDING";
+            if (b.status === "cancelled") {
+              resolvedStatus = "REFUNDED";
+            } else if (b.paymentStatus === "PAID" || (b.amountPaid && b.amountPaid > 0 && b.status !== "pending")) {
+              resolvedStatus = "PAID";
+            } else if (b.paymentStatus === "FAILED") {
+              resolvedStatus = "FAILED";
+            } else {
+              resolvedStatus = "PENDING";
+            }
+
+            const providerLabel = b.paymentProvider ? b.paymentProvider.toUpperCase() : "PAYU";
+            const effectivePaid = resolvedStatus === "PAID" ? (b.amountPaid || b.totalAmountINR) : 0;
+
             return {
               id: `pay-${b.id}`,
-              provider: "Razorpay",
-              status: b.status === "cancelled" ? "REFUNDED" : "PAID",
-              amountINR: b.totalAmountINR,
+              provider: providerLabel,
+              status: resolvedStatus,
+              amountINR: resolvedStatus === "PAID" ? effectivePaid : b.totalAmountINR,
+              amountPaid: effectivePaid,
               currency: b.currency,
               bookingId: b.id,
               cityName: b.city,
@@ -1678,9 +1703,10 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
   }, [email]);
 
   const statusColor: Record<string, string> = {
-    PAID: "text-green-700 bg-green-50 border-green-200",
-    REFUNDED: "text-orange-700 bg-orange-50 border-orange-200",
-    FAILED: "text-red-700 bg-red-50 border-red-200"
+    PAID: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    PENDING: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+    REFUNDED: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+    FAILED: "text-rose-400 bg-rose-500/10 border-rose-500/20"
   };
 
   return (
@@ -1718,9 +1744,11 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
             className={`rounded-2xl border p-4 text-xs md:text-sm bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-300 cursor-pointer shadow-[0_3px_10px_rgba(0,0,0,0.15)] hover:border-white/20 select-none ${
               item.status === "PAID" 
                 ? "border-l-[5px] border-l-emerald-500 border-y-white/5 border-r-white/5" 
-                : item.status === "REFUNDED" 
-                  ? "border-l-[5px] border-l-amber-500 border-y-white/5 border-r-white/5" 
-                  : "border-l-[5px] border-l-rose-500 border-y-white/5 border-r-white/5"
+                : item.status === "PENDING"
+                  ? "border-l-[5px] border-l-amber-500 border-y-white/5 border-r-white/5"
+                  : item.status === "REFUNDED" 
+                    ? "border-l-[5px] border-l-blue-500 border-y-white/5 border-r-white/5" 
+                    : "border-l-[5px] border-l-rose-500 border-y-white/5 border-r-white/5"
             }`}
             onClick={() => setExpandedId(isExpanded ? null : item.id)}
           >
@@ -1729,11 +1757,13 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-base shrink-0 shadow-sm ${
                   item.status === "PAID"
                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    : item.status === "REFUNDED"
+                    : item.status === "PENDING"
                       ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                      : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      : item.status === "REFUNDED"
+                        ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                        : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                 }`}>
-                  {item.status === "PAID" ? "💳" : item.status === "REFUNDED" ? "↩" : "⚠️"}
+                  {item.status === "PAID" ? "💳" : item.status === "PENDING" ? "⏳" : item.status === "REFUNDED" ? "↩" : "⚠️"}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -1755,7 +1785,7 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-bold whitespace-nowrap ${statusColor[item.status] ?? "bg-white/5 text-white"}`}>
-                    {item.status}
+                    {item.status === "PENDING" ? "PAYMENT PENDING" : item.status}
                   </span>
                   <span className={`text-white/40 text-xs font-bold w-5 h-5 rounded-full hover:bg-white/5 flex items-center justify-center transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}>
                     ▼
@@ -1863,6 +1893,15 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1.5">
+                  {item.status === "PENDING" && (
+                    <Link
+                      href={`/book-vehicle?vehicleId=${b.vehicleId}&resumeBookingId=${b.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-extrabold text-xs transition hover:brightness-110 flex items-center justify-center gap-1.5 shadow-md border-0"
+                    >
+                      <span>⚡</span> Complete Payment Now
+                    </Link>
+                  )}
                   <button
                     onClick={() => {
                       void downloadOfflinePass({
@@ -1874,6 +1913,7 @@ function PaymentsTab({ email, setActiveTab }: { email: string; setActiveTab: (ta
                         startDate: b.startDate,
                         endDate: b.endDate,
                         totalAmountINR: b.totalAmountINR,
+                        amountPaid: item.status === "PAID" ? (item.amountPaid || item.amountINR) : 0,
                         vendorName: (b as any).vendorName || undefined,
                         vendorPhone: (b as any).vendorPhone || undefined,
                       });
