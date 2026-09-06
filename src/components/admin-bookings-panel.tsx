@@ -57,6 +57,11 @@ export type BookingItem = {
   customerPhone?: string | null;
   couponCode?: string | null;
   couponDiscountINR?: number | null;
+  drivingLicenseUrl?: string | null;
+  drivingLicenseNo?: string | null;
+  aadhaarFrontUrl?: string | null;
+  aadhaarFrontNo?: string | null;
+  aadhaarBackUrl?: string | null;
 };
 
 const STATUS_CONFIG: Record<
@@ -119,16 +124,17 @@ export function AdminBookingsPanel() {
   const [selectedBooking, setSelectedBooking] = useState<BookingItem | null>(null);
   const [actionLoading, startActionTransition] = useTransition();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [adminDocPreview, setAdminDocPreview] = useState<{ title: string; url: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const fetchBookings = useCallback(async () => {
+  const fetchBookings = useCallback(async (isSilent = false) => {
     setError("");
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const res = await fetch("/api/bookings", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load bookings");
       const data = await res.json();
@@ -136,12 +142,16 @@ export function AdminBookingsPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bookings");
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void fetchBookings();
+    const interval = setInterval(() => {
+      void fetchBookings(true);
+    }, 15000);
+    return () => clearInterval(interval);
   }, [fetchBookings]);
 
   const handleCancelAndRefund = async (bookingId: string) => {
@@ -215,7 +225,7 @@ export function AdminBookingsPanel() {
 
       return (
         b.id.toLowerCase().includes(q) ||
-        formatBookingId(b.id).toLowerCase().includes(q) ||
+        formatBookingId(b.id, b.city, b.startDate).toLowerCase().includes(q) ||
         b.userName.toLowerCase().includes(q) ||
         b.userEmail.toLowerCase().includes(q) ||
         b.city.toLowerCase().includes(q) ||
@@ -378,7 +388,7 @@ export function AdminBookingsPanel() {
                       {/* Booking ID */}
                       <td className="py-3.5 px-4 font-mono font-bold text-white text-[11px]">
                         <span className="text-[var(--brand-red-soft)]">
-                          {formatBookingId(b.id)}
+                          {formatBookingId(b.id, b.city, b.startDate)}
                         </span>
                       </td>
 
@@ -458,7 +468,7 @@ export function AdminBookingsPanel() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-black uppercase tracking-wider text-white">
-                      Booking #{formatBookingId(selectedBooking.id)}
+                      Booking #{formatBookingId(selectedBooking.id, selectedBooking.city, selectedBooking.startDate)}
                     </h3>
                     <span
                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
@@ -567,6 +577,138 @@ export function AdminBookingsPanel() {
               </div>
             </div>
 
+            {/* Customer KYC & ID Verification Documents */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <div className="flex items-center gap-2 text-white/80 font-bold uppercase text-[11px] tracking-wider">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Customer KYC Identity Documents</span>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  selectedBooking.drivingLicenseUrl || selectedBooking.aadhaarFrontUrl 
+                    ? "bg-emerald-950/60 text-emerald-400 border-emerald-500/30" 
+                    : "bg-amber-950/60 text-amber-400 border-amber-500/30"
+                }`}>
+                  {selectedBooking.drivingLicenseUrl || selectedBooking.aadhaarFrontUrl ? "✓ Documents Available" : "⏳ Pending Verification"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Driving License */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2.5 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-white/70 uppercase">1. Driving License</span>
+                    {selectedBooking.drivingLicenseUrl && <span className="text-[9px] text-emerald-400 font-bold">Uploaded</span>}
+                  </div>
+                  <div className="h-28 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedBooking.drivingLicenseUrl ? (
+                      <>
+                        <img 
+                          src={selectedBooking.drivingLicenseUrl} 
+                          alt="Driving License" 
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-200" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAdminDocPreview({ title: `Driving License — ${selectedBooking.userName}`, url: selectedBooking.drivingLicenseUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect Full
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center p-2">
+                        <span className="text-2xl opacity-40">🚗</span>
+                        <p className="text-[9px] text-white/40 mt-1">No DL Uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                  {selectedBooking.drivingLicenseNo ? (
+                    <p className="text-[10px] font-mono text-cyan-300 font-bold truncate">
+                      DL: {selectedBooking.drivingLicenseNo}
+                    </p>
+                  ) : (
+                    <p className="text-[9px] text-white/30 italic">No number scanned</p>
+                  )}
+                </div>
+
+                {/* 2. Aadhaar Front */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2.5 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-white/70 uppercase">2. Aadhaar Front</span>
+                    {selectedBooking.aadhaarFrontUrl && <span className="text-[9px] text-emerald-400 font-bold">Uploaded</span>}
+                  </div>
+                  <div className="h-28 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedBooking.aadhaarFrontUrl ? (
+                      <>
+                        <img 
+                          src={selectedBooking.aadhaarFrontUrl} 
+                          alt="Aadhaar Front" 
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-200" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAdminDocPreview({ title: `Aadhaar Front — ${selectedBooking.userName}`, url: selectedBooking.aadhaarFrontUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect Full
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center p-2">
+                        <span className="text-2xl opacity-40">💳</span>
+                        <p className="text-[9px] text-white/40 mt-1">No Aadhaar Uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                  {selectedBooking.aadhaarFrontNo ? (
+                    <p className="text-[10px] font-mono text-amber-300 font-bold truncate">
+                      UID: {selectedBooking.aadhaarFrontNo}
+                    </p>
+                  ) : (
+                    <p className="text-[9px] text-white/30 italic">No UID scanned</p>
+                  )}
+                </div>
+
+                {/* 3. Aadhaar Back */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2.5 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-white/70 uppercase">3. Aadhaar Back</span>
+                    {selectedBooking.aadhaarBackUrl && <span className="text-[9px] text-emerald-400 font-bold">Uploaded</span>}
+                  </div>
+                  <div className="h-28 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedBooking.aadhaarBackUrl ? (
+                      <>
+                        <img 
+                          src={selectedBooking.aadhaarBackUrl} 
+                          alt="Aadhaar Back" 
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-200" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAdminDocPreview({ title: `Aadhaar Back (Address) — ${selectedBooking.userName}`, url: selectedBooking.aadhaarBackUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect Full
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center p-2">
+                        <span className="text-2xl opacity-40">📄</span>
+                        <p className="text-[9px] text-white/40 mt-1">No Back Uploaded</p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-white/40 font-mono">
+                    {selectedBooking.aadhaarBackUrl ? "✓ Address verified" : "Pending address"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Quick Action Buttons */}
             <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
               <button
@@ -600,6 +742,55 @@ export function AdminBookingsPanel() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin KYC High-Res Document Inspection Lightbox Modal */}
+      {adminDocPreview && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setAdminDocPreview(null)}
+        >
+          <div 
+            className="max-w-2xl w-full rounded-2xl border border-white/20 bg-[#0d0d12] p-5 shadow-2xl space-y-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-bold text-white">{adminDocPreview.title}</h4>
+              </div>
+              <button 
+                onClick={() => setAdminDocPreview(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-white/10 bg-black/80 flex items-center justify-center max-h-[70vh]">
+              <img 
+                src={adminDocPreview.url} 
+                alt="Document Full" 
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <a 
+                href={adminDocPreview.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-xs text-sky-400 hover:underline flex items-center gap-1"
+              >
+                <span>↗ Open Original in New Tab</span>
+              </a>
+              <button 
+                onClick={() => setAdminDocPreview(null)}
+                className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close Preview
+              </button>
             </div>
           </div>
         </div>

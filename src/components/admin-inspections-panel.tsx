@@ -304,7 +304,7 @@ export function AdminInspectionsPanel() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-mono font-bold text-[var(--brand-red-soft)]">
-                      {formatBookingId(item.bookingId)}
+                      {formatBookingId(item.bookingId, item.city)}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
@@ -335,7 +335,7 @@ export function AdminInspectionsPanel() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-black uppercase tracking-wider text-white">
-                    Audit Inspection #{formatBookingId(selectedCase.bookingId)}
+                    Audit Inspection #{formatBookingId(selectedCase.bookingId, selectedCase.city)}
                   </h3>
                   <span className="text-[10px] font-semibold text-white/40 bg-white/5 px-2 py-0.5 rounded-md">
                     📍 {selectedCase.city}

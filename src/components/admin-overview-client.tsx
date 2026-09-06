@@ -13,6 +13,7 @@ type MonthlyData = {
 };
 
 type Props = {
+  daysParam?: string;
   paidTotal: number;
   totalRefunds: number;
   totalBookings: number;
@@ -62,15 +63,19 @@ export function AdminOverviewClient(props: Props) {
   // 3. Real-Time Live Traffic State
   const [liveTraffic, setLiveTraffic] = useState<{
     totalVisits: number;
+    todayVisits: number;
     mobilePct: number;
     desktopPct: number;
     ctrPct: number;
+    totalBookings: number;
     sparkline: number[];
   }>({
-    totalVisits: 142,
-    mobilePct: 58,
-    desktopPct: 42,
-    ctrPct: 18.5,
+    totalVisits: 60,
+    todayVisits: 60,
+    mobilePct: 54,
+    desktopPct: 46,
+    ctrPct: 16.7,
+    totalBookings: 6,
     sparkline: [20, 28, 24, 35, 42, 38, 48],
   });
 
@@ -85,10 +90,11 @@ export function AdminOverviewClient(props: Props) {
     const savedYearly = localStorage.getItem("nextgear_target_yearly");
     if (savedYearly) setYearlyTarget(Number(savedYearly) || 1500000);
 
-    // Fetch live traffic stats from API
+    // Fetch live traffic stats from API with date filter
+    const queryDays = props.daysParam || "30";
     const fetchTraffic = async () => {
       try {
-        const res = await fetch("/api/analytics/track", { cache: "no-store" });
+        const res = await fetch(`/api/analytics/track?days=${queryDays}`, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           setLiveTraffic(data);
@@ -99,7 +105,7 @@ export function AdminOverviewClient(props: Props) {
     void fetchTraffic();
     const interval = setInterval(fetchTraffic, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [props.daysParam]);
 
   const handleToggleMode = (mode: "real" | "mock") => {
     const isReal = mode === "real";
@@ -121,8 +127,9 @@ export function AdminOverviewClient(props: Props) {
   const activePaidTotal = isRealMode ? props.paidTotal : 984246;
   const activeRefunds = isRealMode ? props.totalRefunds : 0;
   const activeRiders = isRealMode ? props.activeRidersCount : 248;
-  const activeBookings = isRealMode ? props.totalBookings : 342;
-  const activeVisits = isRealMode ? (liveTraffic.totalVisits || 1) : 189240;
+  const activeBookings = isRealMode ? (liveTraffic.totalBookings ?? props.totalBookings) : 342;
+  const activeVisits = isRealMode ? liveTraffic.totalVisits : 189240;
+  const activeTodayVisits = isRealMode ? liveTraffic.todayVisits : 3420;
   const activeCtr = isRealMode ? liveTraffic.ctrPct : 24.6;
   const activeMobilePct = isRealMode ? liveTraffic.mobilePct : 58;
   const activeDesktopPct = isRealMode ? liveTraffic.desktopPct : 42;
@@ -387,24 +394,35 @@ export function AdminOverviewClient(props: Props) {
               <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400/70 font-mono">
                 TRAFFIC / INTRADAY
               </span>
-              <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm shadow-emerald-950">
+              <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm shadow-emerald-950">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span>BULLISH +14.2%</span>
+                <span>TODAY: {activeTodayVisits.toLocaleString("en-IN")}</span>
               </span>
             </div>
             <div className="mt-2.5">
               <p className="text-3xl font-black text-white leading-none tracking-tight font-mono">
                 {activeVisits.toLocaleString("en-IN")}
               </p>
-              <p className="mt-1 text-[10px] text-emerald-400/80 font-medium">
-                {isRealMode ? "Live verified session ticks" : "Simulated market sessions"}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-[10px] text-emerald-400/80 font-medium">
+                  {props.daysParam === "all"
+                    ? "All-Time Sessions"
+                    : props.daysParam === "365"
+                    ? "Past 1 Year Sessions"
+                    : props.daysParam === "7"
+                    ? "Past 7 Days Sessions"
+                    : "Past 30 Days Sessions"}
+                </p>
+                <span className="text-[9px] text-emerald-400/50 font-mono border-l border-emerald-800/40 pl-2">
+                  12:00 AM IST Reset
+                </span>
+              </div>
             </div>
           </div>
           
           <div className="relative z-10 flex items-center justify-between text-[9px] font-mono text-white/50 pt-2 border-t border-emerald-900/30">
-            <span>RSI: 68.4 (High Momentum)</span>
-            <span className="text-emerald-400 font-bold">▲ 140 Ticks/min</span>
+            <span>Today Sessions: <strong className="text-emerald-400">{activeTodayVisits.toLocaleString("en-IN")}</strong></span>
+            <span className="text-emerald-400 font-bold">▲ Live Daily Cycle</span>
           </div>
         </div>
 
@@ -461,19 +479,25 @@ export function AdminOverviewClient(props: Props) {
                 CONVERSION / CTR
               </span>
               <span className="text-[10px] font-black text-rose-300 bg-rose-950/80 border border-rose-500/40 px-2 py-0.5 rounded-full">
-                TARGET: 25%
+                {isRealMode ? `${activeBookings} Bookings` : "TARGET: 25%"}
               </span>
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <p className="text-3xl font-black text-white leading-none tracking-tight font-mono">{activeCtr}%</p>
-              <span className="text-[10px] text-rose-400 font-bold font-mono">Vol: 1.2K</span>
+              <span className="text-[10px] text-rose-400 font-bold font-mono">
+                Vol: {activeVisits >= 1000 ? `${(activeVisits / 1000).toFixed(1)}K` : activeVisits}
+              </span>
             </div>
-            <p className="mt-1 text-[10px] text-white/50">Search to booking ratio</p>
+            <p className="mt-1 text-[10px] text-white/50">
+              {isRealMode
+                ? `Booking conversion: ${activeBookings} bookings / ${activeVisits.toLocaleString("en-IN")} visits`
+                : "Search to booking ratio"}
+            </p>
           </div>
 
           <div className="relative z-10 space-y-1.5 text-[10px] pt-1">
             <div className="flex justify-between text-white/60 text-[9px] font-mono">
-              <span>PROGRESS TOWARDS TARGET</span>
+              <span>EFFICIENCY (VS 25% BENCHMARK)</span>
               <span className="font-bold text-rose-400">{Math.min(100, Math.round((activeCtr / 25) * 100))}%</span>
             </div>
             <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
@@ -488,7 +512,18 @@ export function AdminOverviewClient(props: Props) {
         {/* User Device breakdown (Mobile vs Desktop) */}
         <div className="rounded-2xl border border-white/5 bg-[#0c0c0c] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between h-48">
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-white/40">User Device Split</p>
+            <div className="flex justify-between items-center">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-white/40">User Device Split</p>
+              <span className="text-[9px] font-mono text-zinc-400 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                {props.daysParam === "all"
+                  ? "All Time"
+                  : props.daysParam === "365"
+                  ? "1 Year"
+                  : props.daysParam === "7"
+                  ? "7 Days"
+                  : "30 Days"}
+              </span>
+            </div>
             <p className="text-[11px] text-white/60 leading-relaxed mt-1">
               {isRealMode ? "Live user-agent viewport detection" : "Ratio of traffic from mobile vs desktop"}
             </p>

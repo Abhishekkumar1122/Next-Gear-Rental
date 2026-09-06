@@ -61,28 +61,57 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
         html,
       });
 
+      const resResult: AlertDispatchResult = res.error
+        ? { provider: "mock", deliveryStatus: "failed", error: res.error.message }
+        : { provider: "mock", deliveryStatus: "sent", providerMessageId: res.data?.id ?? `resend-${Date.now()}` };
+
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category: input.templateName?.includes("otp") ? "otp" : "system",
+          recipient: to,
+          sender: fromEmail,
+          subject: "NEXT GEAR Notification",
+          message: input.message,
+          htmlContent: html,
+          status: resResult.deliveryStatus,
+          error: resResult.error,
+        });
+      } catch (logErr) {
+        console.warn("[Communication Log Error]", logErr);
+      }
+
       if (res.error) {
         console.error("[Resend Notification Error]", res.error);
-        return {
-          provider: "mock",
-          deliveryStatus: "failed",
-          error: res.error.message,
-        };
+        return resResult;
       }
 
       console.log(`[Resend Notification Sent] ID: ${res.data?.id} | To: ${to}`);
-      return {
-        provider: "mock",
-        deliveryStatus: "sent",
-        providerMessageId: res.data?.id ?? `resend-${Date.now()}`,
-      };
+      return resResult;
     } catch (err) {
       console.error("[Email Dispatch Failed]", err);
-      return {
+      const errResult: AlertDispatchResult = {
         provider: "mock",
         deliveryStatus: "failed",
         error: err instanceof Error ? err.message : "Email dispatch failed",
       };
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category: "system",
+          recipient: to,
+          sender: "noreply@next-gear.app",
+          subject: "NEXT GEAR Notification",
+          message: input.message,
+          status: "failed",
+          error: errResult.error,
+        });
+      } catch {}
+      return errResult;
     }
   }
 
@@ -151,28 +180,63 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
           error?: { message: string; code?: number; type?: string; fbtrace_id?: string; error_data?: { details?: string } };
         };
 
-        if (!response.ok) {
+        const isSuccess = response.ok;
+        const resultErr = !isSuccess
+          ? payload.error?.error_data?.details || payload.error?.message || `Meta Cloud API error (${response.status})`
+          : undefined;
+
+        const waResult: AlertDispatchResult = {
+          provider: "whatsapp_cloud",
+          deliveryStatus: isSuccess ? "sent" : "failed",
+          providerMessageId: payload.messages?.[0]?.id,
+          error: resultErr,
+        };
+
+        try {
+          const { recordCommunicationLog } = await import("@/lib/communication-store");
+          const isOtp = input.templateName?.includes("auth") || input.templateName?.includes("otp") || input.message.toLowerCase().includes("verification code");
+          recordCommunicationLog({
+            channel: "whatsapp",
+            direction: "outgoing",
+            category: isOtp ? "otp" : input.templateName?.includes("booking") ? "booking_confirmed" : "system",
+            recipient: to,
+            sender: "Next Gear WhatsApp",
+            subject: input.templateName ? `WhatsApp: ${input.templateName}` : "WhatsApp Alert",
+            message: input.message,
+            status: waResult.deliveryStatus,
+            error: waResult.error,
+          });
+        } catch {}
+
+        if (!isSuccess) {
           console.error(`[Meta WhatsApp Failed] Status: ${response.status}`, JSON.stringify(payload, null, 2));
-          return {
-            provider: "whatsapp_cloud",
-            deliveryStatus: "failed",
-            error: payload.error?.error_data?.details || payload.error?.message || `Meta Cloud API error (${response.status})`,
-          };
+        } else {
+          console.log(`[Meta WhatsApp Success] Message ID: ${payload.messages?.[0]?.id}`);
         }
 
-        console.log(`[Meta WhatsApp Success] Message ID: ${payload.messages?.[0]?.id}`);
-        return {
-          provider: "whatsapp_cloud",
-          deliveryStatus: "sent",
-          providerMessageId: payload.messages?.[0]?.id,
-        };
+        return waResult;
       } catch (error) {
         console.error(`[Meta WhatsApp Exception]`, error);
-        return {
+        const waErr: AlertDispatchResult = {
           provider: "whatsapp_cloud",
           deliveryStatus: "failed",
           error: error instanceof Error ? error.message : "Meta Cloud API request failed",
         };
+        try {
+          const { recordCommunicationLog } = await import("@/lib/communication-store");
+          recordCommunicationLog({
+            channel: "whatsapp",
+            direction: "outgoing",
+            category: input.templateName?.includes("auth") ? "otp" : "system",
+            recipient: to,
+            sender: "Next Gear WhatsApp",
+            subject: "WhatsApp Alert",
+            message: input.message,
+            status: "failed",
+            error: waErr.error,
+          });
+        } catch {}
+        return waErr;
       }
     }
   }
@@ -202,25 +266,50 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
         });
 
         const payload = (await response.json().catch(() => ({}))) as { sid?: string; message?: string };
-        if (!response.ok) {
-          return {
-            provider: "twilio",
-            deliveryStatus: "failed",
-            error: payload.message || `Twilio error (${response.status})`,
-          };
-        }
-
-        return {
+        const twilioResult: AlertDispatchResult = {
           provider: "twilio",
-          deliveryStatus: "sent",
+          deliveryStatus: response.ok ? "sent" : "failed",
           providerMessageId: payload.sid,
+          error: !response.ok ? (payload.message || `Twilio error (${response.status})`) : undefined,
         };
+
+        try {
+          const { recordCommunicationLog } = await import("@/lib/communication-store");
+          recordCommunicationLog({
+            channel: input.channel,
+            direction: "outgoing",
+            category: "system",
+            recipient: to,
+            sender: "Next Gear " + input.channel.toUpperCase(),
+            subject: `${input.channel.toUpperCase()} Alert`,
+            message: input.message,
+            status: twilioResult.deliveryStatus,
+            error: twilioResult.error,
+          });
+        } catch {}
+
+        return twilioResult;
       } catch (error) {
-        return {
+        const twilioErr: AlertDispatchResult = {
           provider: "twilio",
           deliveryStatus: "failed",
           error: error instanceof Error ? error.message : "Twilio request failed",
         };
+        try {
+          const { recordCommunicationLog } = await import("@/lib/communication-store");
+          recordCommunicationLog({
+            channel: input.channel,
+            direction: "outgoing",
+            category: "system",
+            recipient: to,
+            sender: "Next Gear " + input.channel.toUpperCase(),
+            subject: `${input.channel.toUpperCase()} Alert`,
+            message: input.message,
+            status: "failed",
+            error: twilioErr.error,
+          });
+        } catch {}
+        return twilioErr;
       }
     }
   }
@@ -228,6 +317,20 @@ export async function dispatchAlert(input: AlertDispatchInput): Promise<AlertDis
   if (process.env.NODE_ENV !== "production") {
     console.log(`[WhatsApp/SMS Mock Dispatch] Channel: ${input.channel} | To: ${to}\nMessage:\n${input.message}`);
   }
+
+  try {
+    const { recordCommunicationLog } = await import("@/lib/communication-store");
+    recordCommunicationLog({
+      channel: input.channel,
+      direction: "outgoing",
+      category: input.templateName?.includes("otp") || input.templateName?.includes("auth") ? "otp" : "system",
+      recipient: to,
+      sender: "Next Gear " + input.channel.toUpperCase(),
+      subject: `${input.channel.toUpperCase()} Message`,
+      message: input.message,
+      status: "sent",
+    });
+  } catch {}
 
   return {
     provider: "mock",
@@ -264,6 +367,17 @@ export async function dispatchHtmlEmail(input: {
   sentEmailDedupe.add(dedupeKey);
   setTimeout(() => sentEmailDedupe.delete(dedupeKey), 10 * 60 * 1000);
 
+  const subLower = input.subject.toLowerCase();
+  const category = subLower.includes("otp") || subLower.includes("verification")
+    ? "otp"
+    : subLower.includes("reset")
+    ? "password_reset"
+    : subLower.includes("booking")
+    ? "booking_confirmed"
+    : subLower.includes("welcome")
+    ? "welcome"
+    : "direct_compose";
+
   if (process.env.RESEND_API_KEY) {
     try {
       const { Resend } = await import("resend");
@@ -278,40 +392,72 @@ export async function dispatchHtmlEmail(input: {
         attachments: input.attachments,
       });
 
+      const emailResult: AlertDispatchResult = res.error
+        ? { provider: "mock", deliveryStatus: "failed", error: res.error.message }
+        : { provider: "mock", deliveryStatus: "sent", providerMessageId: res.data?.id ?? `resend-${Date.now()}` };
+
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category,
+          recipient: to,
+          sender: fromEmail,
+          subject: input.subject,
+          message: input.subject,
+          htmlContent: input.html,
+          status: emailResult.deliveryStatus,
+          error: emailResult.error,
+        });
+      } catch (logErr) {
+        console.warn("[Communication Store Resend Log Warning]", logErr);
+      }
+
       if (res.error) {
         console.error(`[Resend HTML Email Error] To: ${to} | Error:`, res.error);
-        return {
-          provider: "mock",
-          deliveryStatus: "failed",
-          error: res.error.message,
-        };
+        return emailResult;
       }
 
       console.log(`[Resend HTML Email Sent Successfully] ID: ${res.data?.id} | To: ${to} | Subject: ${input.subject}`);
-      return {
-        provider: "mock",
-        deliveryStatus: "sent",
-        providerMessageId: res.data?.id ?? `resend-${Date.now()}`,
-      };
+      return emailResult;
     } catch (err) {
       console.error("[HTML Email Dispatch Failed]", err);
-      return {
+      const errResult: AlertDispatchResult = {
         provider: "mock",
         deliveryStatus: "failed",
         error: err instanceof Error ? err.message : "HTML email dispatch failed",
       };
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category,
+          recipient: to,
+          sender: "noreply@next-gear.app",
+          subject: input.subject,
+          message: input.subject,
+          htmlContent: input.html,
+          status: "failed",
+          error: errResult.error,
+        });
+      } catch {}
+      return errResult;
     }
   }
 
   try {
-    const { logEmailMessage } = await import("@/lib/email-log-store");
-    logEmailMessage({
-      type: "outgoing",
-      category: "direct_compose",
-      from: process.env.RESEND_FROM_EMAIL ?? "noreply@next-gear.app",
-      to,
+    const { recordCommunicationLog } = await import("@/lib/communication-store");
+    recordCommunicationLog({
+      channel: "email",
+      direction: "outgoing",
+      category,
+      recipient: to,
+      sender: process.env.RESEND_FROM_EMAIL ?? "noreply@next-gear.app",
       subject: input.subject,
-      html: input.html,
+      message: input.subject,
+      htmlContent: input.html,
       status: "sent",
     });
   } catch (e) {

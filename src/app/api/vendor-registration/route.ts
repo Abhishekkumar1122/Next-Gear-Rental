@@ -1,5 +1,8 @@
 import { createVendorApplication } from "@/lib/vendor-applications";
-import { sendVendorApplicationReceivedNotification } from "@/lib/vendor-email-service";
+import {
+  sendVendorApplicationReceivedNotification,
+  sendAdminVendorApplicationAlert,
+} from "@/lib/vendor-email-service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -26,13 +29,26 @@ export async function POST(request: Request) {
 
   const application = await createVendorApplication(parsed.data);
 
-  // Fire application received email + WhatsApp notification (non-blocking)
+  // 1. Fire application received email + WhatsApp notification to Vendor (non-blocking)
   void sendVendorApplicationReceivedNotification({
     businessName: application.businessName,
     contactName: application.contactName,
     email: application.email,
     phone: application.phone,
+    cityName: application.city,
     applicationId: application.id,
+  });
+
+  // 2. Fire Instant Dual-Alert (Email + WhatsApp) to Admin (non-blocking)
+  void sendAdminVendorApplicationAlert({
+    applicationId: application.id,
+    businessName: application.businessName,
+    contactName: application.contactName,
+    email: application.email,
+    phone: application.phone,
+    city: application.city,
+    state: application.state,
+    fleetSize: application.fleetSize,
   });
 
   return NextResponse.json(

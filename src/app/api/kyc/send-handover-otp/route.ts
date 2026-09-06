@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppOtp } from "@/lib/whatsapp-service";
 
-// In-memory fallback store for live OTPs if DB is offline
-const otpStore = new Map<string, { otp: string; phone: string; expiresAt: number }>();
+// In-memory fallback store for live OTPs attached to globalThis across Next.js bundles
+const globalForOtp = globalThis as unknown as {
+  kycHandoverOtpStore?: Map<string, { otp: string; phone: string; expiresAt: number }>;
+};
+export const otpStore = globalForOtp.kycHandoverOtpStore ?? new Map<string, { otp: string; phone: string; expiresAt: number }>();
+if (!globalForOtp.kycHandoverOtpStore) {
+  globalForOtp.kycHandoverOtpStore = otpStore;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +30,15 @@ export async function POST(req: NextRequest) {
 
     // Store in Database if available
     try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS kyc_handover_otps (
+          booking_id TEXT PRIMARY KEY,
+          phone TEXT,
+          otp TEXT,
+          expires_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE
+        )
+      `);
       await prisma.$executeRawUnsafe(
         `INSERT INTO kyc_handover_otps (booking_id, phone, otp, expires_at, created_at)
          VALUES ($1, $2, $3, NOW() + INTERVAL '15 minutes', NOW())
@@ -62,5 +77,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-export { otpStore };

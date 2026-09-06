@@ -338,6 +338,11 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
     startDate: string;
     endDate: string;
     totalAmountINR: number;
+    pickupAddress?: string;
+    pickupLandmark?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    mapsUrl?: string;
     vendorPhone?: string;
     vendorEmail?: string;
     vendorName?: string;
@@ -363,6 +368,31 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       });
 
       if (b) {
+        const isDoorstep = b.deliveryMode === "doorstep";
+        const finalAddress = isDoorstep 
+          ? (b.deliveryAddress || b.vehicle.pickupAddress || b.vehicle.vendor?.garageAddress || undefined)
+          : (b.vehicle.pickupAddress || b.vehicle.vendor?.garageAddress || undefined);
+
+        const finalLandmark = isDoorstep
+          ? (b.deliveryLandmark || b.vehicle.pickupLandmark || b.vehicle.vendor?.garageLandmark || undefined)
+          : (b.vehicle.pickupLandmark || b.vehicle.vendor?.garageLandmark || undefined);
+
+        const finalLat = isDoorstep
+          ? (b.deliveryLat ?? b.vehicle.latitude ?? b.vehicle.vendor?.garageLat ?? undefined)
+          : (b.vehicle.latitude ?? b.vehicle.vendor?.garageLat ?? undefined);
+
+        const finalLng = isDoorstep
+          ? (b.deliveryLng ?? b.vehicle.longitude ?? b.vehicle.vendor?.garageLng ?? undefined)
+          : (b.vehicle.longitude ?? b.vehicle.vendor?.garageLng ?? undefined);
+
+        let dynamicMapsUrl: string | undefined;
+        if (typeof finalLat === "number" && typeof finalLng === "number" && (finalLat !== 0 || finalLng !== 0)) {
+          dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${finalLat},${finalLng}`;
+        } else if (finalAddress && finalAddress.trim()) {
+          const queryStr = `${finalAddress.trim()}${finalLandmark ? `, Near ${finalLandmark.trim()}` : ""}`;
+          dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryStr)}`;
+        }
+
         bookingData = {
           id: b.id,
           customerName: b.user.name || "Valued Customer",
@@ -373,6 +403,11 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
           startDate: b.startDate.toISOString().slice(0, 10),
           endDate: b.endDate.toISOString().slice(0, 10),
           totalAmountINR: b.totalAmountINR,
+          pickupAddress: finalAddress || undefined,
+          pickupLandmark: finalLandmark || undefined,
+          pickupLat: typeof finalLat === "number" ? finalLat : undefined,
+          pickupLng: typeof finalLng === "number" ? finalLng : undefined,
+          mapsUrl: dynamicMapsUrl,
           vendorPhone: b.vehicle.vendor?.ownerUser?.phone || b.vehicle.vendor?.contactPhone || undefined,
           vendorEmail: b.vehicle.vendor?.ownerUser?.email || undefined,
           vendorName: b.vehicle.vendor?.businessName || b.vehicle.vendor?.ownerUser?.name || "Hub Vendor",
@@ -430,6 +465,8 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
         startDate: bookingData.startDate,
         endDate: bookingData.endDate,
         totalAmountINR: bookingData.totalAmountINR,
+        pickupAddress: bookingData.pickupAddress,
+        mapsUrl: bookingData.mapsUrl,
         baseUrl,
       });
 
@@ -447,6 +484,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
           totalAmountINR: bookingData.totalAmountINR,
           bookingAmount: bookingData.totalAmountINR,
           balanceAmount: 0,
+          pickupAddress: bookingData.pickupAddress,
         });
       } catch (pdfErr) {
         console.error("[Customer PDF Pass Generation Error]", pdfErr);
@@ -472,14 +510,18 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
     }
   }
 
-  const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *City:* ${bookingData.cityName}\n🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
+  const displayStationName = bookingData.pickupAddress
+    ? `${bookingData.pickupAddress}${bookingData.pickupLandmark ? ` (Near ${bookingData.pickupLandmark})` : ""}`
+    : bookingData.cityName;
+
+  const customerWaMsg = `💳 *NEXT GEAR RENTALS - BOOKING CONFIRMED* ✅\n\nHello *${bookingData.customerName}*,\nYour rental booking has been successfully confirmed!\n\n📌 *Booking ID:* \`${prettyId}\`\n🚘 *Vehicle:* *${bookingData.vehicleTitle}*\n📍 *Station:* ${displayStationName}\n${bookingData.mapsUrl ? `🗺️ *Directions:* ${bookingData.mapsUrl}\n` : ""}🗓️ *Dates:* ${bookingData.startDate} to ${bookingData.endDate}\n💰 *Total Paid:* *₹${bookingData.totalAmountINR.toLocaleString("en-IN")}*\n\n🎟️ *Download Booking Pass & e-Receipt:*\n${passLink}\n\n📞 *24/7 Helpline:* +91-9523765172\nThank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
   if (bookingData.customerPhone) {
     try {
       const { sendWhatsAppBookingReceipt } = await import("@/lib/whatsapp-service");
       dispatchTasks.push(
         sendWhatsAppBookingReceipt({
-          bookingId: bookingData.id,
+          bookingId: prettyId,
           customerName: bookingData.customerName,
           customerPhone: bookingData.customerPhone,
           vehicleTitle: bookingData.vehicleTitle,
@@ -487,6 +529,11 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
           startDate: bookingData.startDate,
           endDate: bookingData.endDate,
           totalAmountINR: bookingData.totalAmountINR,
+          pickupAddress: bookingData.pickupAddress,
+          pickupLandmark: bookingData.pickupLandmark,
+          pickupLat: bookingData.pickupLat,
+          pickupLng: bookingData.pickupLng,
+          mapsUrl: bookingData.mapsUrl,
         })
       );
     } catch (waErr) {
@@ -503,7 +550,7 @@ export async function dispatchTriPartyBookingAlerts(bookingId: string) {
       const { sendVendorBookingNotification } = await import("@/lib/whatsapp-service");
       dispatchTasks.push(
         sendVendorBookingNotification({
-          bookingId: bookingData.id,
+          bookingId: prettyId,
           vendorPhone: vendorTargetPhone,
           vendorName: bookingData.vendorName || "Fleet Partner",
           customerName: bookingData.customerName,

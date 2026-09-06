@@ -46,9 +46,14 @@ export async function POST(request: NextRequest) {
         // Update payment and booking within a transaction to enforce concurrency check
         try {
           await prisma.$transaction(async (tx) => {
-            // 1. Update Payment Status to PAID
-            await tx.payment.updateMany({
-              where: { providerPaymentId: txnid },
+            // 1. Update Payment Status to PAID (matching providerPaymentId or bookingId)
+            const updateResult = await tx.payment.updateMany({
+              where: {
+                OR: [
+                  { providerPaymentId: txnid },
+                  { bookingId: bookingId },
+                ],
+              },
               data: {
                 status: "PAID",
                 metadataJson: JSON.stringify({
@@ -59,6 +64,26 @@ export async function POST(request: NextRequest) {
                 }),
               },
             });
+
+            // If no existing Payment record existed, create one directly
+            if (updateResult.count === 0) {
+              await tx.payment.create({
+                data: {
+                  booking: { connect: { id: bookingId } },
+                  amountINR: Math.round(amountINR || 0),
+                  currency: "INR",
+                  status: "PAID",
+                  provider: "PAYU",
+                  providerPaymentId: txnid,
+                  metadataJson: JSON.stringify({
+                    mihpayid,
+                    bankRefNum,
+                    paymentMode,
+                    payuParams: params,
+                  }),
+                },
+              });
+            }
 
             // 2. Fetch booking details to lock vehicle
             const booking = await tx.booking.findUnique({
@@ -148,6 +173,14 @@ export async function POST(request: NextRequest) {
         } catch (aErr) {
           console.error("[PayU Alert Dispatch Error]", aErr);
         }
+
+        // Instant Cache Busting for Vendor & Customer Dashboards
+        try {
+          const { revalidatePath } = await import("next/cache");
+          revalidatePath("/dashboard/vendor");
+          revalidatePath("/dashboard/customer");
+          revalidatePath("/dashboard/admin");
+        } catch {}
       }
 
       return NextResponse.redirect(

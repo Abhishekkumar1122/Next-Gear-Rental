@@ -7,6 +7,7 @@ import { resolveVendorContext } from "@/lib/vendor-fleet";
 import { bookingsStore } from "@/lib/store";
 import { vehicles as mockVehicles, vendors as mockVendors } from "@/lib/mock-data";
 import { listKycAutomationByEmail } from "@/lib/kyc-automation";
+import { getCustomerBookingDocs } from "@/lib/customer-documents";
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -95,7 +96,17 @@ export async function GET(request: Request) {
         const cleanP = booking.user.phone.replace(/\D/g, "").slice(-10);
         kycEntries = await listKycAutomationByEmail(`${cleanP}@guest.next-gear.app`);
       }
-      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : ((booking.user as any).drivingLicenseUrl || (booking.user as any).govtIdUrl ? "approved" : "unverified");
+
+      // Fetch saved KYC documents for this booking/customer
+      const customerDocs = await getCustomerBookingDocs({
+        bookingId: booking.id,
+        userId: booking.user.id,
+        phone: booking.user.phone,
+        email: booking.user.email,
+      });
+
+      const hasUploadedDocs = Boolean(customerDocs.dlUrl || customerDocs.aadhaarFrontUrl || (booking.user as any).drivingLicenseUrl);
+      const kycStatus = kycEntries.length > 0 ? kycEntries[0].status : (hasUploadedDocs ? "approved" : "unverified");
 
       bookingData = {
         id: booking.id,
@@ -111,11 +122,11 @@ export async function GET(request: Request) {
         kycStatus,
         isKycVerified: (booking.user as any).isKycVerified || kycStatus === "approved",
         kycExpiresAt: (booking.user as any).kycExpiresAt || null,
-        drivingLicenseUrl: (booking as any).drivingLicenseUrl || (booking.user as any).drivingLicenseUrl || null,
-        aadhaarFrontUrl: (booking as any).aadhaarFrontUrl || (booking.user as any).aadhaarFrontUrl || (booking.user as any).govtIdUrl || null,
-        aadhaarBackUrl: (booking as any).aadhaarBackUrl || (booking.user as any).aadhaarBackUrl || null,
-        drivingLicenseNo: (booking as any).drivingLicenseNo || (booking.user as any).drivingLicenseNo || null,
-        governmentIdNo: (booking as any).governmentIdNo || (booking.user as any).governmentIdNo || null,
+        drivingLicenseUrl: customerDocs.dlUrl || (booking as any).drivingLicenseUrl || (booking.user as any).drivingLicenseUrl || null,
+        aadhaarFrontUrl: customerDocs.aadhaarFrontUrl || (booking as any).aadhaarFrontUrl || (booking.user as any).aadhaarFrontUrl || (booking.user as any).govtIdUrl || null,
+        aadhaarBackUrl: customerDocs.aadhaarBackUrl || (booking as any).aadhaarBackUrl || (booking.user as any).aadhaarBackUrl || null,
+        drivingLicenseNo: customerDocs.dlNo || (booking as any).drivingLicenseNo || (booking.user as any).drivingLicenseNo || null,
+        governmentIdNo: customerDocs.aadhaarFrontNo || (booking as any).governmentIdNo || (booking.user as any).governmentIdNo || null,
         vehicleTitle: booking.vehicle.title,
         vehicleStatus: booking.vehicle.operationalStatus,
         startOdometer: booking.startOdometer,

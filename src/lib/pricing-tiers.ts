@@ -76,3 +76,11 @@ export function formatBookingId(id: string, city?: string, dateStr?: string | Da
 
   return `NG-${stateCode}-${dateCode}${seqNum}`;
 }
+
+/**
+ * Calculates VIP membership tier discount in INR.
+ */
+export function calculateVipDiscount(amountINR: number, discountPercent: number): number {
+  if (!amountINR || amountINR <= 0 || !discountPercent || discountPercent <= 0) return 0;
+  return Math.round((amountINR * Math.min(100, discountPercent)) / 100);
+}

@@ -23,10 +23,27 @@ export function normalizeWhatsAppPhone(phone: string): string {
   return `+${digitsOnly}`;
 }
 
-export function resolveHubMapsUrl(cityName: string, pickupAddress?: string): string {
-  if (pickupAddress && pickupAddress.trim() && !pickupAddress.includes("undefined")) {
+export function resolveHubMapsUrl(
+  cityName: string,
+  pickupAddress?: string | null,
+  lat?: number | null,
+  lng?: number | null
+): string {
+  // 1. If precise GPS latitude and longitude exist, use exact coordinates pin
+  if (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    !isNaN(lat) &&
+    !isNaN(lng) &&
+    (lat !== 0 || lng !== 0)
+  ) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  // 2. If vendor's specific address exists, search for that exact address
+  if (pickupAddress && pickupAddress.trim() && !pickupAddress.includes("undefined") && pickupAddress.trim() !== "") {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddress.trim())}`;
   }
+  // 3. Fallback to city
   const cleanCity = cityName.trim() || "Delhi NCR";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Next Gear Rentals Station Hub, ${cleanCity}`)}`;
 }
@@ -88,7 +105,10 @@ export type WhatsAppBookingReceiptInput = {
   subtotalAmountINR?: number;
   discountINR?: number;
   passUrl?: string;
-  pickupAddress?: string;
+  pickupAddress?: string | null;
+  pickupLandmark?: string | null;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   mapsUrl?: string;
   currency?: string;
 };
@@ -118,7 +138,13 @@ export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptIn
     ? (input.passUrl.startsWith("http") ? input.passUrl : `${baseUrl.replace(/\/$/, "")}${input.passUrl}`) 
     : `${baseUrl.replace(/\/$/, "")}/api/bookings/${input.bookingId}/pass`;
 
-  const mapsLink = input.mapsUrl || resolveHubMapsUrl(input.cityName, input.pickupAddress);
+  const mapsLink =
+    input.mapsUrl ||
+    resolveHubMapsUrl(input.cityName, input.pickupAddress, input.pickupLat, input.pickupLng);
+
+  const displayPickupStation = input.pickupAddress?.trim()
+    ? `${input.pickupAddress.trim()}${input.pickupLandmark ? ` (Near ${input.pickupLandmark.trim()})` : ""}`
+    : input.cityName;
 
   const formattedSubtotal = input.subtotalAmountINR ? `₹${input.subtotalAmountINR.toLocaleString("en-IN")}` : null;
   const formattedDiscount = input.discountINR && input.discountINR > 0 ? `₹${input.discountINR.toLocaleString("en-IN")}` : null;
@@ -128,7 +154,7 @@ export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptIn
   message += `Hello *${input.customerName}*,\nYour self-drive rental booking is confirmed! 🎉\n\n`;
   message += `📌 *Booking ID:* \`${input.bookingId}\`\n`;
   message += `🚘 *Vehicle:* *${input.vehicleTitle}*\n`;
-  message += `📍 *City Hub:* ${input.cityName}\n`;
+  message += `📍 *Pickup Station:* ${displayPickupStation}\n`;
   message += `🗓️ *Dates:* ${input.startDate} to ${input.endDate}\n\n`;
   message += `🗺️ *Pickup Location (Google Maps Directions):*\n${mapsLink}\n\n`;
   message += `🧾 *PAYMENT SUMMARY*\n`;
@@ -139,6 +165,11 @@ export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptIn
   message += `📞 *Support:* support@next-gear.app\n`;
   message += `Thank you for choosing NEXT GEAR Rentals! Drive safe! 🛵💨`;
 
+  const metaStationName =
+    displayPickupStation.length > 55
+      ? displayPickupStation.slice(0, 52) + "..."
+      : displayPickupStation;
+
   const result = await dispatchAlert({
     channel: "whatsapp",
     to: phone,
@@ -148,7 +179,7 @@ export async function sendWhatsAppBookingReceipt(input: WhatsAppBookingReceiptIn
       input.customerName,
       input.bookingId,
       input.vehicleTitle,
-      input.cityName,
+      metaStationName,
       input.startDate,
       input.endDate,
       formattedTotal.replace("₹", ""),

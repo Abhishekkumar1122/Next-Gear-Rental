@@ -80,6 +80,7 @@ interface VendorDashboardLayoutProps {
   bookings: Booking[];
   history: any[];
   mobileDashboardUrl: string;
+  mustChangePassword?: boolean;
 }
 
 export function VendorDashboardLayout({
@@ -90,11 +91,73 @@ export function VendorDashboardLayout({
   bookings,
   history,
   mobileDashboardUrl,
+  mustChangePassword = false,
 }: VendorDashboardLayoutProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "fleet" | "earnings" | "hub">("overview");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scannerError, setScannerError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
+
+  // First-login mandatory password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(Boolean(mustChangePassword));
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [passSubmitting, setPassSubmitting] = useState(false);
+  const [passError, setPassError] = useState("");
+  const [passSuccess, setPassSuccess] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError("");
+    if (newPassword.length < 6) {
+      setPassError("Password must be at least 6 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPassError("Passwords do not match. Please re-enter.");
+      return;
+    }
+
+    setPassSubmitting(true);
+    try {
+      const res = await fetch("/api/vendor/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPassError(data.error || "Failed to update password");
+      } else {
+        setPassSuccess(true);
+        audioSynth?.playSuccess?.();
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          router.refresh();
+        }, 1200);
+      }
+    } catch {
+      setPassError("Network connection error. Please try again.");
+    } finally {
+      setPassSubmitting(false);
+    }
+  };
+
+  // Automatic real-time polling every 20 seconds to sync new customer bookings & earnings immediately
+  useEffect(() => {
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [router]);
+
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   // Custom Camera References
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -585,7 +648,16 @@ export function VendorDashboardLayout({
                 })}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  title="Sync latest bookings & earnings"
+                  className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/80 px-3 py-2 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[var(--brand-red)]" : ""}`} />
+                  <span className="hidden sm:inline">Sync</span>
+                </button>
                 <Link
                   href="/dashboard/vendor/deliveries"
                   className="rounded-xl border border-white/10 bg-white/5 text-white/80 px-4 py-2 text-xs font-bold transition hover:bg-white/10"
@@ -950,6 +1022,117 @@ export function VendorDashboardLayout({
                   {isWithdrawing ? "Transferring..." : "Confirm Transfer"}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* First-Login Mandatory Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-md rounded-3xl border border-red-500/30 bg-[#0f0f12] p-6 md:p-8 shadow-2xl space-y-5 text-white relative overflow-hidden">
+            {/* Background Glow */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-red-600/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 rounded-full bg-emerald-600/10 blur-3xl pointer-events-none" />
+
+            <div className="space-y-2 text-center relative z-10">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mb-3 shadow-inner">
+                <ShieldCheck className="w-6 h-6 text-[var(--brand-red)]" />
+              </div>
+              <span className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-red-400 bg-red-950/60 border border-red-500/30 px-3 py-1 rounded-full">
+                Security Protocol
+              </span>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                Set Your Permanent Password
+              </h2>
+              <p className="text-xs text-white/60 leading-relaxed max-w-sm mx-auto">
+                Welcome to Next Gear Fleet Network! Please create your own secure password to protect your partner account.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdatePassword} className="space-y-4 relative z-10">
+              {/* Locked User ID */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Permanent Partner Login ID (Fixed)
+                </label>
+                <div className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs text-emerald-400 font-mono font-bold flex items-center justify-between select-all">
+                  <span>{user.email}</span>
+                  <span className="text-[9px] uppercase tracking-wider text-white/40 bg-white/5 px-2 py-0.5 rounded">Fixed</span>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50">
+                    New Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="text-[10px] text-white/40 hover:text-white transition cursor-pointer"
+                  >
+                    {showPass ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <input
+                  type={showPass ? "text" : "password"}
+                  required
+                  minLength={6}
+                  placeholder="At least 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs text-white placeholder-white/30 focus:border-[var(--brand-red)] focus:outline-none transition"
+                />
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50">
+                  Confirm New Password
+                </label>
+                <input
+                  type={showPass ? "text" : "password"}
+                  required
+                  minLength={6}
+                  placeholder="Re-enter your new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs text-white placeholder-white/30 focus:border-[var(--brand-red)] focus:outline-none transition"
+                />
+              </div>
+
+              {passError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{passError}</span>
+                </div>
+              )}
+
+              {passSuccess && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-3 text-xs text-emerald-300 flex items-center gap-2">
+                  <span className="text-emerald-400 font-bold">✓</span>
+                  <span>Password updated successfully! Unlocking dashboard...</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={passSubmitting || passSuccess}
+                className="w-full rounded-xl bg-[var(--brand-red)] hover:bg-red-700 disabled:opacity-50 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-red-950/50 transition duration-200 cursor-pointer flex items-center justify-center gap-2 mt-2"
+              >
+                {passSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Saving Secure Password...</span>
+                  </>
+                ) : passSuccess ? (
+                  <span>✓ Unlocked</span>
+                ) : (
+                  <span>Save Password & Unlock Dashboard →</span>
+                )}
+              </button>
             </form>
           </div>
         </div>

@@ -594,6 +594,7 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
               </div>
 
               <AdminOverviewClient
+                daysParam={daysParam}
                 paidTotal={paidTotal}
                 totalRefunds={refundTotal}
                 totalBookings={financeItems.length}

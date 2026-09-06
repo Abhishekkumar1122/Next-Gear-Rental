@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getVendorModerationDetails, setVendorModerationStatus } from "@/lib/vendor-moderation";
 import { getUserModerationDetails, setUserModerationStatus } from "@/lib/user-moderation";
 import { assertAdminSession, assertAdminMutationRequest } from "@/lib/admin-security";
-import { getUserVipTier, setUserVipTier, type VipTier } from "@/lib/user-tiers";
+import { getUserVipDetails, setUserVipTierByAdmin, getUserVipTier, type VipTier } from "@/lib/user-vip-store";
+import { getCustomerBookingDocs } from "@/lib/customer-documents";
 
 interface SystemUserRecord {
   id: string;
@@ -20,6 +21,11 @@ interface SystemUserRecord {
   vipTier: VipTier;
   commissionRate?: number;
   createdAt: string;
+  drivingLicenseUrl?: string | null;
+  drivingLicenseNo?: string | null;
+  aadhaarFrontUrl?: string | null;
+  aadhaarFrontNo?: string | null;
+  aadhaarBackUrl?: string | null;
 }
 
 // In-memory fallback dataset
@@ -88,10 +94,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (search) {
+        const cleanId = search.trim().replace(/^(VND-|USR-|ADM-)/i, "");
         where.OR = [
           { name: { contains: search, mode: "insensitive" as const } },
           { email: { contains: search, mode: "insensitive" as const } },
           { phone: { contains: search } },
+          { id: { contains: cleanId, mode: "insensitive" as const } },
         ];
       }
 
@@ -148,21 +156,32 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          const userDocData = await getCustomerBookingDocs({
+            userId: u.id,
+            phone: u.phone,
+            email: u.email,
+          });
+
           return {
             id: u.id,
             name: u.name,
             email: u.email || "N/A",
             phone: u.phone || undefined,
             role: u.role === "CUSTOMER" ? "USER" : (u.role as any) || "USER",
-            kycStatus,
+            kycStatus: userDocData.hasDocs && kycStatus !== "blacklisted" ? "approved" : kycStatus,
             blockCount,
             appealText,
             blockReason,
             blockCustomMessage,
             blockedAt,
             commissionRate,
-            vipTier: getUserVipTier(u.email || u.id),
+            vipTier: (await getUserVipDetails(u.id, u.email || undefined)).tier,
             createdAt: u.createdAt.toISOString(),
+            drivingLicenseUrl: userDocData.dlUrl || null,
+            drivingLicenseNo: userDocData.dlNo || null,
+            aadhaarFrontUrl: userDocData.aadhaarFrontUrl || null,
+            aadhaarFrontNo: userDocData.aadhaarFrontNo || null,
+            aadhaarBackUrl: userDocData.aadhaarBackUrl || null,
           };
         })
       );
@@ -197,9 +216,20 @@ export async function GET(request: NextRequest) {
     vipTier: getUserVipTier(u.email || u.id),
   }));
 
-  const filtered = roleFilter && roleFilter !== "all" 
+  let filtered = roleFilter && roleFilter !== "all" 
     ? mappedWithTiers.filter((u) => u.role === roleFilter) 
     : mappedWithTiers;
+
+  if (search) {
+    const s = search.toLowerCase().trim();
+    const cleanId = s.replace(/^(vnd-|usr-|adm-)/i, "");
+    filtered = filtered.filter((u) => 
+      u.name.toLowerCase().includes(s) || 
+      u.email.toLowerCase().includes(s) || 
+      (u.phone && u.phone.includes(s)) ||
+      u.id.toLowerCase().includes(cleanId)
+    );
+  }
 
   return NextResponse.json({
     users: filtered,
@@ -234,8 +264,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Missing userId parameter" }, { status: 400 });
   }
 
-  if (vipTier) {
-    setUserVipTier(userId, vipTier as VipTier);
+  if (vipTier && ["BRONZE", "SILVER", "GOLD", "PLATINUM"].includes(vipTier)) {
+    try {
+      await setUserVipTierByAdmin(userId, vipTier as VipTier);
+    } catch (vipErr) {
+      console.error("[Admin Save VIP Tier Error]", vipErr);
+    }
   }
 
   if (process.env.DATABASE_URL) {
@@ -274,7 +308,8 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ success: true, vipTier: getUserVipTier(user.email || userId) });
+      const updatedVip = await getUserVipDetails(user.id, user.email || undefined);
+      return NextResponse.json({ success: true, vipTier: updatedVip.tier });
     } catch (err) {
       console.error("Failed to update user status:", err);
       return NextResponse.json({ error: "Database write error" }, { status: 500 });

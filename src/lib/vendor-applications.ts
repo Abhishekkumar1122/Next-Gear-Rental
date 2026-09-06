@@ -156,15 +156,20 @@ async function ensureTable() {
   }
 }
 
-function buildLoginId(input: { businessName: string; phone: string }) {
-  const slug = input.businessName
+function buildLoginId(input: { businessName: string; contactName?: string; phone: string }) {
+  const source = (input.contactName || input.businessName || "vendor")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 18) || "vendor";
+    .replace(/[^a-z0-9]/g, "");
 
-  const last4 = input.phone.slice(-4);
-  return `${slug}-${last4}@vendors.next-gear.app`;
+  let prefix = source.slice(0, 5);
+  if (prefix.length < 4) {
+    prefix = (prefix + "vnd").slice(0, 4);
+  }
+
+  const cleanPhone = input.phone.replace(/[^0-9]/g, "");
+  const numPart = cleanPhone.length >= 4 ? cleanPhone.slice(-4) : Math.floor(1000 + Math.random() * 9000).toString();
+
+  return `${prefix}${numPart}@next-gear.app`;
 }
 
 function generateApplicationId(businessName: string, phone: string): string {
@@ -497,6 +502,7 @@ export async function generateVendorCredentials(
       businessName: application.business_name,
       contactName: application.contact_name,
       email: application.email || application.login_id,
+      loginId: application.login_id,
       phone: application.phone,
       tempPassword: application.temp_password,
       commissionRate,
@@ -504,7 +510,11 @@ export async function generateVendorCredentials(
     return toVendorApplication(application);
   }
 
-  const loginId = buildLoginId({ businessName: application.business_name, phone: application.phone });
+  const loginId = buildLoginId({
+    businessName: application.business_name,
+    contactName: application.contact_name,
+    phone: application.phone,
+  });
   const tempPassword = buildTempPassword();
   const passwordHash = await hashPassword(tempPassword);
 
@@ -607,6 +617,7 @@ export async function generateVendorCredentials(
     businessName: application.business_name,
     contactName: application.contact_name,
     email: application.email || loginId,
+    loginId,
     phone: application.phone,
     tempPassword,
     commissionRate,

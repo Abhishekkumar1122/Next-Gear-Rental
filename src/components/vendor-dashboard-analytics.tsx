@@ -14,6 +14,7 @@ interface Booking {
   totalAmountINR: number;
   status: string;
   handoverStatus: string;
+  createdAt?: Date | string;
   user?: {
     name: string | null;
     email: string;
@@ -39,18 +40,22 @@ export function VendorDashboardAnalytics({ bookings, vehicles }: VendorDashboard
 
   // 1. Today's Handovers Checklist
   const todayHandovers = useMemo(() => {
-    const pickups = bookings.filter(
-      (b) => b.status === "CONFIRMED" && isSameDay(b.startDate, todayStr) && b.handoverStatus === "PENDING"
-    );
-    const activeRentals = bookings.filter(
-      (b) => b.status === "CONFIRMED" && isSameDay(b.endDate, todayStr) && b.handoverStatus === "RELEASED"
-    );
-    const completed = bookings.filter(
-      (b) =>
-        b.status === "CONFIRMED" &&
+    const pickups = bookings.filter((b) => {
+      const st = (b.status || "").toUpperCase();
+      return (st === "CONFIRMED" || st === "COMPLETED") && isSameDay(b.startDate, todayStr) && b.handoverStatus === "PENDING";
+    });
+    const activeRentals = bookings.filter((b) => {
+      const st = (b.status || "").toUpperCase();
+      return (st === "CONFIRMED" || st === "COMPLETED") && isSameDay(b.endDate, todayStr) && b.handoverStatus === "RELEASED";
+    });
+    const completed = bookings.filter((b) => {
+      const st = (b.status || "").toUpperCase();
+      return (
+        (st === "CONFIRMED" || st === "COMPLETED") &&
         (isSameDay(b.startDate, todayStr) || isSameDay(b.endDate, todayStr)) &&
         (b.handoverStatus === "RETURNED" || (isSameDay(b.startDate, todayStr) && b.handoverStatus === "RELEASED"))
-    );
+      );
+    });
 
     return {
       pickups,
@@ -71,8 +76,12 @@ export function VendorDashboardAnalytics({ bookings, vehicles }: VendorDashboard
       const dayLabel = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric" });
 
       const dayEarnings = bookings
-        .filter((b) => b.status === "CONFIRMED" && isSameDay(b.startDate, dayStr))
-        .reduce((sum, b) => sum + b.totalAmountINR, 0);
+        .filter((b) => {
+          const st = (b.status || "").toUpperCase();
+          if (st !== "CONFIRMED" && st !== "COMPLETED") return false;
+          return isSameDay(b.createdAt, dayStr) || isSameDay(b.startDate, dayStr);
+        })
+        .reduce((sum, b) => sum + (Number(b.totalAmountINR) || 0), 0);
 
       days.push(dayLabel);
       dataPoints.push(dayEarnings);

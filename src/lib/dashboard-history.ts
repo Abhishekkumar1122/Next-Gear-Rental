@@ -71,28 +71,33 @@ const getCachedVendorHistory = unstable_cache(
   async (vendorId: string) => {
     if (!process.env.DATABASE_URL) return [];
 
-    const payments = await prisma.payment.findMany({
-      where: {
-        booking: {
-          vehicle: {
-            vendorId,
+    try {
+      const payments = await prisma.payment.findMany({
+        where: {
+          booking: {
+            vehicle: {
+              vendorId,
+            },
           },
         },
-      },
-      include: {
-        booking: {
-          include: {
-            user: true,
+        include: {
+          booking: {
+            include: {
+              user: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 20,
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+      });
 
-    return payments.map(mapPayment);
+      return payments.map(mapPayment);
+    } catch (err) {
+      console.warn("[getCachedVendorHistory] DB error or waking up:", err);
+      return [];
+    }
   },
   ["vendor-history-cache"],
   { revalidate: 60, tags: ["history"] }

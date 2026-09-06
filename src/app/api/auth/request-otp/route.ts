@@ -87,12 +87,29 @@ export async function POST(request: Request) {
     const resend = new Resend(apiKey);
     try {
       const { generateOtpEmailHtml } = await import("@/lib/email-templates");
+      const otpSubject = `🔑 ${otp} is your NEXT GEAR verification code`;
+      const otpHtml = generateOtpEmailHtml({ otp, userName: email.split("@")[0] });
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? "Next Gear <noreply@next-gear.app>",
         to: email,
-        subject: `🔑 ${otp} is your NEXT GEAR verification code`,
-        html: generateOtpEmailHtml({ otp, userName: email.split("@")[0] }),
+        subject: otpSubject,
+        html: otpHtml,
       });
+
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category: "otp",
+          recipient: email,
+          sender: process.env.RESEND_FROM_EMAIL ?? "noreply@next-gear.app",
+          subject: otpSubject,
+          message: `Your Next Gear 6-digit verification code is: ${otp}`,
+          htmlContent: otpHtml,
+          status: "sent",
+        });
+      } catch {}
     } catch {
       return NextResponse.json({ error: "Unable to send OTP email" }, { status: 500 });
     }

@@ -31,15 +31,18 @@ export async function POST(request: Request) {
   const contactRequest = await createContactRequest(parsed.data);
 
   try {
-    const { logEmailMessage } = await import("@/lib/email-log-store");
-    logEmailMessage({
-      type: "incoming",
+    const { recordCommunicationLog } = await import("@/lib/communication-store");
+    // Log incoming customer inquiry
+    recordCommunicationLog({
+      channel: "email",
+      direction: "incoming",
       category: "contact_inquiry",
-      from: parsed.data.email,
-      to: "support@next-gear.app",
+      recipient: "support@next-gear.app",
+      sender: `${parsed.data.fullName} <${parsed.data.email}>`,
       subject: `Inquiry from ${parsed.data.fullName} (${parsed.data.phone})`,
       message: parsed.data.message,
       status: "received",
+      metadata: { phone: parsed.data.phone, fullName: parsed.data.fullName },
     });
   } catch (e) {
     console.error("[Contact Email Log Failed]", e);
@@ -51,34 +54,50 @@ export async function POST(request: Request) {
     try {
       const { Resend } = await import("resend");
       const { generateContactAdminAlertHtml, generateContactReceiptEmailHtml } = await import("@/lib/email-templates");
+      const { recordCommunicationLog } = await import("@/lib/communication-store");
       const resend = new Resend(apiKey);
       const fromEmail = process.env.RESEND_FROM_EMAIL ?? "Next Gear <noreply@next-gear.app>";
       const supportEmail = "support@next-gear.app";
 
       // 1. Send alert to support team
+      const adminAlertHtml = generateContactAdminAlertHtml({
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        message: parsed.data.message,
+      });
       await resend.emails.send({
         from: fromEmail,
         to: supportEmail,
         subject: `⚡ [New Inquiry] ${parsed.data.fullName} - Next Gear Contact`,
-        html: generateContactAdminAlertHtml({
-          fullName: parsed.data.fullName,
-          email: parsed.data.email,
-          phone: parsed.data.phone,
-          message: parsed.data.message,
-        }),
+        html: adminAlertHtml,
       });
 
       // 2. Send confirmation receipt to customer
-      await resend.emails.send({
+      const receiptHtml = generateContactReceiptEmailHtml({
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        message: parsed.data.message,
+      });
+      const receiptRes = await resend.emails.send({
         from: fromEmail,
         to: parsed.data.email,
         subject: "✨ We received your message - NEXT GEAR Support",
-        html: generateContactReceiptEmailHtml({
-          fullName: parsed.data.fullName,
-          email: parsed.data.email,
-          phone: parsed.data.phone,
-          message: parsed.data.message,
-        }),
+        html: receiptHtml,
+      });
+
+      recordCommunicationLog({
+        channel: "email",
+        direction: "outgoing",
+        category: "contact_inquiry",
+        recipient: parsed.data.email,
+        sender: fromEmail,
+        subject: "✨ We received your message - NEXT GEAR Support",
+        message: `Thank you for contacting Next Gear Rentals. We have received your message and will respond shortly.`,
+        htmlContent: receiptHtml,
+        status: receiptRes.error ? "failed" : "sent",
+        error: receiptRes.error?.message,
       });
     } catch (err) {
       console.error("[Contact API] Failed to send email via Resend:", err);

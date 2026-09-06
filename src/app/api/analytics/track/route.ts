@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { trafficTracker, DeviceType } from "@/lib/traffic-tracker";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const userAgent = request.headers.get("user-agent") || "";
@@ -22,7 +24,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  const stats = await trafficTracker.getStats();
-  return NextResponse.json(stats);
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const days = searchParams.get("days") || "30";
+
+  const stats = await trafficTracker.getStats(days);
+
+  return NextResponse.json(stats, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    },
+  });
 }

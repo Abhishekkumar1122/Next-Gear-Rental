@@ -10,6 +10,8 @@ import { sendBookingAlert, upsertBookingAlertProfile } from "@/lib/booking-alert
 import { getSiteSettings } from "@/lib/site-settings-server";
 import { calculateBookingAmount } from "@/lib/pricing-tiers";
 import { getServerSessionUser } from "@/lib/server-session";
+import { getUserVipDetails } from "@/lib/user-vip-store";
+import { saveCustomerBookingDocs, ensureCustomerBookingDocsTable, getCustomerBookingDocs } from "@/lib/customer-documents";
 import { sendWhatsAppBookingReceipt } from "@/lib/whatsapp-service";
 import { Prisma } from "@prisma/client";
 import { BookingAddOnId, BookingStatus } from "@/lib/types";
@@ -163,6 +165,24 @@ export async function GET(request: NextRequest) {
 
     const promotionMap = await getBookingPromotionsByBookingIds(bookings.map((booking) => booking.id));
 
+    // Batch fetch KYC documents for these bookings
+    const docsMap = new Map<string, any>();
+    if (bookings.length > 0) {
+      try {
+        await ensureCustomerBookingDocsTable();
+        const bIds = bookings.map((b) => b.id);
+        const docRows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT booking_id, dl_url, dl_no, aadhaar_front_url, aadhaar_front_no, aadhaar_back_url 
+           FROM "CustomerBookingDocuments" 
+           WHERE booking_id = ANY($1::text[])`,
+          bIds
+        );
+        for (const row of docRows) {
+          docsMap.set(row.booking_id, row);
+        }
+      } catch (err) {}
+    }
+
     return NextResponse.json({
       pagination: {
         page,
@@ -172,56 +192,65 @@ export async function GET(request: NextRequest) {
         hasNextPage: page < Math.ceil(totalCount / limit),
         hasPrevPage: page > 1,
       },
-      bookings: bookings.map((booking) => ({
-        ...(promotionMap.get(booking.id)
-          ? {
-              subtotalAmountINR: promotionMap.get(booking.id)?.subtotalAmountINR,
-              couponCode: promotionMap.get(booking.id)?.couponCode,
-              couponDiscountINR: promotionMap.get(booking.id)?.couponDiscountINR,
-              referralCode: promotionMap.get(booking.id)?.referralCode,
-              referralDiscountINR: promotionMap.get(booking.id)?.referralDiscountINR,
-            }
-          : {}),
-        id: booking.id,
-        vehicleId: booking.vehicleId,
-        vehicleTitle: booking.vehicle?.title || "Vehicle",
-        vehicleFuel: booking.vehicle?.fuel || "petrol",
-        userName: booking.user.name,
-        userEmail: booking.user.email,
-        city: booking.cityName,
-        startDate: booking.startDate.toISOString().slice(0, 10),
-        endDate: booking.endDate.toISOString().slice(0, 10),
-        totalAmountINR: booking.totalAmountINR,
-        amountPaid: booking.payments
-          .filter((p) => p.status === "PAID")
-          .reduce((sum, p) => sum + p.amountINR, 0),
-        paymentStatus: booking.payments.some((p) => p.status === "PAID")
-          ? "PAID"
-          : booking.status === "CANCELLED"
-            ? "REFUNDED"
-            : booking.payments.some((p) => p.status === "FAILED")
-              ? "FAILED"
-              : booking.status === "CONFIRMED"
-                ? "PAID"
-                : "PENDING",
-        paymentProvider: booking.payments[0]?.provider ? booking.payments[0].provider.toUpperCase() : "PAYU",
-        payments: booking.payments.map((p) => ({
-          id: p.id,
-          provider: p.provider,
-          amountINR: p.amountINR,
-          status: p.status,
-          createdAt: p.createdAt.toISOString(),
-        })),
-        currency: booking.currency,
-        status: normalizeStatus(booking.status),
-        createdAt: booking.createdAt.toISOString(),
-        timezone: booking.timezone,
-        handoverStatus: booking.handoverStatus,
-        startOdometer: booking.startOdometer,
-        endOdometer: booking.endOdometer,
-        vendorName: booking.vehicle?.vendor?.businessName || null,
-        vendorPhone: booking.vehicle?.vendor?.contactPhone || null,
-      })),
+      bookings: bookings.map((booking) => {
+        const docData = docsMap.get(booking.id);
+        return {
+          ...(promotionMap.get(booking.id)
+            ? {
+                subtotalAmountINR: promotionMap.get(booking.id)?.subtotalAmountINR,
+                couponCode: promotionMap.get(booking.id)?.couponCode,
+                couponDiscountINR: promotionMap.get(booking.id)?.couponDiscountINR,
+                referralCode: promotionMap.get(booking.id)?.referralCode,
+                referralDiscountINR: promotionMap.get(booking.id)?.referralDiscountINR,
+              }
+            : {}),
+          id: booking.id,
+          vehicleId: booking.vehicleId,
+          vehicleTitle: booking.vehicle?.title || "Vehicle",
+          vehicleFuel: booking.vehicle?.fuel || "petrol",
+          userName: booking.user.name,
+          userEmail: booking.user.email,
+          customerPhone: booking.user.phone || (booking.user.email?.endsWith("@guest.next-gear.app") ? booking.user.email.replace("@guest.next-gear.app", "") : null),
+          city: booking.cityName,
+          startDate: booking.startDate.toISOString().slice(0, 10),
+          endDate: booking.endDate.toISOString().slice(0, 10),
+          totalAmountINR: booking.totalAmountINR,
+          amountPaid: booking.payments
+            .filter((p) => p.status === "PAID")
+            .reduce((sum, p) => sum + p.amountINR, 0),
+          paymentStatus: booking.payments.some((p) => p.status === "PAID")
+            ? "PAID"
+            : booking.status === "CANCELLED"
+              ? "REFUNDED"
+              : booking.payments.some((p) => p.status === "FAILED")
+                ? "FAILED"
+                : booking.status === "CONFIRMED"
+                  ? "PAID"
+                  : "PENDING",
+          paymentProvider: booking.payments[0]?.provider ? booking.payments[0].provider.toUpperCase() : "PAYU",
+          payments: booking.payments.map((p) => ({
+            id: p.id,
+            provider: p.provider,
+            amountINR: p.amountINR,
+            status: p.status,
+            createdAt: p.createdAt.toISOString(),
+          })),
+          currency: booking.currency,
+          status: normalizeStatus(booking.status),
+          createdAt: booking.createdAt.toISOString(),
+          timezone: booking.timezone,
+          handoverStatus: booking.handoverStatus,
+          startOdometer: booking.startOdometer,
+          endOdometer: booking.endOdometer,
+          vendorName: booking.vehicle?.vendor?.businessName || null,
+          vendorPhone: booking.vehicle?.vendor?.contactPhone || null,
+          drivingLicenseUrl: docData?.dl_url || null,
+          drivingLicenseNo: docData?.dl_no || null,
+          aadhaarFrontUrl: docData?.aadhaar_front_url || null,
+          aadhaarFrontNo: docData?.aadhaar_front_no || null,
+          aadhaarBackUrl: docData?.aadhaar_back_url || null,
+        };
+      }),
     });
   }
 
@@ -442,8 +471,23 @@ export async function POST(request: NextRequest) {
           vehicleCost = vehicleCost - bulkDiscount;
         }
 
+        // VIP Perks: Tier Discounts (5% Silver, 10% Gold, 15% Platinum) & Doorstep Delivery waiver
+        let effectiveDeliveryFee = deliveryMode === "doorstep" && Number(deliveryFeeINR) > 0 ? Number(deliveryFeeINR) : 0;
+        try {
+          const vip = await getUserVipDetails(userResult.id, userEmail);
+          if (vip.config.discountPercent > 0) {
+            const vipDiscountINR = Math.round((vehicleCost * vip.config.discountPercent) / 100);
+            vehicleCost = Math.max(0, vehicleCost - vipDiscountINR);
+          }
+          if (vip.config.freeDelivery) {
+            effectiveDeliveryFee = 0;
+          }
+        } catch (vipErr) {
+          console.error("Failed to evaluate VIP perks in booking:", vipErr);
+        }
+
         const addOnTotal = getAddOnTotalForVehicle(addOnIds, useHourly, units, qty, vehicle);
-        const deliveryFee = deliveryMode === "doorstep" && Number(deliveryFeeINR) > 0 ? Number(deliveryFeeINR) : 0;
+        const deliveryFee = effectiveDeliveryFee;
         subtotalAmountINR = vehicleCost + addOnTotal + deliveryFee;
 
         const bookingCount = await tx.booking.count({ where: { userId: userResult.id } });
@@ -491,6 +535,25 @@ export async function POST(request: NextRequest) {
     const booking = bookingResult;
     const user = userResult;
     const promotion = promotionResult;
+
+    // Immediately persist customer KYC documents (DL, Aadhaar Front, Aadhaar Back)
+    const kycPayload = payload.kyc || {};
+    try {
+      await saveCustomerBookingDocs({
+        bookingId: booking.id,
+        userId: user.id,
+        phone: cleanPhone || user.phone,
+        email: effectiveEmail || user.email,
+        dlUrl: kycPayload.drivingLicenseUrl || null,
+        dlNo: kycPayload.drivingLicenseNo || null,
+        aadhaarFrontUrl: kycPayload.aadhaarFrontUrl || null,
+        aadhaarFrontNo: kycPayload.governmentIdNo || null,
+        aadhaarBackUrl: kycPayload.aadhaarBackUrl || null,
+      });
+    } catch (docErr) {
+      console.warn("[SaveCustomerBookingDocs Error]", docErr);
+    }
+
     const isOnlinePayment = Boolean(payload.paymentProvider === "payu" || payload.paymentProvider === "razorpay" || payload.paymentProvider === "stripe") && totalAmountINR > 0;
 
     const confirmMsg = `🚗 *NEXT GEAR RENTALS - BOOKING CONFIRMED* 📄\n\n` +
@@ -814,6 +877,17 @@ export async function POST(request: NextRequest) {
       const { dispatchHtmlEmail } = await import("@/lib/alert-dispatch");
       const { generateBookingReceiptPdfBuffer } = await import("@/lib/pdf-generator");
 
+      const pickupAddress = (vehicle as any).pickupAddress || undefined;
+      const pickupLandmark = (vehicle as any).pickupLandmark || undefined;
+      const pickupLat = (vehicle as any).latitude ?? (vehicle as any).lat ?? undefined;
+      const pickupLng = (vehicle as any).longitude ?? (vehicle as any).lng ?? undefined;
+      let dynamicMapsUrl: string | undefined;
+      if (typeof pickupLat === "number" && typeof pickupLng === "number" && (pickupLat !== 0 || pickupLng !== 0)) {
+        dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${pickupLat},${pickupLng}`;
+      } else if (pickupAddress) {
+        dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddress + (pickupLandmark ? `, Near ${pickupLandmark}` : ""))}`;
+      }
+
       const emailHtml = generateBookingConfirmationEmailHtml({
         bookingId: booking.id,
         customerName: userName || userEmail.split("@")[0],
@@ -826,6 +900,8 @@ export async function POST(request: NextRequest) {
         totalAmountINR,
         subtotalAmountINR,
         discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
+        pickupAddress,
+        mapsUrl: dynamicMapsUrl,
         baseUrl,
       });
 
@@ -844,6 +920,7 @@ export async function POST(request: NextRequest) {
           totalAmountINR,
           subtotalAmountINR,
           discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
+          pickupAddress,
         });
       } catch (pdfErr) {
         console.error("[PDF Generation Error]", pdfErr);
@@ -868,6 +945,17 @@ export async function POST(request: NextRequest) {
 
     try {
       if (phone) {
+        const pickupAddress = (vehicle as any).pickupAddress || undefined;
+        const pickupLandmark = (vehicle as any).pickupLandmark || undefined;
+        const pickupLat = (vehicle as any).latitude ?? (vehicle as any).lat ?? undefined;
+        const pickupLng = (vehicle as any).longitude ?? (vehicle as any).lng ?? undefined;
+        let dynamicMapsUrl: string | undefined;
+        if (typeof pickupLat === "number" && typeof pickupLng === "number" && (pickupLat !== 0 || pickupLng !== 0)) {
+          dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${pickupLat},${pickupLng}`;
+        } else if (pickupAddress) {
+          dynamicMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddress + (pickupLandmark ? `, Near ${pickupLandmark}` : ""))}`;
+        }
+
         void sendWhatsAppBookingReceipt({
           bookingId: booking.id,
           customerName: userName,
@@ -880,6 +968,11 @@ export async function POST(request: NextRequest) {
           subtotalAmountINR,
           discountINR: (subtotalAmountINR - totalAmountINR) > 0 ? (subtotalAmountINR - totalAmountINR) : 0,
           passUrl,
+          pickupAddress,
+          pickupLandmark,
+          pickupLat,
+          pickupLng,
+          mapsUrl: dynamicMapsUrl,
         });
       }
 

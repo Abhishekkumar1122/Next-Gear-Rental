@@ -48,12 +48,29 @@ export async function POST(request: Request) {
     const resend = new Resend(apiKey);
     try {
       const { generateForgotPasswordEmailHtml } = await import("@/lib/email-templates");
+      const resetSubject = `🔐 ${otp} - NEXT GEAR Password Reset Code`;
+      const resetHtml = generateForgotPasswordEmailHtml({ otp, userName: email.split("@")[0] });
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL ?? "Next Gear <noreply@next-gear.app>",
         to: email,
-        subject: `🔐 ${otp} - NEXT GEAR Password Reset Code`,
-        html: generateForgotPasswordEmailHtml({ otp, userName: email.split("@")[0] }),
+        subject: resetSubject,
+        html: resetHtml,
       });
+
+      try {
+        const { recordCommunicationLog } = await import("@/lib/communication-store");
+        recordCommunicationLog({
+          channel: "email",
+          direction: "outgoing",
+          category: "password_reset",
+          recipient: email,
+          sender: process.env.RESEND_FROM_EMAIL ?? "noreply@next-gear.app",
+          subject: resetSubject,
+          message: `Your Next Gear password reset authorization code is: ${otp}`,
+          htmlContent: resetHtml,
+          status: "sent",
+        });
+      } catch {}
     } catch {
       return NextResponse.json({ error: "Unable to send reset OTP email" }, { status: 500 });
     }

@@ -106,12 +106,132 @@ _Save your Application ID to track status anytime at next-gear.app/vendor-regist
   await Promise.allSettled([emailPromise, whatsappPromise]);
 }
 
+// ─── Admin Notification on New Vendor Application ─────────────────────────────
+
+export interface AdminVendorApplicationAlertInput {
+  applicationId: string;
+  businessName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  fleetSize: string;
+  baseUrl?: string;
+}
+
+export async function sendAdminVendorApplicationAlert(input: AdminVendorApplicationAlertInput) {
+  const baseUrl = input.baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://next-gear.app";
+  const adminUrl = `${baseUrl}/dashboard/admin/vendor-applications`;
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL || process.env.ADMIN_EMAIL || "admin@next-gear.app";
+  const adminPhone = process.env.ADMIN_ALERT_PHONE || "9523765172";
+
+  // 1. Admin HTML Email
+  const emailContentHtml = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #f4f4f5; line-height: 1.6;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="display: inline-block; background-color: rgba(225, 6, 0, 0.15); border: 1px solid rgba(225, 6, 0, 0.3); color: #e10600; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; padding: 6px 14px; border-radius: 999px;">
+          🚨 NEW FLEET PARTNER APPLICATION
+        </span>
+      </div>
+
+      <h2 style="font-size: 20px; font-weight: 900; color: #ffffff; margin-top: 0; text-align: center;">
+        New Vendor Application: ${input.businessName}
+      </h2>
+      <p style="font-size: 14px; color: #a1a1aa; text-align: center; margin-bottom: 24px;">
+        A new fleet operator has registered interest. Review their KYC documents to approve their account.
+      </p>
+
+      <div style="background-color: #121215; border: 1px solid #27272a; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa; width: 140px;">Application ID:</td>
+            <td style="padding: 6px 0; color: #e10600; font-weight: 800; font-family: monospace;">${input.applicationId}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Business Name:</td>
+            <td style="padding: 6px 0; color: #ffffff; font-weight: 700;">${input.businessName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Contact Person:</td>
+            <td style="padding: 6px 0; color: #ffffff; font-weight: 600;">${input.contactName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Phone Number:</td>
+            <td style="padding: 6px 0; color: #ffffff; font-weight: 600;">${input.phone}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Email Address:</td>
+            <td style="padding: 6px 0; color: #ffffff; font-weight: 600;">${input.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Operational Hub:</td>
+            <td style="padding: 6px 0; color: #ffffff; font-weight: 600;">${input.city}, ${input.state}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #a1a1aa;">Declared Fleet:</td>
+            <td style="padding: 6px 0; color: #f59e0b; font-weight: 700;">${input.fleetSize} Vehicles</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 24px;">
+        <a href="${adminUrl}" target="_blank" style="display: inline-block; background-color: #e10600; color: #ffffff; font-weight: 900; font-size: 14px; text-decoration: none; padding: 12px 28px; border-radius: 10px; box-shadow: 0 4px 16px rgba(225, 6, 0, 0.4);">
+          🛡️ Review & Approve in Admin Panel →
+        </a>
+      </div>
+    </div>
+  `;
+
+  const fullHtml = wrapInMasterEmailTemplate({
+    title: `🚨 New Vendor Application — ${input.businessName}`,
+    preheader: `Application ${input.applicationId} from ${input.contactName} (${input.city}). Review KYC now.`,
+    contentHtml: emailContentHtml,
+  });
+
+  const emailPromise = dispatchHtmlEmail({
+    to: adminEmail,
+    subject: `🚨 [Next Gear Admin] New Vendor Application: ${input.businessName} (#${input.applicationId})`,
+    html: fullHtml,
+  });
+
+  // 2. Admin WhatsApp Alert using Meta Template admin_vendor_application_alert
+  const whatsappMessage = `🚨 *NEW VENDOR PARTNER APPLICATION*
+
+Details:
+• Application ID: ${input.applicationId}
+• Business Name: ${input.businessName}
+• Contact: ${input.contactName} (${input.phone})
+• Location: ${input.city}, ${input.state}
+• Fleet Size: ${input.fleetSize} Vehicles
+
+Please review KYC documents and approve the vendor account:
+👉 ${adminUrl}`;
+
+  const whatsappPromise = dispatchAlert({
+    channel: "whatsapp",
+    to: adminPhone,
+    message: whatsappMessage,
+    templateName: "admin_vendor_application_alert",
+    templateParams: [
+      input.applicationId,
+      input.businessName,
+      `${input.contactName} (${input.phone})`,
+      `${input.city}, ${input.state}`,
+      String(input.fleetSize),
+    ],
+  });
+
+  await Promise.allSettled([emailPromise, whatsappPromise]);
+}
+
 // ─── Vendor Approval Notification ─────────────────────────────────────────────
 
 interface VendorApprovalNotificationInput {
   businessName: string;
   contactName: string;
   email: string;
+  loginId?: string;
   phone: string;
   tempPassword: string;
   commissionRate: number | string;
@@ -121,6 +241,7 @@ interface VendorApprovalNotificationInput {
 export async function sendVendorApprovalEmailAndWhatsApp(input: VendorApprovalNotificationInput) {
   const baseUrl = input.baseUrl || process.env.NEXT_PUBLIC_APP_URL || "https://next-gear.app";
   const loginUrl = `${baseUrl}/login`;
+  const displayLoginId = input.loginId || input.email;
 
   // 1. Generate HTML Email Template
   const emailContentHtml = `
@@ -151,7 +272,7 @@ export async function sendVendorApprovalEmailAndWhatsApp(input: VendorApprovalNo
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #a1a1aa;">Login Email ID:</td>
-            <td style="padding: 8px 0; color: #ffffff; font-weight: 700; font-family: monospace;">${input.email}</td>
+            <td style="padding: 8px 0; color: #ffffff; font-weight: 700; font-family: monospace;">${displayLoginId}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #a1a1aa;">Password:</td>
@@ -187,7 +308,7 @@ export async function sendVendorApprovalEmailAndWhatsApp(input: VendorApprovalNo
 
   const fullHtml = wrapInMasterEmailTemplate({
     title: `Vendor Account Approved — ${input.businessName}`,
-    preheader: `Your Next Gear Vendor account is active. Login ID: ${input.email}`,
+    preheader: `Your Next Gear Vendor account is active. Login ID: ${displayLoginId}`,
     contentHtml: emailContentHtml,
   });
 
@@ -205,7 +326,7 @@ Your Next Gear Vendor Account for *${input.businessName}* has been APPROVED!
 
 🔑 *Vendor Login Details:*
 • Portal: ${loginUrl}
-• Login ID: ${input.email}
+• Login ID: ${displayLoginId}
 • Password: ${input.tempPassword}
 • Commission Share: ${input.commissionRate}%
 

@@ -2,42 +2,54 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { otpStore } from "../send-handover-otp/route";
 
-// In-memory verified customers fast-track store (Phone/Email -> Expiry)
-export const verifiedCustomerKycStore = new Map<string, {
-  phone: string;
-  customerName: string;
-  verifiedAt: string;
-  expiresAt: string;
-  documents?: {
-    dlUrl?: string;
-    dlNo?: string;
-    aadhaarFrontUrl?: string;
-    aadhaarBackUrl?: string;
-    aadhaarNo?: string;
-  };
-}>();
+// In-memory verified customers fast-track store attached to globalThis
+const globalForVerifiedKyc = globalThis as unknown as {
+  verifiedCustomerKycStore?: Map<string, {
+    phone: string;
+    customerName: string;
+    verifiedAt: string;
+    expiresAt: string;
+    documents?: {
+      dlUrl?: string;
+      dlNo?: string;
+      aadhaarFrontUrl?: string;
+      aadhaarBackUrl?: string;
+      aadhaarNo?: string;
+    };
+  }>;
+};
+
+export const verifiedCustomerKycStore = globalForVerifiedKyc.verifiedCustomerKycStore ?? new Map();
+if (!globalForVerifiedKyc.verifiedCustomerKycStore) {
+  globalForVerifiedKyc.verifiedCustomerKycStore = verifiedCustomerKycStore;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const {
       bookingId,
       enteredOtp,
+      isPhysicalVerified,
       customerPhone,
       customerName,
       customerEmail,
       documents,
     } = await req.json();
 
-    if (!bookingId || !enteredOtp || !customerPhone) {
+    if (!bookingId || (!enteredOtp && !isPhysicalVerified) || !customerPhone) {
       return NextResponse.json(
-        { error: "Booking ID, Customer Phone, and OTP are required." },
+        { error: "Booking ID and Customer Phone are required." },
         { status: 400 }
       );
     }
 
-    // 1. Verify OTP from memory or DB
-    const memoryRecord = otpStore.get(bookingId);
-    let isValid = false;
+    // 1. Verify OTP or Physical Match
+    let isValid = Boolean(isPhysicalVerified || enteredOtp?.trim() === "PHYSICAL_VERIFIED");
+    const globalForOtp = globalThis as unknown as {
+      kycHandoverOtpStore?: Map<string, { otp: string; phone: string; expiresAt: number }>;
+    };
+    const activeOtpStore = globalForOtp.kycHandoverOtpStore ?? otpStore;
+    const memoryRecord = activeOtpStore.get(bookingId);
 
     if (memoryRecord && memoryRecord.otp === enteredOtp.trim()) {
       if (Date.now() <= memoryRecord.expiresAt) {
@@ -105,13 +117,23 @@ export async function POST(req: NextRequest) {
     // Clear used OTP
     otpStore.delete(bookingId);
 
-    // 3. Update Database if available
+    // 3. Update Database customer_kyc_profiles if available
     try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS customer_kyc_profiles (
+          phone TEXT PRIMARY KEY,
+          email TEXT,
+          full_name TEXT,
+          verified_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          documents_json TEXT
+        )
+      `);
       await prisma.$executeRawUnsafe(
         `INSERT INTO customer_kyc_profiles (phone, email, full_name, verified_at, expires_at, documents_json)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (phone)
-         DO UPDATE SET verified_at = $4, expires_at = $5, documents_json = $6`,
+         DO UPDATE SET verified_at = $4, expires_at = $5, documents_json = $6, email = COALESCE($2, customer_kyc_profiles.email)`,
         cleanPhone,
         customerEmail || null,
         customerName || null,
@@ -120,7 +142,63 @@ export async function POST(req: NextRequest) {
         JSON.stringify(documents || {})
       );
     } catch (e) {
-      // Memory store is already populated
+      console.warn("customer_kyc_profiles table/upsert note:", e);
+    }
+
+    // 4. Save UserDocument records for customer
+    try {
+      const b = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: { userId: true },
+      });
+      if (b?.userId) {
+        if (documents?.dlUrl) {
+          await prisma.userDocument.create({
+            data: {
+              userId: b.userId,
+              type: "license",
+              fileUrl: documents.dlUrl,
+            },
+          }).catch(() => {});
+        }
+        if (documents?.aadhaarFrontUrl) {
+          await prisma.userDocument.create({
+            data: {
+              userId: b.userId,
+              type: "aadhaar_front",
+              fileUrl: documents.aadhaarFrontUrl,
+            },
+          }).catch(() => {});
+        }
+        if (documents?.aadhaarBackUrl) {
+          await prisma.userDocument.create({
+            data: {
+              userId: b.userId,
+              type: "aadhaar_back",
+              fileUrl: documents.aadhaarBackUrl,
+            },
+          }).catch(() => {});
+        }
+      }
+    } catch (bErr) {
+      console.warn("UserDocument sync note:", bErr);
+    }
+
+    // 5. Also sync with KycAutomation so customer dashboard KYC tab displays Approved
+    try {
+      const { submitKycAutomation } = await import("@/lib/kyc-automation");
+      const emailForKyc = customerEmail || `${cleanPhone}@guest.next-gear.app`;
+      await submitKycAutomation({
+        userEmail: emailForKyc,
+        fullName: customerName || "Customer",
+        documentType: "license",
+        documentNumber: documents?.dlNo || "DL-VERIFIED",
+        dob: "2000-01-01",
+        expiryDate: expiresAt.slice(0, 10),
+        overrideStatus: "approved",
+      });
+    } catch (kErr) {
+      console.warn("KycAutomation sync note:", kErr);
     }
 
     return NextResponse.json({

@@ -2,6 +2,7 @@ import { SiteHeader } from "@/components/site-header";
 import { getServerSessionUser } from "@/lib/server-session";
 import { prisma } from "@/lib/prisma";
 import { getUserModerationDetails } from "@/lib/user-moderation";
+import { getUserVipDetails } from "@/lib/user-vip-store";
 import { redirect } from "next/navigation";
 import { CustomerDashboardClient } from "@/components/customer-dashboard-client";
 
@@ -97,12 +98,13 @@ export default async function CustomerDashboardPage() {
   const user = await getServerSessionUser();
   if (!user) redirect("/login?next=%2Fdashboard%2Fcustomer");
 
-  const [dbUser, bookings, moderation] = await Promise.all([
+  const [dbUser, bookings, moderation, vipDetails] = await Promise.all([
     process.env.DATABASE_URL
       ? prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }).catch(() => null)
       : null,
     fetchUserBookingsDirect(user.id, user.email, user.phone),
     getUserModerationDetails(user.id, "approved").catch(() => ({ status: "approved", reason: null, customMessage: null })),
+    getUserVipDetails(user.id, user.email).catch(() => null),
   ]);
 
   return (
@@ -115,6 +117,7 @@ export default async function CustomerDashboardPage() {
       isBlocked={moderation.status === "blacklisted"}
       blockReason={moderation.reason}
       blockCustomMessage={moderation.customMessage}
+      initialVipDetails={vipDetails}
     />
   );
 }

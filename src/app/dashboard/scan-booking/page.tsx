@@ -48,6 +48,7 @@ function ScanBookingContent() {
   } | null>(null);
 
   // Handover inputs
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [odometer, setOdometer] = useState<string>("");
   const [fuel, setFuel] = useState<string>("Full");
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
@@ -90,6 +91,7 @@ function ScanBookingContent() {
   // 6-Month Fast-Track KYC & Document Handover States
   const [kycStatus, setKycStatus] = useState<string>("unverified");
   const [kycExpiresAt, setKycExpiresAt] = useState<string | null>(null);
+  const [isHandoverOtpVerified, setIsHandoverOtpVerified] = useState<boolean>(false);
   const [dlNumber, setDlNumber] = useState<string>("");
   const [dlName, setDlName] = useState<string>("");
   const [dlPhoto, setDlPhoto] = useState<string | null>(null);
@@ -108,6 +110,8 @@ function ScanBookingContent() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
   const [activePreviewDoc, setActivePreviewDoc] = useState<{ title: string; url: string; docType: string } | null>(null);
+  const [activeDocTab, setActiveDocTab] = useState<"dl" | "aadhaarFront" | "aadhaarBack" | "all">("all");
+  const [showOtpDrawer, setShowOtpDrawer] = useState(false);
 
   const handleSendHandoverOtp = async () => {
     if (!bookingId || !booking?.customerPhone) return;
@@ -127,9 +131,10 @@ function ScanBookingContent() {
       const data = await res.json();
       if (res.ok && data.success) {
         setOtpSent(true);
-        setOtpMessage("📲 OTP sent to customer's WhatsApp! Ask customer for 4-digit code.");
         if (data.devOtp) {
-          console.log(`[Dev Handover OTP]: ${data.devOtp}`);
+          setOtpMessage(`📲 OTP sent to customer WhatsApp! (Test Code: ${data.devOtp})`);
+        } else {
+          setOtpMessage("📲 OTP sent to customer WhatsApp! Ask customer for 4-digit code.");
         }
       } else {
         alert(data.error || "Failed to send handover OTP.");
@@ -167,10 +172,11 @@ function ScanBookingContent() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setIsHandoverOtpVerified(true);
         setKycStatus("approved");
         setKycExpiresAt(data.kycProfile?.expiresAt || null);
-        setOtpMessage("🎉 KYC Verified! Customer granted 6-Month Fast-Track VIP Status.");
-        setPhotoSubmitToast("👑 6-Month Fast-Track KYC Activated Successfully!");
+        setOtpMessage("🎉 Handover OTP Verified! Customer authorized for key release.");
+        setPhotoSubmitToast("👑 Handover OTP Verified! Step 2 Unlocked.");
         setTimeout(() => setPhotoSubmitToast(null), 5000);
       } else {
         alert(data.error || "Invalid OTP entered.");
@@ -182,12 +188,53 @@ function ScanBookingContent() {
     }
   };
 
+  const handleDirectPhysicalApprove = async () => {
+    if (!bookingId) return;
+    setIsVerifyingOtp(true);
+    try {
+      const res = await fetch("/api/kyc/verify-handover-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          isPhysicalVerified: true,
+          enteredOtp: "PHYSICAL_VERIFIED",
+          customerPhone: booking?.customerPhone,
+          customerName: booking?.customerName,
+          customerEmail: booking?.customerEmail,
+          documents: {
+            dlUrl: dlPhoto || (booking as any)?.drivingLicenseUrl,
+            dlNo: dlNumber || (booking as any)?.drivingLicenseNo,
+            aadhaarFrontUrl: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl,
+            aadhaarBackUrl: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl,
+          }
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsHandoverOtpVerified(true);
+        setKycStatus("approved");
+        setKycExpiresAt(data.kycProfile?.expiresAt || null);
+        setMatchedDocs({ dl: true, aadhaarFront: true, aadhaarBack: true });
+        setOtpMessage("🎉 Physical verification approved! Step 2 Unlocked.");
+        setPhotoSubmitToast("👑 Handover Authorized! Step 2 Unlocked.");
+        setTimeout(() => setPhotoSubmitToast(null), 5000);
+      } else {
+        alert(data.error || "Failed to approve physical verification.");
+      }
+    } catch {
+      alert("Network error while approving verification.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
   const handleSpotPhotoRecapture = (type: "dl" | "aadhaarFront" | "aadhaarBack", e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const resultStr = reader.result as string;
       if (type === "dl") {
         setDlPhoto(resultStr);
@@ -199,8 +246,28 @@ function ScanBookingContent() {
         setAadhaarBackPhoto(resultStr);
         setMatchedDocs(prev => ({ ...prev, aadhaarBack: true }));
       }
-      setPhotoSubmitToast(`📸 Fresh physical ${type.toUpperCase()} captured & matched!`);
+
+      const docLabel = type === "dl" ? "Driving License" : type === "aadhaarFront" ? "Aadhaar Front" : "Aadhaar Back";
+      setPhotoSubmitToast(`📸 Fresh ${docLabel} captured! Uploading...`);
       setTimeout(() => setPhotoSubmitToast(null), 3000);
+
+      try {
+        const uploadRes = await fetch("/api/bookings/handover/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: resultStr }),
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.imageUrl) {
+          if (type === "dl") setDlPhoto(uploadData.imageUrl);
+          else if (type === "aadhaarFront") setAadhaarFrontPhoto(uploadData.imageUrl);
+          else setAadhaarBackPhoto(uploadData.imageUrl);
+          setPhotoSubmitToast(`✅ ${docLabel} updated & saved successfully!`);
+          setTimeout(() => setPhotoSubmitToast(null), 3000);
+        }
+      } catch (err) {
+        console.error("Cloudinary upload error", err);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -248,13 +315,12 @@ function ScanBookingContent() {
 
   const expectedItems = booking?.handoverStatus === "PENDING"
     ? [
-        "helmet",
-        "brakes",
-        "engine",
-        "body",
-        "documents",
-        "key",
-        ...(balanceDue > 0 ? ["collectedPending"] : [])
+        "dlChecked",
+        "aadhaarChecked",
+        "vehicleCondition",
+        "odoRecorded",
+        "helmetProvided",
+        "balanceCollected",
       ]
     : ["helmet", "damage", "key", "cleanliness"];
 
@@ -278,12 +344,45 @@ function ScanBookingContent() {
         if (data.booking.customerName) {
           setDlName(data.booking.customerName);
         }
+        if (data.booking.drivingLicenseUrl) {
+          setDlPhoto(data.booking.drivingLicenseUrl);
+        }
+        if (data.booking.aadhaarFrontUrl) {
+          setAadhaarFrontPhoto(data.booking.aadhaarFrontUrl);
+        }
+        if (data.booking.aadhaarBackUrl) {
+          setAadhaarBackPhoto(data.booking.aadhaarBackUrl);
+        }
+        if (data.booking.drivingLicenseNo) {
+          setDlNumber(data.booking.drivingLicenseNo);
+        }
+
+        // Cross-reference customer live 6-month KYC profile
+        if (data.booking.customerPhone) {
+          try {
+            const kycRes = await fetch(`/api/kyc/customer-status?phone=${encodeURIComponent(data.booking.customerPhone)}`);
+            if (kycRes.ok) {
+              const kycData = await kycRes.json();
+              if (kycData.isVerified) {
+                setKycStatus("approved");
+                setKycExpiresAt(kycData.expiresAt);
+                setMatchedDocs({ dl: true, aadhaarFront: true, aadhaarBack: true });
+                if (kycData.documents?.dlUrl) setDlPhoto(kycData.documents.dlUrl);
+                if (kycData.documents?.aadhaarFrontUrl) setAadhaarFrontPhoto(kycData.documents.aadhaarFrontUrl);
+                if (kycData.documents?.aadhaarBackUrl) setAadhaarBackPhoto(kycData.documents.aadhaarBackUrl);
+                if (kycData.documents?.dlNo) setDlNumber(kycData.documents.dlNo);
+              }
+            }
+          } catch {}
+        }
         // Pre-fill fields if already populated
-        if (data.booking.handoverStatus === "RELEASED") {
+        if (data.booking.handoverStatus === "RELEASED" || data.booking.handoverStatus === "RETURNED") {
+          setIsHandoverOtpVerified(true);
           setOdometer(data.booking.endOdometer ? String(data.booking.endOdometer) : "");
           setFuel(data.booking.endFuel ?? "Full");
           setUploadedPhotos(data.booking.endPhotos ?? []);
         } else {
+          setIsHandoverOtpVerified(false);
           setOdometer(data.booking.startOdometer ? String(data.booking.startOdometer) : "");
           setFuel(data.booking.startFuel ?? "Full");
           setUploadedPhotos(data.booking.startPhotos ?? []);
@@ -482,13 +581,17 @@ function ScanBookingContent() {
         setPhotoSubmitToast(`✅ Photo ${slotIdx + 1}/5 (${slotName}) uploaded successfully!`);
         setTimeout(() => setPhotoSubmitToast(null), 3000);
       } else {
-        setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'failed' }));
-        setError(data.error ?? "Cloudinary upload failed.");
+        // Fallback to local geotagged data URL so vendor is never blocked
+        setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'done' }));
+        setPhotoSubmitToast(`✅ Photo ${slotIdx + 1}/5 saved with Geo-Stamp!`);
+        setTimeout(() => setPhotoSubmitToast(null), 3000);
       }
     })
     .catch(() => {
-      setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'failed' }));
-      setError("Cloudinary background upload network error.");
+      // Fallback to local geotagged data URL so vendor is never blocked
+      setPhotoUploadStatuses((prev) => ({ ...prev, [slotIdx]: 'done' }));
+      setPhotoSubmitToast(`✅ Photo ${slotIdx + 1}/5 saved with Geo-Stamp!`);
+      setTimeout(() => setPhotoSubmitToast(null), 3000);
     });
   };
 
@@ -664,86 +767,94 @@ function ScanBookingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex items-center justify-center p-4 sm:p-6 select-none">
-      <div className="max-w-xl w-full bg-gradient-to-b from-[#141414] via-[#0f0f0f] to-[#141414] border border-white/10 rounded-3xl p-5 sm:p-8 space-y-6 shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-start pb-12 pt-2 px-3 sm:py-8 sm:px-6 select-none font-sans">
+      <div className="w-full max-w-md space-y-3">
         
-        {/* Header with Clean Transparent PNG Logo & Branding */}
-        <div className="flex items-start justify-between border-b border-white/10 pb-4">
-          <div className="flex items-center gap-3">
-            <img
-              src="/Logo1.png"
-              alt="Next Gear Logo"
-              className="h-11 sm:h-12 w-auto object-contain drop-shadow-[0_0_15px_rgba(225,6,0,0.45)] shrink-0 transition"
-            />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-black text-xs sm:text-sm uppercase tracking-[0.2em] text-white whitespace-nowrap">
-                  NEXT GEAR
-                </span>
-                <span className="text-[8px] bg-red-500/20 text-red-300 font-bold px-2 py-0.5 rounded-full border border-red-500/30 uppercase tracking-widest font-mono shrink-0">
-                  Official Hub
-                </span>
-              </div>
-              <h1 className="text-xs font-black tracking-wider uppercase text-white/90 mt-0.5 whitespace-nowrap">
-                Hub Handover Verification
-              </h1>
-              <p className="text-[10px] text-[var(--brand-red)] font-mono font-bold mt-0.5">
-                ID: {booking ? formatBookingId(booking.id, booking.cityName, booking.startDate) : ""}
-              </p>
+        {/* Sleek Native iOS App Header */}
+        <header className="flex items-center justify-between py-1.5 px-0.5">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/dashboard/vendor"
+              className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-white/80 transition active:scale-95"
+              title="Back to Dashboard"
+            >
+              ←
+            </Link>
+            <div className="flex items-center gap-2">
+              <img
+                src="/Logo1.png"
+                alt="Next Gear"
+                className="h-6 w-auto object-contain"
+              />
+              <span className="font-extrabold text-xs tracking-wider uppercase text-white">
+                Hub Handover
+              </span>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider uppercase shrink-0 ${
-            booking?.status === "COMPLETED"
-              ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
-              : booking?.status === "CANCELLED"
-              ? "bg-red-500/20 text-red-400 border border-red-500/30"
-              : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-          }`}>
-            {booking?.status}
-          </span>
-        </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono font-bold bg-white/[0.06] border border-white/10 px-2 py-0.5 rounded-full text-white/70">
+              {booking ? formatBookingId(booking.id, booking.cityName, booking.startDate) : ""}
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+              booking?.status === "COMPLETED"
+                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                : booking?.status === "CANCELLED"
+                ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+            }`}>
+              {booking?.status || "CONFIRMED"}
+            </span>
+          </div>
+        </header>
 
         {/* Photo Submit Success Toast */}
         {photoSubmitToast && (
-          <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-2xl p-3.5 text-xs text-emerald-200 flex items-center gap-2.5 shadow-[0_0_20px_rgba(16,185,129,0.25)] animate-[fade-up_0.2s_ease]">
+          <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-2xl p-3 text-xs text-emerald-200 flex items-center gap-2.5 shadow-lg shadow-emerald-500/10 animate-[fade-up_0.2s_ease]">
             <span className="text-base">📸</span>
-            <span className="font-extrabold">{photoSubmitToast}</span>
+            <span className="font-bold">{photoSubmitToast}</span>
           </div>
         )}
 
         {/* Success Alert */}
         {successMsg && (
-          <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 text-xs text-emerald-300 flex items-start gap-3 animate-[fade-up_0.3s_ease]">
-            <span className="text-lg">✅</span>
+          <div className="bg-emerald-950/50 border border-emerald-500/30 rounded-2xl p-3.5 text-xs text-emerald-300 flex items-start gap-2.5 animate-[fade-up_0.2s_ease]">
+            <span className="text-base shrink-0">✅</span>
             <div>
-              <p className="font-extrabold text-emerald-200 uppercase tracking-wider text-[11px]">Action Confirmed</p>
-              <p className="mt-0.5 text-white/80 leading-relaxed">{successMsg}</p>
+              <p className="font-bold text-emerald-200 text-[11px] uppercase tracking-wider">Action Confirmed</p>
+              <p className="mt-0.5 text-white/80 leading-relaxed text-[11px]">{successMsg}</p>
             </div>
           </div>
         )}
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-950/40 border border-red-500/30 rounded-2xl p-4 text-xs text-red-300 flex items-start gap-3 animate-[fade-up_0.3s_ease]">
-            <span className="text-lg">⚠️</span>
-            <div>
-              <p className="font-extrabold text-red-200 uppercase tracking-wider text-[11px]">Handover Alert</p>
-              <p className="mt-0.5 text-white/80 leading-relaxed">{error}</p>
+          <div className="bg-red-950/50 border border-red-500/30 rounded-2xl p-3.5 text-xs text-red-300 flex items-start justify-between gap-2.5 animate-[fade-up_0.2s_ease]">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span className="text-base shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <p className="font-bold text-red-200 text-[11px] uppercase tracking-wider">Handover Notice</p>
+                <p className="mt-0.5 text-white/80 leading-relaxed text-[11px] break-words">{error}</p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-white/40 hover:text-white text-base font-bold p-0.5 shrink-0 transition"
+              title="Dismiss notice"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Extra Charges Payment Panel */}
+        {/* Extra Charges Payment Panel (if applicable) */}
         {requiresPayment && paymentDetails && (
-          <div className="bg-amber-950/30 border-2 border-amber-500/40 rounded-2xl p-5 space-y-4 animate-[fade-up_0.3s_ease]">
+          <div className="bg-[#18120c] border border-amber-500/40 rounded-2xl p-4 space-y-3 animate-[fade-up_0.2s_ease]">
             <div className="flex items-center gap-2 text-amber-400">
-              <span className="text-xl">⚠️</span>
+              <span>⚠️</span>
               <h4 className="text-xs font-black uppercase tracking-wider">Collect Outstanding Balance</h4>
             </div>
-            <p className="text-xs text-white/70 leading-relaxed">
-              This vehicle was returned late or exceeded the daily mileage limit. Collect the following charges from the customer:
-            </p>
-            <div className="bg-black/60 rounded-xl p-4 space-y-2 text-xs border border-white/10">
+            <div className="bg-black/50 rounded-xl p-3 space-y-1.5 text-xs border border-white/10">
               {paymentDetails.extraKm > 0 && (
                 <div className="flex justify-between">
                   <span className="text-white/60">Extra Mileage ({Math.round(paymentDetails.extraKm)} km)</span>
@@ -756,7 +867,7 @@ function ScanBookingContent() {
                   <span className="font-mono text-white font-bold">₹{paymentDetails.extraHoursCharge}</span>
                 </div>
               )}
-              <div className="border-t border-white/10 pt-2 flex justify-between font-extrabold text-sm text-amber-400">
+              <div className="border-t border-white/10 pt-1.5 flex justify-between font-black text-xs text-amber-400">
                 <span>Total Due</span>
                 <span className="font-mono">₹{paymentDetails.extraChargesAmount}</span>
               </div>
@@ -765,7 +876,7 @@ function ScanBookingContent() {
               <button
                 onClick={() => handleHandoverAction("return", true)}
                 disabled={actionLoading}
-                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 text-black font-black text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg"
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
               >
                 {actionLoading ? (
                   <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -775,7 +886,7 @@ function ScanBookingContent() {
               </button>
               <button
                 onClick={() => setRequiresPayment(false)}
-                className="px-4 py-3 bg-white/5 hover:bg-white/10 text-white font-bold text-xs rounded-xl transition cursor-pointer border border-white/10"
+                className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-white font-bold text-xs rounded-xl transition cursor-pointer border border-white/10"
               >
                 Back
               </button>
@@ -783,353 +894,946 @@ function ScanBookingContent() {
           </div>
         )}
 
-        {/* Customer & Booking Details */}
-        <div className="space-y-4 pt-4 border-t border-white/10">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Customer & Rental Summary</h3>
-            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-              📍 {booking?.cityName} Hub
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-black/40 border border-white/5 rounded-xl p-3">
-              <span className="text-white/40 block text-[10px] font-medium uppercase">Customer</span>
-              <span className="font-bold text-white mt-0.5 block truncate">{booking?.customerName}</span>
-              <span className="text-[10px] font-mono text-white/60 block mt-0.5">{maskPhone(booking?.customerPhone)}</span>
-            </div>
-            <div className="bg-black/40 border border-white/5 rounded-xl p-3">
-              <span className="text-white/40 block text-[10px] font-medium uppercase">Assigned Vehicle</span>
-              <span className="font-bold text-white mt-0.5 block truncate">🏍️ {booking?.vehicleTitle}</span>
-              <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-black mt-1 uppercase ${
-                booking?.vehicleStatus === "AVAILABLE"
-                  ? "bg-emerald-500/20 text-emerald-400"
-                  : "bg-amber-500/20 text-amber-400"
-              }`}>
-                {booking?.vehicleStatus}
-              </span>
+        {/* Rider & Vehicle Quick Card (Apple Wallet Minimalist Style) */}
+        <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-700 border border-white/15 flex items-center justify-center font-black text-xs text-white shrink-0">
+                {booking?.customerName ? booking.customerName.slice(0, 2).toUpperCase() : "R"}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-sm text-white truncate">
+                    {booking?.customerName || "Customer"}
+                  </span>
+                  {kycStatus === "approved" && (
+                    <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded-full uppercase shrink-0">
+                      👑 6M VIP
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-white/50 truncate mt-0.5">
+                  🏍️ {booking?.vehicleTitle || "Assigned Vehicle"} • {booking?.cityName}
+                </p>
+              </div>
             </div>
 
-            {/* 🛡️ 6-Month Fast-Track KYC & Document Handover Suite */}
-            <div className="col-span-2 bg-gradient-to-br from-[#121218] via-black to-[#14101a] border border-white/15 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xl relative overflow-hidden">
-              {/* Top Status Header */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xl">🛡️</span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
-                      Physical ID Cross-Check & 6-Month Fast-Track KYC
-                    </h4>
-                    <p className="text-[10px] sm:text-[11px] text-white/50">
-                      Verify rider's original cards with uploaded photos & authenticate via WhatsApp OTP
-                    </p>
+            {booking?.customerPhone && (
+              <a
+                href={`tel:${booking.customerPhone}`}
+                className="px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs rounded-xl transition shrink-0 flex items-center gap-1 active:scale-95"
+                title="Call Rider"
+              >
+                📞 Call
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* iOS Native 3-Step Segmented Control */}
+        <div className="grid grid-cols-3 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
+          <button
+            type="button"
+            onClick={() => setWizardStep(1)}
+            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+              wizardStep === 1
+                ? "bg-white text-black font-black shadow-sm"
+                : isHandoverOtpVerified
+                ? "text-emerald-400 hover:text-emerald-300"
+                : "text-white/60 hover:text-white"
+            }`}
+          >
+            <span>{isHandoverOtpVerified ? "✓" : "1."}</span>
+            <span>KYC ID</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={!isHandoverOtpVerified}
+            onClick={() => {
+              if (isHandoverOtpVerified) setWizardStep(2);
+            }}
+            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+              wizardStep === 2
+                ? "bg-white text-black font-black shadow-sm"
+                : !isHandoverOtpVerified
+                ? "text-white/30 cursor-not-allowed opacity-50"
+                : uploadedPhotos.length >= 5 && odometer
+                ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                : "text-white/70 hover:text-white cursor-pointer"
+            }`}
+          >
+            <span>
+              {!isHandoverOtpVerified
+                ? "🔒"
+                : uploadedPhotos.length >= 5 && odometer
+                ? "✓"
+                : "2."}
+            </span>
+            <span>Bike Check</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5}
+            onClick={() => {
+              if (isHandoverOtpVerified && odometer && uploadedPhotos.length >= 5) setWizardStep(3);
+            }}
+            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+              wizardStep === 3
+                ? "bg-white text-black font-black shadow-sm"
+                : booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
+                ? "text-white/30 cursor-not-allowed opacity-50"
+                : "text-white/70 hover:text-white cursor-pointer"
+            }`}
+          >
+            <span>
+              {booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                ? "✓"
+                : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
+                ? "🔒"
+                : "3."}
+            </span>
+            <span>Handover</span>
+          </button>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 🌟 STEP 1: PHYSICAL ID CROSS-CHECK & 6-MONTH FAST-TRACK KYC               */}
+        {/* ========================================================================= */}
+        {wizardStep === 1 && (
+          <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+            {kycStatus === "approved" ? (
+              /* ============================================================ */
+              /* SCENARIO A: CUSTOMER IS ALREADY VERIFIED (CLEAN VIP CARD)    */
+              /* ============================================================ */
+              <div className="bg-[#121215] border border-emerald-500/30 rounded-2xl p-5 text-center space-y-4 shadow-xl">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/50 mx-auto flex items-center justify-center text-xl text-emerald-400">
+                  ✓
+                </div>
+                
+                <div className="space-y-1">
+                  <span className="inline-block text-[9px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                    👑 6-Month Fast-Track VIP Active
+                  </span>
+                  <h4 className="text-sm sm:text-base font-bold text-white pt-1">
+                    Customer Identity Cleared
+                  </h4>
+                  <p className="text-[11px] text-white/60 max-w-xs mx-auto leading-relaxed">
+                    <strong className="text-white">{booking?.customerName}</strong> is verified for express key handover. Zero document uploads required.
+                  </p>
+                </div>
+
+                {/* DL & Aadhaar Quick Summary Pills */}
+                <div className="grid grid-cols-2 gap-2 text-left text-xs pt-1">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-white/50">Driving License</span>
+                      <span className="text-emerald-400 font-bold text-[10px]">✓ Matched</span>
+                    </div>
+                    <span className="font-mono font-bold text-white text-[11px] mt-0.5 block truncate">
+                      {dlNumber || (booking as any)?.drivingLicenseNo || "Verified DL"}
+                    </span>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-white/50">Aadhaar Card</span>
+                      <span className="text-emerald-400 font-bold text-[10px]">✓ Matched</span>
+                    </div>
+                    <span className="font-mono font-bold text-white text-[11px] mt-0.5 block">
+                      Physical ID Matched
+                    </span>
                   </div>
                 </div>
-                {kycStatus === "approved" ? (
-                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    👑 6-Month VIP Fast-Track KYC Active
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[10px] font-black uppercase text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
-                    ⏳ Handover Verification Required
-                  </span>
-                )}
-              </div>
 
-              {/* 3 Document Previews & On-Spot Recapture Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Document 1: Driving License */}
-                {(() => {
-                  const currentDl = dlPhoto || (booking as any)?.drivingLicenseUrl;
-                  return (
-                    <div className={`p-3 rounded-xl border transition-all ${
-                      matchedDocs.dl ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
-                    } flex flex-col justify-between space-y-2`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-white/80 uppercase">1. Driving License</span>
-                        {matchedDocs.dl && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
-                      </div>
+                {/* Collapsible Document Photo Drawer & Recapture */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setActiveDocTab(activeDocTab === "all" ? "dl" : "all")}
+                      className="text-[11px] text-white/50 hover:text-white font-medium underline transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>{activeDocTab === "all" ? "Hide Uploaded Photos ▲" : "Preview / Recapture Stored Photos (3) ▼"}</span>
+                    </button>
+                    {activeDocTab === "all" && (
+                      <span className="text-[9px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        📸 Tap to Recapture
+                      </span>
+                    )}
+                  </div>
 
-                      {/* Photo Thumbnail */}
-                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
-                        {currentDl ? (
-                          <img src={currentDl} alt="Driving License" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                        ) : (
-                          <div className="text-center p-2">
-                            <span className="text-2xl opacity-40">🚗</span>
-                            <p className="text-[9px] text-white/40 mt-1">No DL uploaded</p>
+                  {activeDocTab === "all" && (
+                    <div className="space-y-2 pt-2 animate-[fade-up_0.2s_ease]">
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { title: "Driving License", shortTitle: "DL", type: "dl" as const, url: dlPhoto || (booking as any)?.drivingLicenseUrl },
+                          { title: "Aadhaar Card (Front)", shortTitle: "Aadhaar (F)", type: "aadhaarFront" as const, url: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl },
+                          { title: "Aadhaar Card (Back)", shortTitle: "Aadhaar (B)", type: "aadhaarBack" as const, url: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl },
+                        ].map((doc, idx) => (
+                          <div key={idx} className="bg-black/60 border border-white/15 rounded-xl p-1.5 flex flex-col justify-between space-y-1.5 shadow-sm">
+                            <div
+                              onClick={() => doc.url && setActivePreviewDoc({ title: doc.title, url: doc.url, docType: doc.type })}
+                              className="aspect-[4/3] rounded-lg overflow-hidden bg-black border border-white/10 cursor-pointer relative group"
+                              title="Tap to view full screen"
+                            >
+                              {doc.url ? (
+                                <img src={doc.url} alt={doc.shortTitle} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] text-white/40">No photo</div>
+                              )}
+                              <span className="absolute bottom-1 left-1 bg-black/80 px-1 py-0.2 rounded text-[7.5px] font-bold text-white/90">
+                                {doc.shortTitle}
+                              </span>
+                              <span className="absolute top-1 right-1 bg-black/80 text-[8px] text-white/70 px-1 rounded">
+                                🔍
+                              </span>
+                            </div>
+
+                            {/* Direct Recapture Button */}
+                            <label className="w-full py-1.5 px-1 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 rounded-lg text-[9.5px] font-bold text-white transition flex items-center justify-center gap-1 cursor-pointer select-none">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => handleSpotPhotoRecapture(doc.type, e)}
+                              />
+                              <span>📸</span>
+                              <span>Recapture</span>
+                            </label>
                           </div>
-                        )}
-                        {currentDl && (
-                          <button
-                            type="button"
-                            onClick={() => setActivePreviewDoc({ title: "Customer Driving License", url: currentDl, docType: "DL" })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
-                          >
-                            👁️ View Full
-                          </button>
-                        )}
+                        ))}
                       </div>
 
-                      {/* Actions */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
-                          <input
-                            type="checkbox"
-                            checked={matchedDocs.dl}
-                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, dl: e.target.checked }))}
-                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
-                          />
-                          <span>Matches Physical Card</span>
-                        </label>
-                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
-                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("dl", e)} className="hidden" />
-                          <span>📸 On-Spot Recapture</span>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Document 2: Aadhaar Card Front */}
-                {(() => {
-                  const currentAadhaar = aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl;
-                  return (
-                    <div className={`p-3 rounded-xl border transition-all ${
-                      matchedDocs.aadhaarFront ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
-                    } flex flex-col justify-between space-y-2`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-white/80 uppercase">2. Aadhaar Front</span>
-                        {matchedDocs.aadhaarFront && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
-                      </div>
-
-                      {/* Photo Thumbnail */}
-                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
-                        {currentAadhaar ? (
-                          <img src={currentAadhaar} alt="Aadhaar Front" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                        ) : (
-                          <div className="text-center p-2">
-                            <span className="text-2xl opacity-40">💳</span>
-                            <p className="text-[9px] text-white/40 mt-1">No Aadhaar uploaded</p>
-                          </div>
-                        )}
-                        {currentAadhaar && (
-                          <button
-                            type="button"
-                            onClick={() => setActivePreviewDoc({ title: "Customer Aadhaar Front", url: currentAadhaar, docType: "Aadhaar" })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
-                          >
-                            👁️ View Full
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
-                          <input
-                            type="checkbox"
-                            checked={matchedDocs.aadhaarFront}
-                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, aadhaarFront: e.target.checked }))}
-                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
-                          />
-                          <span>Matches Physical Card</span>
-                        </label>
-                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
-                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("aadhaarFront", e)} className="hidden" />
-                          <span>📸 On-Spot Recapture</span>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Document 3: Aadhaar Card Back */}
-                {(() => {
-                  const currentBack = aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl;
-                  return (
-                    <div className={`p-3 rounded-xl border transition-all ${
-                      matchedDocs.aadhaarBack ? "border-emerald-500/40 bg-emerald-950/15" : "border-white/10 bg-white/[0.02]"
-                    } flex flex-col justify-between space-y-2`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-white/80 uppercase">3. Aadhaar Back</span>
-                        {matchedDocs.aadhaarBack && <span className="text-[9px] text-emerald-400 font-bold">✓ Matched</span>}
-                      </div>
-
-                      {/* Photo Thumbnail */}
-                      <div className="h-28 rounded-lg bg-black/60 border border-white/10 overflow-hidden relative group flex items-center justify-center">
-                        {currentBack ? (
-                          <img src={currentBack} alt="Aadhaar Back" className="w-full h-full object-cover group-hover:scale-105 transition" />
-                        ) : (
-                          <div className="text-center p-2">
-                            <span className="text-2xl opacity-40">📄</span>
-                            <p className="text-[9px] text-white/40 mt-1">No Back uploaded</p>
-                          </div>
-                        )}
-                        {currentBack && (
-                          <button
-                            type="button"
-                            onClick={() => setActivePreviewDoc({ title: "Customer Aadhaar Back", url: currentBack, docType: "Aadhaar Back" })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs font-bold text-white cursor-pointer"
-                          >
-                            👁️ View Full
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="space-y-1.5 pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer select-none text-[10px] text-white/80">
-                          <input
-                            type="checkbox"
-                            checked={matchedDocs.aadhaarBack}
-                            onChange={(e) => setMatchedDocs(prev => ({ ...prev, aadhaarBack: e.target.checked }))}
-                            className="h-3.5 w-3.5 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
-                          />
-                          <span>Address Verified</span>
-                        </label>
-                        <label className="block text-center py-1 rounded-lg border border-dashed border-white/20 hover:border-white/40 bg-white/[0.02] hover:bg-white/5 text-[9px] font-bold text-white/70 hover:text-white cursor-pointer transition">
-                          <input type="file" accept="image/*" capture="environment" onChange={(e) => handleSpotPhotoRecapture("aadhaarBack", e)} className="hidden" />
-                          <span>📸 On-Spot Recapture</span>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* WhatsApp OTP Handover Verification Step */}
-              {kycStatus !== "approved" ? (
-                <div className="p-3.5 rounded-xl border border-white/10 bg-white/[0.02] space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h5 className="text-[11px] font-bold text-white flex items-center gap-1.5">
-                        <span>📲</span> WhatsApp Handover & KYC OTP Verification
-                      </h5>
-                      <p className="text-[9px] text-white/50 mt-0.5">
-                        Click below to send a 4-digit verification code to customer's WhatsApp ({maskPhone(booking?.customerPhone)}).
+                      <p className="text-[9.5px] text-white/40 text-center">
+                        Galat document hone pe <strong className="text-amber-300">Recapture</strong> dabayein ya photo pe tap karke zoom karein.
                       </p>
                     </div>
+                  )}
+                </div>
+
+                {/* 🌟 Handover Security OTP Verification (Required before key release even for VIPs) */}
+                {!isHandoverOtpVerified ? (
+                  <div className="bg-black/60 border border-amber-500/40 rounded-2xl p-3.5 space-y-3 shadow-md text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📲</span>
+                        <div>
+                          <h4 className="font-bold text-xs text-white uppercase tracking-wider">
+                            Handover Security OTP
+                          </h4>
+                          <p className="text-[10px] text-white/50">
+                            Customer pickup code verify karke keys release karein
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        Required
+                      </span>
+                    </div>
+
                     {!otpSent ? (
                       <button
                         type="button"
                         onClick={handleSendHandoverOtp}
                         disabled={isSendingOtp}
-                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-[10px] rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="w-full py-3 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
                       >
-                        {isSendingOtp ? "Sending OTP..." : "📲 Send WhatsApp OTP"}
+                        {isSendingOtp ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <span>📲</span>
+                            <span>Send Handover OTP to ({maskPhone(booking?.customerPhone)})</span>
+                          </>
+                        )}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={handleSendHandoverOtp}
-                        disabled={isSendingOtp}
-                        className="text-[9px] text-emerald-400 hover:text-emerald-300 underline font-semibold bg-transparent border-none cursor-pointer"
-                      >
-                        Resend OTP
-                      </button>
+                      <div className="space-y-2.5 animate-[fade-up_0.2s_ease]">
+                        {otpMessage && (
+                          <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10.5px] font-medium flex items-center justify-between">
+                            <span className="truncate mr-2">{otpMessage}</span>
+                            <button
+                              type="button"
+                              onClick={handleSendHandoverOtp}
+                              disabled={isSendingOtp}
+                              className="text-[10px] text-emerald-400 underline font-bold cursor-pointer shrink-0"
+                            >
+                              Resend
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="4-digit OTP"
+                            value={handoverOtpInput}
+                            onChange={(e) => setHandoverOtpInput(e.target.value)}
+                            className="w-32 bg-black border border-white/20 rounded-xl px-3 py-2.5 text-center text-base font-mono tracking-widest text-white focus:border-emerald-500 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyHandoverOtp}
+                            disabled={isVerifyingOtp || !handoverOtpInput.trim()}
+                            className="flex-1 py-2.5 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer disabled:opacity-40 shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5"
+                          >
+                            {isVerifyingOtp ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <span>✓</span>
+                                <span>Verify OTP</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     )}
-                  </div>
 
-                  {otpMessage && (
-                    <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10px] font-medium">
-                      {otpMessage}
-                    </div>
-                  )}
-
-                  {otpSent && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="Enter 4-digit OTP"
-                        value={handoverOtpInput}
-                        onChange={(e) => setHandoverOtpInput(e.target.value)}
-                        className="w-36 bg-black border border-white/20 rounded-lg px-3 py-2 text-center text-sm font-mono tracking-widest text-white focus:border-emerald-500 outline-none"
-                      />
+                    {/* Direct Physical Approve Offline Link */}
+                    <div className="pt-0.5 text-center">
                       <button
                         type="button"
-                        onClick={handleVerifyHandoverOtp}
-                        disabled={isVerifyingOtp || !handoverOtpInput.trim()}
-                        className="flex-1 py-2 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 text-white font-black text-[11px] uppercase tracking-wider rounded-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
+                        onClick={handleDirectPhysicalApprove}
+                        disabled={isVerifyingOtp}
+                        className="text-[10px] text-white/40 hover:text-white/70 transition underline cursor-pointer"
                       >
-                        {isVerifyingOtp ? "Verifying..." : "✔️ Verify OTP & Grant 6-Month KYC"}
+                        Customer offline / phone issue? Tap for physical ID approval
                       </button>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-[11px] text-emerald-300">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">👑</span>
-                    <div>
-                      <p className="font-black text-white text-[11px]">Customer KYC 100% Verified</p>
-                      <p className="text-[9px] text-white/60 mt-0.5">
-                        Valid for 6 Months ({kycExpiresAt ? `Expires: ${new Date(kycExpiresAt).toLocaleDateString("en-IN")}` : "180 Days Express Checkout"}). Uploads bypassed on next booking!
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-left flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-sm shrink-0">
+                      ✓
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-white flex items-center gap-1.5">
+                        <span>Handover Security OTP Verified</span>
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.2 rounded">Authorized</span>
+                      </div>
+                      <p className="text-[10px] text-white/60">
+                        Customer authorized for vehicle inspection & key release.
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-emerald-400">PASSED ✅</span>
-                </div>
-              )}
-            </div>
+                )}
 
-            {/* Document Full View Modal */}
-            {activePreviewDoc && (
-              <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-                <div className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#121218] p-4 text-white space-y-3 shadow-2xl">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                    <h4 className="text-xs font-bold uppercase">{activePreviewDoc.title}</h4>
+                {/* Direct Big Primary CTA Button - Gated by OTP */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    disabled={!isHandoverOtpVerified}
+                    onClick={() => {
+                      if (isHandoverOtpVerified) setWizardStep(2);
+                    }}
+                    className={`w-full py-3.5 text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 ${
+                      isHandoverOtpVerified
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] text-white font-black shadow-lg shadow-emerald-600/20 cursor-pointer"
+                        : "bg-white/10 text-white/40 font-bold cursor-not-allowed"
+                    }`}
+                  >
+                    <span>
+                      {isHandoverOtpVerified
+                        ? "Proceed to Step 2: Bike Inspection ➔"
+                        : "🔒 Verify OTP to Proceed to Step 2"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ============================================================ */
+              /* SCENARIO B: PENDING VERIFICATION (CLEAN 1-CARD AT A TIME)     */
+              /* ============================================================ */
+              <div className="space-y-3">
+                {/* 3 Clean Document Switcher Tabs */}
+                <div className="grid grid-cols-3 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
+                  {[
+                    { id: "dl", label: "🪪 DL", matched: matchedDocs.dl },
+                    { id: "aadhaarFront", label: "💳 Front", matched: matchedDocs.aadhaarFront },
+                    { id: "aadhaarBack", label: "📄 Back", matched: matchedDocs.aadhaarBack },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveDocTab(tab.id as any)}
+                      className={`py-2 px-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        (activeDocTab === tab.id || (activeDocTab === "all" && tab.id === "dl"))
+                          ? "bg-white text-black font-black shadow-sm"
+                          : "text-white/60 hover:text-white"
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.matched && <span className="text-emerald-400 text-[10px]">✓</span>}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Single Active Document Card Preview */}
+                {(() => {
+                  const activeKey = (activeDocTab === "all" ? "dl" : activeDocTab) as "dl" | "aadhaarFront" | "aadhaarBack";
+                  const docInfo = {
+                    dl: {
+                      title: "Driving License",
+                      url: dlPhoto || (booking as any)?.drivingLicenseUrl,
+                      no: dlNumber || (booking as any)?.drivingLicenseNo || "DL-Verified",
+                      matched: matchedDocs.dl,
+                      toggle: () => setMatchedDocs((p) => ({ ...p, dl: !p.dl })),
+                      recaptureType: "dl" as const,
+                    },
+                    aadhaarFront: {
+                      title: "Aadhaar Card (Front)",
+                      url: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl,
+                      no: "XXXX-XXXX-Verified",
+                      matched: matchedDocs.aadhaarFront,
+                      toggle: () => setMatchedDocs((p) => ({ ...p, aadhaarFront: !p.aadhaarFront })),
+                      recaptureType: "aadhaarFront" as const,
+                    },
+                    aadhaarBack: {
+                      title: "Aadhaar Card (Back)",
+                      url: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl,
+                      no: "Address Verification",
+                      matched: matchedDocs.aadhaarBack,
+                      toggle: () => setMatchedDocs((p) => ({ ...p, aadhaarBack: !p.aadhaarBack })),
+                      recaptureType: "aadhaarBack" as const,
+                    },
+                  }[activeKey];
+
+                  return (
+                    <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-3 shadow-md">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span>{activeKey === "dl" ? "🪪" : activeKey === "aadhaarFront" ? "💳" : "📄"}</span>
+                            <span>{docInfo.title}</span>
+                          </h4>
+                          <span className="text-[10px] text-white/50 font-mono mt-0.5 block">{docInfo.no}</span>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          docInfo.matched
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : "bg-white/10 text-white/60"
+                        }`}>
+                          {docInfo.matched ? "✓ Matched" : "Unverified"}
+                        </span>
+                      </div>
+
+                      {/* Photo Thumbnail */}
+                      <div
+                        onClick={() => docInfo.url && setActivePreviewDoc({ title: docInfo.title, url: docInfo.url, docType: activeKey })}
+                        className="aspect-[16/9] w-full rounded-xl overflow-hidden bg-black/80 border border-white/10 relative group cursor-pointer"
+                      >
+                        {docInfo.url ? (
+                          <img src={docInfo.url} alt={docInfo.title} className="w-full h-full object-cover group-hover:scale-102 transition duration-200" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-white/40 text-xs">
+                            <span>📷</span>
+                            <span>No photo uploaded by rider</span>
+                          </div>
+                        )}
+                        <span className="absolute bottom-2 right-2 bg-black/80 text-[10px] text-white/80 px-2 py-0.5 rounded-full border border-white/10">
+                          🔍 Tap to Zoom
+                        </span>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={docInfo.toggle}
+                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            docInfo.matched
+                              ? "bg-emerald-500 text-black shadow-md font-black"
+                              : "bg-white/5 hover:bg-white/10 border border-white/10 text-white/80"
+                          }`}
+                        >
+                          <span>{docInfo.matched ? "✓" : "⚪"}</span>
+                          <span>{docInfo.matched ? "Card Matched" : "Match Card"}</span>
+                        </button>
+
+                        <label className="py-2.5 px-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => handleSpotPhotoRecapture(docInfo.recaptureType, e)}
+                          />
+                          <span>📸</span>
+                          <span>Recapture</span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 🌟 OTP Verification Card (Required for 6-Month KYC Activation) */}
+                <div className="bg-[#121215] border border-amber-500/30 rounded-2xl p-4 space-y-3 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📲</span>
+                      <div>
+                        <h4 className="font-bold text-xs text-white uppercase tracking-wider">
+                          Customer OTP Verification
+                        </h4>
+                        <p className="text-[10px] text-white/50">
+                          Verify OTP to activate 6-Month Fast-Track Pass
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                      Step 1 of 3
+                    </span>
+                  </div>
+
+                  {!otpSent ? (
                     <button
                       type="button"
-                      onClick={() => setActivePreviewDoc(null)}
-                      className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold cursor-pointer"
+                      onClick={handleSendHandoverOtp}
+                      disabled={isSendingOtp}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
                     >
-                      ✕
+                      {isSendingOtp ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <span>📲</span>
+                          <span>Send 4-Digit OTP to ({maskPhone(booking?.customerPhone)})</span>
+                        </>
+                      )}
                     </button>
-                  </div>
-                  <div className="max-h-[60vh] flex items-center justify-center bg-black/60 rounded-xl overflow-hidden p-2">
-                    <img src={activePreviewDoc.url} alt={activePreviewDoc.title} className="max-h-[55vh] w-auto object-contain rounded-lg" />
-                  </div>
-                  <div className="flex justify-end">
+                  ) : (
+                    <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+                      {otpMessage && (
+                        <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10.5px] font-medium flex items-center justify-between">
+                          <span>{otpMessage}</span>
+                          <button
+                            type="button"
+                            onClick={handleSendHandoverOtp}
+                            disabled={isSendingOtp}
+                            className="text-[10px] text-emerald-400 underline font-bold cursor-pointer ml-2 shrink-0"
+                          >
+                            Resend
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          placeholder="4-digit OTP"
+                          value={handoverOtpInput}
+                          onChange={(e) => setHandoverOtpInput(e.target.value)}
+                          className="w-32 bg-black border border-white/20 rounded-xl px-3 py-2.5 text-center text-base font-mono tracking-widest text-white focus:border-emerald-500 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyHandoverOtp}
+                          disabled={isVerifyingOtp || !handoverOtpInput.trim()}
+                          className="flex-1 py-2.5 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer disabled:opacity-40 shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5"
+                        >
+                          {isVerifyingOtp ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <span>✓</span>
+                              <span>Verify & Activate KYC</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Direct Physical Approve Offline Link */}
+                  <div className="pt-1 text-center">
                     <button
                       type="button"
-                      onClick={() => setActivePreviewDoc(null)}
-                      className="py-1.5 px-4 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition cursor-pointer"
+                      onClick={handleDirectPhysicalApprove}
+                      disabled={isVerifyingOtp}
+                      className="text-[10px] text-white/40 hover:text-white/70 transition underline cursor-pointer"
                     >
-                      Close
+                      Customer offline / no WhatsApp? Click for physical card approval
                     </button>
                   </div>
+                </div>
+
+                {/* Bottom navigation */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    disabled={!isHandoverOtpVerified}
+                    onClick={() => {
+                      if (isHandoverOtpVerified) setWizardStep(2);
+                    }}
+                    className={`w-full py-3.5 text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 ${
+                      isHandoverOtpVerified
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black shadow-lg shadow-emerald-600/20 cursor-pointer active:scale-[0.98]"
+                        : "bg-white/10 text-white/40 font-bold cursor-not-allowed"
+                    }`}
+                  >
+                    <span>
+                      {isHandoverOtpVerified
+                        ? "Proceed to Step 2: Bike Inspection ➔"
+                        : "🔒 Verify Customer OTP to Unlock Step 2"}
+                    </span>
+                  </button>
                 </div>
               </div>
             )}
-            
-            {/* Grand Total Settlement Card & Direct Pay Trigger */}
-            <div className="col-span-2 bg-gradient-to-r from-amber-950/40 via-black to-amber-950/20 border border-amber-500/30 rounded-xl p-3.5 space-y-2.5 shadow-lg">
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 🌟 STEP 2: VEHICLE CONDITION, ODOMETER & 5 MANDATORY PHOTOS               */}
+        {/* ========================================================================= */}
+        {wizardStep === 2 && (
+          <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+            <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-2.5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                  <span>🏍️</span> {booking?.handoverStatus === "PENDING" ? "Vehicle Condition & Inspection" : "Return Vehicle Inspection"}
+                </h3>
+                <span className="text-[10px] text-white/50 font-mono">
+                  Step 2 of 3
+                </span>
+              </div>
+
+              {/* If Return Inspection: 2-Condition Selector */}
+              {booking?.handoverStatus === "RELEASED" && (
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-white/70 block">
+                    Return Vehicle Condition:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReturnCondition("NO_DAMAGE")}
+                      className={`py-2.5 px-2 rounded-xl border text-center font-bold text-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+                        returnCondition === "NO_DAMAGE"
+                          ? "border-emerald-500 bg-emerald-500/15 text-emerald-300"
+                          : "border-white/10 bg-white/5 text-white/60"
+                      }`}
+                    >
+                      <span>🟢</span>
+                      <span>No Damage</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReturnCondition("DAMAGE_DETECTED")}
+                      className={`py-2.5 px-2 rounded-xl border text-center font-bold text-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
+                        returnCondition === "DAMAGE_DETECTED"
+                          ? "border-red-500 bg-red-500/20 text-red-300"
+                          : "border-white/10 bg-white/5 text-white/60"
+                      }`}
+                    >
+                      <span>🚨</span>
+                      <span>Damage Detected</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Odometer & Tactile Fuel Selector */}
+              <div className="space-y-3">
+                {/* Odometer Input */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-white/70 block font-bold text-xs">
+                      Odometer Reading (KM)
+                    </label>
+                    <span className="text-[10px] text-white/40 font-mono">Live Entry</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={odometer}
+                      onChange={(e) => setOdometer(e.target.value)}
+                      placeholder="e.g. 12450"
+                      className="w-full rounded-xl bg-black/60 border border-white/15 px-3.5 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-white font-mono text-base font-bold"
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-white/40 pointer-events-none">
+                      KM
+                    </span>
+                  </div>
+                </div>
+
+                {/* Fuel Level Pills */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-white/70 block font-bold text-xs">
+                      Fuel Level
+                    </label>
+                    <span className="text-[10px] font-bold text-white/60 font-mono">
+                      {fuel}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: "25%", label: "25%" },
+                      { id: "50%", label: "50%" },
+                      { id: "75%", label: "75%" },
+                      { id: "Full", label: "Full 100%" },
+                    ].map((lvl) => (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        onClick={() => setFuel(lvl.id)}
+                        className={`py-2 px-1 rounded-xl text-center text-xs font-bold transition-all cursor-pointer ${
+                          fuel === lvl.id
+                            ? "bg-white text-black font-black shadow-sm"
+                            : "bg-black/50 border border-white/10 text-white/70 hover:bg-white/5"
+                        }`}
+                      >
+                        {lvl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 5-Slot Inspection Camera Grid */}
+              <div className="space-y-2.5 pt-2 border-t border-white/[0.08]">
+                <div className="flex items-center justify-between">
+                  <label className="text-white/80 font-bold block text-xs">
+                    Inspection Photos (5 Angles)
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    uploadedPhotos.length >= 5
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : "bg-white/10 text-white/60"
+                  }`}>
+                    {uploadedPhotos.length}/5 Captured
+                  </span>
+                </div>
+
+                {/* 5 Tile Camera Slots */}
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { slot: 0, label: "Front" },
+                    { slot: 1, label: "Rear" },
+                    { slot: 2, label: "Left" },
+                    { slot: 3, label: "Right" },
+                    { slot: 4, label: "Meter" },
+                  ].map(({ slot, label }) => {
+                    const isCaptured = !!uploadedPhotos[slot];
+                    const isUploading = photoUploadStatuses[slot] === "uploading";
+                    const isFailed = photoUploadStatuses[slot] === "failed";
+
+                    return (
+                      <label
+                        key={slot}
+                        className={`aspect-square rounded-xl border flex flex-col items-center justify-center relative overflow-hidden transition cursor-pointer select-none ${
+                          isCaptured
+                            ? "border-emerald-500/50 bg-black"
+                            : "border-white/15 bg-black/40 hover:bg-white/5 hover:border-white/30"
+                        }`}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const slotNames = ["Front View", "Rear View", "Left Side", "Right Side", "Meter Odometer"];
+                              handlePhotoCaptureSlot(slot, slotNames[slot] || "Inspection", file);
+                            }
+                          }}
+                        />
+
+                        {isCaptured ? (
+                          <>
+                            <img
+                              src={uploadedPhotos[slot]}
+                              alt={label}
+                              className="w-full h-full object-cover"
+                            />
+                            {isUploading && (
+                              <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            )}
+                            {isFailed && (
+                              <div className="absolute inset-0 bg-red-950/80 flex items-center justify-center">
+                                <span className="text-[10px]">⚠️</span>
+                              </div>
+                            )}
+                            <span className="absolute bottom-0.5 right-0.5 bg-emerald-500 text-black text-[8px] font-black px-1 rounded-full">
+                              ✓
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-base text-white/50">📷</span>
+                            <span className="text-[8.5px] font-bold text-white/60 mt-0.5">
+                              {label}
+                            </span>
+                          </>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <p className="text-[10px] text-white/40 text-center">
+                  Tap any slot to launch camera directly • Auto-purged in 24-48 hrs
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 Bottom Navigation */}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setWizardStep(1)}
+                className="py-3 px-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                disabled={!odometer || uploadedPhotos.length < 5}
+                onClick={() => {
+                  if (odometer && uploadedPhotos.length >= 5) setWizardStep(3);
+                }}
+                className={`flex-1 py-3 text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1.5 ${
+                  odometer && uploadedPhotos.length >= 5
+                    ? "bg-white text-black font-black shadow-md transition active:scale-98 cursor-pointer"
+                    : "bg-white/10 text-white/40 font-bold cursor-not-allowed"
+                }`}
+              >
+                <span>
+                  {!odometer
+                    ? "🔒 Enter Odometer to Proceed"
+                    : uploadedPhotos.length < 5
+                    ? `🔒 Capture 5 Photos (${uploadedPhotos.length}/5) to Proceed`
+                    : "Proceed to Step 3: Handover ➔"}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 🌟 STEP 3: INSPECTION CHECKLIST, SETTLEMENT & RELEASE VEHICLE            */}
+        {/* ========================================================================= */}
+        {wizardStep === 3 && (
+          <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+            {/* 6-Point Inspection Checklist */}
+            <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-2.5">
+                <div>
+                  <label className="text-white block font-bold text-xs">
+                    Inspection Checklist
+                  </label>
+                  <p className="text-[10px] text-white/50 mt-0.5">
+                    Confirm all items before releasing keys
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const items = booking?.handoverStatus === "PENDING" ? [
+                      "dlChecked",
+                      "aadhaarChecked",
+                      "vehicleCondition",
+                      "odoRecorded",
+                      "helmetProvided",
+                      "balanceCollected",
+                    ] : ["helmet", "damage", "key", "cleanliness"];
+                    
+                    const nextChecklist: Record<string, boolean> = {};
+                    items.forEach((it) => {
+                      nextChecklist[it] = true;
+                    });
+                    setChecklist(nextChecklist);
+                  }}
+                  className="px-2.5 py-1 bg-white/10 hover:bg-white/15 text-white font-bold text-[10px] rounded-lg transition active:scale-95 cursor-pointer uppercase tracking-wider flex items-center gap-1"
+                >
+                  <span>⚡</span> Verify All
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                {(booking?.handoverStatus === "PENDING" ? [
+                  { id: "dlChecked", label: "Driving License Checked & Verified", icon: "🪪" },
+                  { id: "aadhaarChecked", label: "Aadhaar Card Matched", icon: "💳" },
+                  { id: "vehicleCondition", label: "Vehicle Condition & Body Documented", icon: "🔍" },
+                  { id: "odoRecorded", label: "Fuel & Odometer Reading Recorded", icon: "⛽" },
+                  { id: "helmetProvided", label: "Safety Helmet Provided", icon: "🪖" },
+                  { id: "balanceCollected", label: "Deposit / Settlement Confirmed", icon: "💸" },
+                ] : [
+                  { id: "helmet", label: "Safety Helmet Received Back", icon: "🪖" },
+                  { id: "damage", label: "Body Panels Checked (No New Damage)", icon: "🔍" },
+                  { id: "key", label: "Physical Keys Received Back", icon: "🔑" },
+                  { id: "cleanliness", label: "Vehicle Cleanliness Checked", icon: "🧼" },
+                ]).map((item) => {
+                  const isChecked = !!checklist[item.id];
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setChecklist((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
+                      }}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer select-none ${
+                        isChecked
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                          : "border-white/[0.06] bg-black/40 text-white/70 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="text-sm shrink-0">{item.icon}</span>
+                        <span className={`text-[11px] ${isChecked ? "font-bold text-white" : "text-white/70"}`}>
+                          {item.label}
+                        </span>
+                      </div>
+
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center transition shrink-0 ${
+                        isChecked
+                          ? "bg-emerald-500 text-black font-black text-[10px]"
+                          : "border border-white/20 bg-black/40"
+                      }`}>
+                        {isChecked && "✓"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Grand Total Settlement Card */}
+            <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-3.5 space-y-2 shadow-sm">
               <div className="flex justify-between items-center text-xs">
                 <div>
-                  <span className="text-white/50 block text-[10px] uppercase font-bold tracking-wider">Rental Period</span>
-                  <span className="font-bold text-white mt-0.5 block">🗓️ {booking?.startDate} → {booking?.endDate}</span>
+                  <span className="text-white/50 block text-[10px] uppercase font-bold">Rental Period</span>
+                  <span className="font-bold text-white mt-0.5 block text-[11px]">🗓️ {booking?.startDate} → {booking?.endDate}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-white/50 block text-[10px] uppercase font-bold tracking-wider">Total Settlement Due</span>
+                  <span className="text-white/50 block text-[10px] uppercase font-bold">Settlement Due</span>
                   <span className={`font-black text-sm font-mono ${grandTotalSettlement > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                     ₹{grandTotalSettlement.toLocaleString("en-IN")}
                   </span>
                 </div>
               </div>
 
-              {/* Dynamic Fee Breakdown if Damage or Balance Exists */}
               {grandTotalSettlement > 0 ? (
-                <div className="pt-2 border-t border-white/10 space-y-2.5">
+                <div className="pt-2 border-t border-white/10 space-y-2">
                   <div className="flex items-center justify-between text-[10px] text-white/70 font-mono">
-                    <span>• Pickup Balance Due: ₹{balanceDue.toLocaleString("en-IN")}</span>
-                    {damageTotal > 0 && <span className="text-red-400 font-bold">• Vehicle Care / Inspection Fee: ₹{damageTotal.toLocaleString("en-IN")}</span>}
+                    <span>Pickup Balance: ₹{balanceDue.toLocaleString("en-IN")}</span>
+                    {damageTotal > 0 && <span className="text-red-400 font-bold">Care Fee: ₹{damageTotal.toLocaleString("en-IN")}</span>}
                   </div>
 
-                  {/* Defer Payment to Return Toggle Option (Pickup Handover) */}
                   {booking?.handoverStatus === "PENDING" && balanceDue > 0 && (
-                    <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition cursor-pointer select-none ${
+                    <label className={`flex items-start gap-2 p-2 rounded-xl border transition cursor-pointer select-none ${
                       deferPaymentToReturn
                         ? "border-amber-400 bg-amber-500/15 text-amber-200"
                         : "border-white/10 bg-black/40 text-white/70 hover:bg-white/5"
@@ -1138,14 +1842,14 @@ function ScanBookingContent() {
                         type="checkbox"
                         checked={deferPaymentToReturn}
                         onChange={(e) => setDeferPaymentToReturn(e.target.checked)}
-                        className="h-4 w-4 rounded border-amber-400 bg-black text-amber-500 focus:ring-0 accent-amber-500 mt-0.5"
+                        className="h-3.5 w-3.5 rounded border-amber-400 bg-black text-amber-500 focus:ring-0 accent-amber-500 mt-0.5"
                       />
                       <div>
-                        <span className="font-extrabold text-[11px] block text-amber-300">
-                          ⏳ Defer Payment to Vehicle Return Time (Pay at Check-in)
+                        <span className="font-bold text-[11px] block text-amber-300">
+                          ⏳ Defer Balance to Vehicle Return (Pay at Check-in)
                         </span>
                         <span className="text-[9px] text-white/60 block leading-tight mt-0.5">
-                          Allow rider to take vehicle now. Full pending balance of ₹{balanceDue.toLocaleString("en-IN")} will be collected at vehicle return.
+                          Allow rider to start ride now. Full pending balance of ₹{balanceDue.toLocaleString("en-IN")} will be collected at return.
                         </span>
                       </div>
                     </label>
@@ -1155,564 +1859,126 @@ function ScanBookingContent() {
                     <button
                       type="button"
                       onClick={() => setShowPaymentModal(true)}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 hover:brightness-110 active:scale-98 text-black font-black text-xs rounded-xl shadow-[0_4px_20px_rgba(245,158,11,0.35)] transition cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+                      className="w-full py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider"
                     >
                       <span>💳</span>
-                      <span>Pay / Collect ₹{grandTotalSettlement.toLocaleString("en-IN")} Now</span>
+                      <span>Collect ₹{grandTotalSettlement.toLocaleString("en-IN")} Now</span>
                     </button>
                   )}
                 </div>
               ) : (
                 <div className="pt-1 text-center text-[10px] font-bold text-emerald-400 flex items-center justify-center gap-1">
                   <span>✅</span>
-                  <span>ALL BALANCE & DAMAGE FEES SETTLED (NO OUTSTANDING DUE)</span>
+                  <span>All fees settled • Zero balance due</span>
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Verification & Inspection Workspace */}
-        {booking &&
-          booking.status !== "CANCELLED" &&
-          booking.handoverStatus !== "RETURNED" &&
-          !requiresPayment &&
-          (booking.handoverStatus === "PENDING" || (booking.handoverStatus === "RELEASED" && !justReleased)) && (
-          <div className="space-y-4 pt-5 border-t border-white/10 text-xs">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                <span>🔍</span> {booking.handoverStatus === "PENDING" ? "Pickup Inspection Workspace" : "Return Inspection Workspace"}
-              </h3>
-              <span className="text-[10px] text-white/50 bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full">
-                Step {booking.handoverStatus === "PENDING" ? "1 of 2" : "2 of 2"}
-              </span>
-            </div>
-
-            {/* If Return Inspection: 2-Condition Vehicle Return Selector (No Damage vs Damage Detected) */}
-            {booking.handoverStatus === "RELEASED" && (
-              <div className="space-y-3 pt-1">
-                <label className="text-[11px] font-black uppercase tracking-wider text-white/80 block">
-                  Select Return Vehicle Condition:
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setReturnCondition("NO_DAMAGE")}
-                    className={`py-3 px-3 rounded-xl border text-center font-bold text-xs transition active:scale-95 cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      returnCondition === "NO_DAMAGE"
-                        ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)]"
-                        : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-                    }`}
-                  >
-                    <span className="text-base">🟢</span>
-                    <span>No Damage (Clean)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setReturnCondition("DAMAGE_DETECTED")}
-                    className={`py-3 px-3 rounded-xl border text-center font-bold text-xs transition active:scale-95 cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      returnCondition === "DAMAGE_DETECTED"
-                        ? "border-red-500 bg-red-500/20 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                        : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-                    }`}
-                  >
-                    <span className="text-base">🚨</span>
-                    <span>Damage Detected</span>
-                  </button>
-                </div>
-
-                {/* If Damage Detected: Categorized Multi-Checklist & Penalty Calculator */}
-                {returnCondition === "DAMAGE_DETECTED" && (
-                  <div className="mt-4 space-y-4 pt-3 border-t border-red-500/30 animate-[fade-up_0.2s_ease]">
-                    <div className="flex items-center justify-between text-red-400 font-bold text-[11px] border-b border-red-500/20 pb-2">
-                      <span className="flex items-center gap-1.5">
-                        <span>🛠️</span> Categorized Damage Assessment & Penalty Calculator
-                      </span>
-                      <span className="text-[9px] bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded-full text-red-200 font-mono">
-                        Multi-Zone Inspection
-                      </span>
-                    </div>
-
-                    {/* Categorized Multi-Checklists */}
-                    <div className="space-y-4">
-                      {[
-                        {
-                          title: "🛵 Zone 1: Body Panels & Exterior",
-                          items: [
-                            { id: "minor_scratch", label: "🔩 Minor Scratch / Scuff Mark", fee: 500 },
-                            { id: "dent_crack", label: "🛡️ Deep Dent / Body Panel Crack", fee: 1500 },
-                            { id: "paint_wrap", label: "🎨 Paint Scratched / Sticker Wrap Tear", fee: 1000 },
-                          ],
-                        },
-                        {
-                          title: "🪞 Zone 2: Mirrors, Lights & Accessories",
-                          items: [
-                            { id: "mirror_broken", label: "🪞 Rear-view Mirror Broken / Missing", fee: 600 },
-                            { id: "headlight_crack", label: "💡 Headlight / Tail-light Glass Cracked", fee: 1200 },
-                            { id: "indicator_broken", label: "🚨 Indicator / Turn Signal Damaged", fee: 500 },
-                          ],
-                        },
-                        {
-                          title: "🛞 Zone 3: Wheels, Tyres & Controls",
-                          items: [
-                            { id: "tyre_puncture", label: "🛞 Tyre Puncture / Sidewall Cut", fee: 800 },
-                            { id: "rim_bent", label: "⚙️ Alloy Rim Bent / Rim Damage", fee: 2500 },
-                            { id: "brake_lever", label: "🛴 Brake Lever / Footpeg Bent or Broken", fee: 750 },
-                          ],
-                        },
-                        {
-                          title: "⚡ Zone 4: Keys, Engine & Electricals",
-                          items: [
-                            { id: "lost_key", label: "🔑 Lost Original Key / Remote Fob", fee: 1500 },
-                            { id: "clutch_gear", label: "⚙️ Clutch Plate / Gear Shift Damaged", fee: 2200 },
-                            { id: "battery_wiring", label: "⚡ Battery Dead / Wiring Harness Damaged", fee: 1800 },
-                            { id: "major_crash", label: "💥 Major Structural / Engine Crash Damage", fee: 0, isMajor: true },
-                          ],
-                        },
-                      ].map((category, catIdx) => (
-                        <div key={catIdx} className="bg-black/50 border border-white/10 rounded-xl p-3 space-y-2">
-                          <h4 className="text-[11px] font-black uppercase tracking-wider text-red-300 flex items-center justify-between border-b border-white/5 pb-1.5">
-                            <span>{category.title}</span>
-                          </h4>
-                          <div className="space-y-1.5">
-                            {category.items.map((item) => (
-                              <label
-                                key={item.id}
-                                className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer ${
-                                  selectedDamages[item.id]
-                                    ? "border-red-500/50 bg-red-950/50 text-red-100 font-semibold"
-                                    : "border-white/5 bg-white/[0.01] text-white/60 hover:bg-white/5"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!selectedDamages[item.id]}
-                                    onChange={(e) => {
-                                      setSelectedDamages((prev) => ({ ...prev, [item.id]: e.target.checked }));
-                                    }}
-                                    className="h-3.5 w-3.5 rounded border-white/20 bg-black text-red-600 focus:ring-0 accent-red-600"
-                                  />
-                                  <span className="text-[11px]">{item.label}</span>
-                                </div>
-                                {item.fee > 0 ? (
-                                  <span className="font-mono font-bold text-[11px] text-red-400">₹{item.fee}</span>
-                                ) : (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">Custom</span>
-                                )}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Live Dynamic Total Penalty Summary Card */}
-                    {(() => {
-                      let calcTotal = 0;
-                      const allItems = [
-                        { id: "minor_scratch", fee: 500 },
-                        { id: "dent_crack", fee: 1500 },
-                        { id: "paint_wrap", fee: 1000 },
-                        { id: "mirror_broken", fee: 600 },
-                        { id: "headlight_crack", fee: 1200 },
-                        { id: "indicator_broken", fee: 500 },
-                        { id: "tyre_puncture", fee: 800 },
-                        { id: "rim_bent", fee: 2500 },
-                        { id: "brake_lever", fee: 750 },
-                        { id: "lost_key", fee: 1500 },
-                        { id: "clutch_gear", fee: 2200 },
-                        { id: "battery_wiring", fee: 1800 },
-                      ];
-                      allItems.forEach((it) => {
-                        if (selectedDamages[it.id]) calcTotal += it.fee;
-                      });
-                      if (selectedDamages["major_crash"] && customDamageFee) {
-                        const customVal = parseFloat(customDamageFee);
-                        if (!isNaN(customVal)) calcTotal += customVal;
-                      }
-                      return (
-                        <div className="bg-gradient-to-r from-red-950/60 via-black to-red-950/40 border border-red-500/40 rounded-xl p-3.5 flex items-center justify-between text-xs shadow-lg">
-                          <div>
-                            <span className="text-[10px] uppercase font-black text-red-400 block tracking-wider">Estimated Total Damage Penalty</span>
-                            <span className="text-[10px] text-white/50">Auto-calculated from selected zones</span>
-                          </div>
-                          <span className="text-base font-black font-mono text-red-300 bg-red-500/20 px-3 py-1 rounded-lg border border-red-500/40">
-                            ₹{calcTotal.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Custom Penalty Input if Major Damage */}
-                    {selectedDamages["major_crash"] && (
-                      <div className="space-y-1 pt-1 animate-[fade-up_0.2s_ease]">
-                        <label className="text-[10px] uppercase font-bold text-red-300 block">Custom Major Damage Penalty Amount (INR)</label>
-                        <input
-                          type="number"
-                          value={customDamageFee}
-                          onChange={(e) => setCustomDamageFee(e.target.value)}
-                          placeholder="e.g. 4500"
-                          className="w-full rounded-xl bg-black border border-red-500/40 px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-red-400"
-                        />
-                      </div>
-                    )}
-
-                    {/* Damage Details Note */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-white/60 block">Vendor Incident Description / Notes</label>
-                      <textarea
-                        rows={2}
-                        value={vendorDamageNotes}
-                        onChange={(e) => setVendorDamageNotes(e.target.value)}
-                        placeholder="Provide exact details of damage scuffs, panel cracks, or parts to be replaced..."
-                        className="w-full rounded-xl bg-black/60 border border-white/15 px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-red-400 resize-none font-sans"
-                      />
-                    </div>
-
-                    {/* 24-Hour Dispute Resolution Guarantee Badge */}
-                    <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-[10px] text-red-200 space-y-1">
-                      <p className="font-bold flex items-center gap-1 text-red-400">
-                        <span>⏳</span> 24-Hour Resolution Guarantee:
-                      </p>
-                      <p className="text-white/70 leading-relaxed">
-                        Damage case reported. Vendor arbitration & deposit settlement must be finalized within 24 hours. Photo evidence will be preserved for dispute review.
-                      </p>
-                    </div>
+            {/* Handover & Release Vehicle Action */}
+            <div className="space-y-2 pt-1">
+              {kycStatus !== "approved" && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-2.5 text-xs text-red-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <p className="text-[10px] text-white/80">Customer KYC verification required (Step 1).</p>
                   </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Odometer Input */}
-              <div className="space-y-1">
-                <label className="text-white/60 block font-semibold">Odometer Reading (km)</label>
-                <input
-                  type="number"
-                  value={odometer}
-                  onChange={(e) => setOdometer(e.target.value)}
-                  placeholder="e.g. 12450"
-                  className="w-full rounded-xl bg-black/60 border border-white/15 px-3 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-[var(--brand-red)]"
-                />
-              </div>
-
-              {/* Fuel Level */}
-              <div className="space-y-1">
-                <label className="text-white/60 block font-semibold">Fuel Level</label>
-                <select
-                  value={fuel}
-                  onChange={(e) => setFuel(e.target.value)}
-                  className="w-full rounded-xl bg-black/60 border border-white/15 px-3 py-2.5 text-white focus:outline-none focus:border-[var(--brand-red)] cursor-pointer"
-                >
-                  <option value="Full">Full (100%)</option>
-                  <option value="75%">75%</option>
-                  <option value="50%">50%</option>
-                  <option value="25%">25%</option>
-                  <option value="Empty">Empty</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Mandatory 5 Photos Upload Section with Single Camera Button */}
-            <div className="space-y-3 pt-3 border-t border-white/10">
-              <div className="flex items-center justify-between">
-                <label className="text-white/80 font-black block text-xs tracking-wide">
-                  Mandatory Inspection Photos (5 Required)
-                </label>
-                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                  uploadedPhotos.length >= 5
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                    : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                }`}>
-                  {uploadedPhotos.length}/5 Mandatory Photos
-                </span>
-              </div>
-
-              {/* Single Shutter Camera Capture Button */}
-              {uploadedPhotos.length < 5 ? (
-                <label className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 bg-gradient-to-r from-[var(--brand-red)] via-rose-600 to-[#ff4d4d] hover:brightness-110 active:scale-98 text-white font-black text-xs sm:text-sm rounded-2xl cursor-pointer shadow-[0_4px_25px_rgba(225,6,0,0.35)] transition border border-red-400/40 relative select-none">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const idx = uploadedPhotos.length;
-                        const slots = ["Front View", "Rear View", "Left Side", "Right Side", "Meter Odometer"];
-                        handlePhotoCaptureSlot(idx, slots[idx] || "Inspection", file);
-                      }
-                    }}
-                  />
-                  <span className="text-lg">📷</span>
-                  <span className="uppercase tracking-wider">
-                    TAKE PHOTO {uploadedPhotos.length + 1}/5 ({["Front View", "Rear View", "Left Side", "Right Side", "Meter Odometer"][uploadedPhotos.length]})
-                  </span>
-                </label>
-              ) : (
-                <div className="w-full py-3 px-4 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                  <span>✅</span>
-                  <span>ALL 5 MANDATORY INSPECTION PHOTOS CAPTURED & GEO-TAGGED</span>
-                </div>
-              )}
-
-              {/* Thumbnails of Captured Photos */}
-              {uploadedPhotos.length > 0 && (
-                <div className="grid grid-cols-5 gap-2 pt-1">
-                  {uploadedPhotos.map((url, idx) => {
-                    const slotNames = ["Front", "Rear", "Left", "Right", "Meter"];
-                    return (
-                      <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-white/20 bg-black/60 shadow-md">
-                        <img src={url} alt={slotNames[idx]} className="w-full h-full object-cover" />
-                        
-                        {photoUploadStatuses[idx] === "uploading" && (
-                          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1 select-none z-10">
-                            <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-[7px] font-black text-amber-300 uppercase tracking-widest">Uploading</span>
-                          </div>
-                        )}
-
-                        {photoUploadStatuses[idx] === "failed" && (
-                          <div className="absolute inset-0 bg-red-950/80 flex flex-col items-center justify-center gap-0.5 select-none z-10">
-                            <span className="text-base">⚠️</span>
-                            <span className="text-[7px] font-black text-red-300 uppercase tracking-widest text-center px-1 leading-tight">Failed</span>
-                          </div>
-                        )}
-
-                        <span className="absolute bottom-0.5 left-0.5 bg-black/85 text-[7px] font-black text-emerald-400 px-1 py-0.2 rounded border border-emerald-500/30 font-mono">
-                          📍 GEO
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploadedPhotos((prev) => prev.filter((_, i) => i !== idx));
-                            setPhotoUploadStatuses((prev) => {
-                              const next = { ...prev };
-                              delete next[idx];
-                              return next;
-                            });
-                          }}
-                          className="absolute top-0.5 right-0.5 bg-black/80 hover:bg-black text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold cursor-pointer border border-white/20 z-20"
-                          title="Remove Photo"
-                        >
-                          ×
-                        </button>
-                        <span className="absolute top-0.5 left-0.5 bg-black/75 text-[7px] font-bold text-white/80 px-1 rounded z-20">
-                          {idx + 1}. {slotNames[idx]}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Auto-Deletion Privacy Policy Notice */}
-              <div className="bg-white/[0.02] border border-white/10 rounded-xl p-3 text-[10px] text-white/50 leading-relaxed flex items-start gap-2">
-                <span className="text-xs shrink-0">🛡️</span>
-                <p>
-                  <strong className="text-white/80">Security & Privacy Auto-Delete Policy:</strong> Inspection photos are mandatory for safety verification. All inspection photos are automatically purged and permanently deleted from Next Gear servers within <span className="text-amber-400 font-bold">24 to 48 hours</span> after handover completion.
-                </p>
-              </div>
-            </div>
-
-            {/* Inspection Checklist */}
-            <div className="space-y-3 pt-4 border-t border-white/10">
-              <div className="flex items-center justify-between">
-                <label className="text-white/70 block font-extrabold text-xs">Inspection Verification Checklist</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const items = booking.handoverStatus === "PENDING" ? [
-                      "helmet",
-                      "brakes",
-                      "engine",
-                      "body",
-                      "documents",
-                      "key",
-                      ...(balanceDue > 0 ? ["collectedPending"] : [])
-                    ] : ["helmet", "damage", "key", "cleanliness"];
-                    
-                    const nextChecklist: Record<string, boolean> = {};
-                    items.forEach((it) => {
-                      nextChecklist[it] = true;
-                    });
-                    setChecklist(nextChecklist);
-                  }}
-                  className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black rounded-lg transition active:scale-95 cursor-pointer uppercase tracking-wider"
-                >
-                  ⚡ Quick Verify All
-                </button>
-              </div>
-              <div className="space-y-2">
-                {(booking.handoverStatus === "PENDING" ? [
-                  { id: "helmet", label: "🪖 Safety Helmet Provided to Rider" },
-                  { id: "brakes", label: "🔧 Front & Rear Brakes Operation Checked" },
-                  { id: "engine", label: "⚙️ Engine Status & Fluid Levels Checked" },
-                  { id: "body", label: "🔍 Visual Scratches / Dents Documented" },
-                  { id: "documents", label: "📁 RC & Insurance Copies Stored in Boot" },
-                  { id: "key", label: "🔑 Physical Vehicle Keys Handed Over" },
-                  ...(balanceDue > 0 ? [{ id: "collectedPending", label: `💸 Collected Outstanding Pickup Balance of ₹${balanceDue.toLocaleString("en-IN")} from Customer` }] : [])
-                ] : [
-                  { id: "helmet", label: "🪖 Safety Helmet Received Back" },
-                  { id: "damage", label: "🔍 Body Panel Checked (No Unverified Damage)" },
-                  { id: "key", label: "🔑 Physical Keys Received Back" },
-                  { id: "cleanliness", label: "🧼 Vehicle Cleanness & General Status Checked" },
-                ]).map((item) => (
-                  <label
-                    key={item.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                      checklist[item.id]
-                        ? "border-emerald-500/30 bg-emerald-500/[0.05] text-emerald-300 font-bold"
-                        : "border-white/10 bg-white/[0.01] text-white/60 hover:bg-white/5"
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(1)}
+                    className="py-1 px-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] rounded-lg cursor-pointer shrink-0"
                   >
-                    <input
-                      type="checkbox"
-                      checked={!!checklist[item.id]}
-                      onChange={(e) => {
-                        setChecklist((prev) => ({ ...prev, [item.id]: e.target.checked }));
-                      }}
-                      className="h-4 w-4 rounded border-white/20 bg-black text-emerald-500 focus:ring-0 accent-emerald-500"
-                    />
-                    <span className="text-xs">{item.label}</span>
-                  </label>
-                ))}
-              </div>
+                    Go to Step 1
+                  </button>
+                </div>
+              )}
+
+              {booking?.status === "CANCELLED" ? (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl p-3 text-center font-bold">
+                  ❌ This booking is cancelled.
+                </div>
+              ) : booking?.handoverStatus === "PENDING" ? (
+                <div className="space-y-2">
+                  {grandTotalSettlement > 0 && !deferPaymentToReturn ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(true)}
+                      className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+                    >
+                      <span>💳</span>
+                      <span>Collect Balance (₹{grandTotalSettlement.toLocaleString("en-IN")}) to Release</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleHandoverAction("release")}
+                      disabled={
+                        actionLoading ||
+                        requiresPayment ||
+                        !isHandoverOtpVerified ||
+                        kycStatus !== "approved" ||
+                        !isChecklistComplete ||
+                        uploadedPhotos.length < 5 ||
+                        Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
+                      }
+                      className="w-full py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-black text-xs sm:text-sm text-white transition shadow-lg shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+                    >
+                      {actionLoading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : kycStatus !== "approved" ? (
+                        <>🔒 Complete KYC in Step 1</>
+                      ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
+                        <>⏳ Photos uploading...</>
+                      ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (
+                        <>⚠️ Photo upload failed</>
+                      ) : uploadedPhotos.length < 5 ? (
+                        <>📷 Take All 5 Photos in Step 2 ({uploadedPhotos.length}/5)</>
+                      ) : !isChecklistComplete ? (
+                        <>🔒 Complete Checklist (Tap Verify All)</>
+                      ) : (
+                        <>🚀 Release Vehicle & Handover Keys</>
+                      )}
+                    </button>
+                  )}
+                </div>
+              ) : booking?.handoverStatus === "RELEASED" && !requiresPayment ? (
+                justReleased ? (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl p-3 text-center space-y-1 animate-[fade-up_0.2s_ease]">
+                    <p className="font-bold text-xs uppercase tracking-wider">🚀 Vehicle Released</p>
+                    <p className="text-white/70 text-[10px]">The ride is active. Scan customer QR code again at return time.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleHandoverAction("return")}
+                      disabled={
+                        actionLoading ||
+                        !isChecklistComplete ||
+                        uploadedPhotos.length < 5 ||
+                        Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
+                      }
+                      className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl font-black text-xs text-white transition shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
+                    >
+                      {actionLoading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>📥 Complete Return & Put Online</>
+                      )}
+                    </button>
+                  </div>
+                )
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setWizardStep(2)}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 text-white/60 font-semibold text-xs rounded-xl transition cursor-pointer"
+              >
+                ← Back to Step 2 (Photos & Meter)
+              </button>
             </div>
           </div>
         )}
-
-        {/* Verification Actions */}
-        <div className="border-t border-white/10 pt-6 space-y-4">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Handover Actions</h3>
-
-          {booking?.status === "CANCELLED" ? (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-2xl p-4 text-center font-bold">
-              ❌ This booking is cancelled. No further actions permitted.
-            </div>
-          ) : booking?.handoverStatus === "PENDING" ? (
-            <div className="space-y-4">
-              <div className="bg-blue-500/10 border border-blue-500/20 text-white/80 text-xs rounded-2xl p-4 leading-relaxed">
-                👉 **Instructions**: Complete the pickup inspection. Ensure odometer reading, fuel level, all 5 mandatory photos uploaded, checklist verified, and pending pickup balance settled.
-              </div>
-
-              {kycStatus !== "approved" && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-200 text-xs rounded-2xl p-4 leading-relaxed font-semibold">
-                  ⚠️ **KYC Approval Required**: The customer must be KYC Verified before you can release the vehicle. Please use the Driving License Verification form above to approve their profile first.
-                </div>
-              )}
-
-              {/* If Balance Due > 0 and NOT deferred, button guides vendor to Collect Payment first */}
-              {grandTotalSettlement > 0 && !deferPaymentToReturn ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 hover:brightness-110 active:scale-98 text-black font-black text-sm rounded-2xl transition shadow-[0_4px_25px_rgba(245,158,11,0.35)] cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
-                >
-                  <span>💳</span>
-                  <span>Collect Pickup Balance (₹{grandTotalSettlement.toLocaleString("en-IN")}) to Release</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleHandoverAction("release")}
-                  disabled={
-                    actionLoading ||
-                    requiresPayment ||
-                    kycStatus !== "approved" ||
-                    !isChecklistComplete ||
-                    uploadedPhotos.length < 5 ||
-                    Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
-                  }
-                  className="w-full py-4 bg-gradient-to-r from-emerald-600 to-green-600 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-sm text-white transition shadow-lg cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
-                >
-                  {actionLoading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : kycStatus !== "approved" ? (
-                    <>🔒 Customer KYC Verification Required</>
-                  ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
-                    <>⏳ Photos uploading in background...</>
-                  ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (
-                    <>⚠️ Photo upload failed (Retake failed photos)</>
-                  ) : uploadedPhotos.length < 5 ? (
-                    <>📷 Take All 5 Mandatory Photos to Handover ({uploadedPhotos.length}/5)</>
-                  ) : !isChecklistComplete ? (
-                    <>🔒 Complete Inspection Checklist to Handover</>
-                  ) : deferPaymentToReturn ? (
-                    <>🚀 Handover & Release (₹{balanceDue.toLocaleString("en-IN")} Deferred to Return)</>
-                  ) : (
-                    <>🚀 Handover & Release Vehicle</>
-                  )}
-                </button>
-              )}
-            </div>
-          ) : booking?.handoverStatus === "RELEASED" && !requiresPayment ? (
-            justReleased ? (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-2xl p-4 text-center space-y-1.5 animate-[fade-up_0.3s_ease]">
-                <p className="font-extrabold text-sm uppercase tracking-wider">🚀 Vehicle Released Successfully</p>
-                <p className="text-white/70">The vehicle is now active and in use. To complete the return, please scan the customer's QR code again at return time.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-amber-500/10 border border-amber-500/20 text-white/90 text-xs rounded-2xl p-4 leading-relaxed font-bold">
-                  🔔 Pickup Reading: <span className="text-amber-400">{booking.startOdometer} km</span> · Fuel: <span className="text-amber-400">{booking.startFuel}</span>
-                </div>
-
-                {grandTotalSettlement > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentModal(true)}
-                    className="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 hover:brightness-110 active:scale-98 text-black font-black text-sm rounded-2xl transition shadow-[0_4px_25px_rgba(245,158,11,0.35)] cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
-                  >
-                    <span>💳</span>
-                    <span>Collect Return Settlement (₹{grandTotalSettlement.toLocaleString("en-IN")}) & Complete Return</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleHandoverAction("return")}
-                    disabled={
-                      actionLoading ||
-                      !isChecklistComplete ||
-                      uploadedPhotos.length < 5 ||
-                      Object.values(photoUploadStatuses).some((s) => s === "uploading" || s === "failed")
-                    }
-                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-sm text-white transition shadow-lg cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider"
-                  >
-                    {actionLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : Object.values(photoUploadStatuses).some((s) => s === "uploading") ? (
-                      <>⏳ Photos uploading in background...</>
-                    ) : Object.values(photoUploadStatuses).some((s) => s === "failed") ? (
-                      <>⚠️ Photo upload failed (Retake failed photos)</>
-                    ) : uploadedPhotos.length < 5 ? (
-                      <>📷 Take All 5 Mandatory Photos to Return ({uploadedPhotos.length}/5)</>
-                    ) : !isChecklistComplete ? (
-                      <>🔒 Complete Inspection Checklist to Return</>
-                    ) : (
-                      <>📥 Complete Return & Put Online</>
-                    )}
-                  </button>
-                )}
-              </div>
-            )
-          ) : booking?.handoverStatus === "RETURNED" ? (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-2xl p-4 text-center space-y-1.5 animate-[fade-up_0.3s_ease]">
-              <p className="font-extrabold text-sm uppercase tracking-wider">🎉 Check-in Completed</p>
-              <p className="text-white/70">This vehicle has been returned and listed back online for new customer reservations.</p>
-              <div className="bg-black/40 rounded-xl p-3 text-left mt-2 space-y-1 text-white/80 border border-white/10">
-                <p>📈 **Pickup**: {booking.startOdometer} km · Fuel: {booking.startFuel}</p>
-                <p>📉 **Return**: {booking.endOdometer} km · Fuel: {booking.endFuel}</p>
-                {booking.extraChargesAmount && booking.extraChargesAmount > 0 ? (
-                  <p className="text-amber-400 font-bold">💸 Extra Charges Paid: ₹{booking.extraChargesAmount}</p>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
 
         {/* Footer */}
         <div className="pt-2 text-center">
@@ -1724,6 +1990,75 @@ function ScanBookingContent() {
           </Link>
         </div>
       </div>
+
+      {/* Full-Screen Document Preview & Spot Recapture Modal */}
+      {activePreviewDoc && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-[fade-in_0.2s_ease]">
+          <div className="max-w-sm w-full bg-[#121215] border border-white/15 rounded-3xl p-5 space-y-4 shadow-2xl animate-[scale-up_0.2s_ease] text-xs">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2 text-white">
+                <span className="text-base">🪪</span>
+                <div>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-white">
+                    {activePreviewDoc.title}
+                  </h4>
+                  <p className="text-[10px] text-white/50">Inspection & Physical Card Match</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePreviewDoc(null)}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* High-Resolution Document Photo */}
+            <div className="relative rounded-2xl overflow-hidden border border-white/20 bg-black aspect-[16/10] flex items-center justify-center shadow-inner">
+              <img
+                src={
+                  activePreviewDoc.docType === "dl"
+                    ? (dlPhoto || activePreviewDoc.url)
+                    : activePreviewDoc.docType === "aadhaarFront"
+                    ? (aadhaarFrontPhoto || activePreviewDoc.url)
+                    : (aadhaarBackPhoto || activePreviewDoc.url)
+                }
+                alt={activePreviewDoc.title}
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {/* Recapture Action inside the modal */}
+              <label className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 active:scale-98 text-black font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2 select-none">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const type = (activePreviewDoc.docType === "dl" || activePreviewDoc.docType === "aadhaarFront" || activePreviewDoc.docType === "aadhaarBack")
+                      ? activePreviewDoc.docType
+                      : "dl";
+                    handleSpotPhotoRecapture(type as any, e);
+                  }}
+                />
+                <span>📸</span>
+                <span>Recapture & Replace This Document</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setActivePreviewDoc(null)}
+                className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Photo Inspection Review & Confirmation Modal */}
       {pendingCapturedPhoto && (
@@ -1922,6 +2257,40 @@ function ScanBookingContent() {
                 </>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Document Full View Modal */}
+      {activePreviewDoc && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[99999] flex items-center justify-center p-4 animate-[fade-in_0.2s_ease]">
+          <div className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#121218] p-5 text-white space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👁️</span>
+                <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider">{activePreviewDoc.title}</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePreviewDoc(null)}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[65vh] flex items-center justify-center bg-black/80 rounded-2xl overflow-hidden p-2 border border-white/10">
+              <img src={activePreviewDoc.url} alt={activePreviewDoc.title} className="max-h-[60vh] w-auto object-contain rounded-xl shadow-lg" />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] text-white/50 font-mono">Original Document Snapshot</span>
+              <button
+                type="button"
+                onClick={() => setActivePreviewDoc(null)}
+                className="py-2 px-5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
       )}

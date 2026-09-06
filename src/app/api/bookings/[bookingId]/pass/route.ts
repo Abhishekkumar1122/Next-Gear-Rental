@@ -80,9 +80,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           endDate: booking.endDate.toISOString().slice(0, 10),
           totalAmountINR: booking.totalAmountINR,
           amountPaid: paidAmount,
-          pickupAddress: booking.vehicle?.vendor?.businessName
-            ? `${booking.vehicle.vendor.businessName}, ${booking.cityName}`
-            : `Next Gear Hub, ${booking.cityName}`,
+          pickupAddress: (() => {
+            const isDoorstep = booking.deliveryMode === "doorstep";
+            const addr = isDoorstep
+              ? (booking.deliveryAddress || booking.vehicle?.pickupAddress || booking.vehicle?.vendor?.garageAddress)
+              : (booking.vehicle?.pickupAddress || booking.vehicle?.vendor?.garageAddress || booking.vehicle?.vendor?.businessName);
+            const lnd = isDoorstep
+              ? (booking.deliveryLandmark || booking.vehicle?.pickupLandmark || booking.vehicle?.vendor?.garageLandmark)
+              : (booking.vehicle?.pickupLandmark || booking.vehicle?.vendor?.garageLandmark);
+            if (addr && addr.trim()) {
+              return `${addr.trim()}${lnd && lnd.trim() ? ` (Near ${lnd.trim()})` : ""}`;
+            }
+            return `Next Gear Hub, ${booking.cityName}`;
+          })(),
         };
       }
     } catch (err) {

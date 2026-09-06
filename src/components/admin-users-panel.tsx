@@ -35,6 +35,11 @@ type UserRecord = {
   vipTier?: VipTier;
   commissionRate?: number;
   createdAt: string;
+  drivingLicenseUrl?: string | null;
+  drivingLicenseNo?: string | null;
+  aadhaarFrontUrl?: string | null;
+  aadhaarFrontNo?: string | null;
+  aadhaarBackUrl?: string | null;
 };
 
 const VENDOR_BLOCK_TEMPLATES = [
@@ -115,6 +120,15 @@ const USER_BLOCK_TEMPLATES = [
   },
 ];
 
+export function formatShortUserId(id: string, role?: string): string {
+  if (!id) return "";
+  const roleUpper = (role || "").toUpperCase();
+  const prefix = roleUpper === "VENDOR" ? "VND" : roleUpper === "ADMIN" ? "ADM" : "USR";
+  const clean = id.replace(/[^a-zA-Z0-9]/g, "");
+  const suffix = clean.slice(-5).toUpperCase();
+  return `${prefix}-${suffix}`;
+}
+
 export function AdminUsersPanel() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +168,7 @@ export function AdminUsersPanel() {
   const [blockingTarget, setBlockingTarget] = useState<UserRecord | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [blockReasonTitle, setBlockReasonTitle] = useState<string>("");
+  const [previewDocModal, setPreviewDocModal] = useState<{ title: string; url: string } | null>(null);
   const [blockCustomMessage, setBlockCustomMessage] = useState<string>("");
   const [submittingBlock, setSubmittingBlock] = useState(false);
 
@@ -364,15 +379,14 @@ export function AdminUsersPanel() {
     setBlockCustomMessage(tpl.message);
   };
 
-  const getRoleColor = (role: UserRecord["role"]) => {
+  const getRoleColor = (role: string) => {
     switch (role) {
       case "ADMIN":
-        return "border-purple-500/30 bg-purple-500/10 text-purple-400";
+        return "bg-purple-950/80 border-purple-500/40 text-purple-300";
       case "VENDOR":
-        return "border-blue-500/30 bg-blue-500/10 text-blue-400";
-      case "USER":
+        return "bg-amber-950/80 border-amber-500/40 text-amber-300";
       default:
-        return "border-white/10 bg-white/5 text-white/70";
+        return "bg-blue-950/80 border-blue-500/40 text-blue-300";
     }
   };
 
@@ -482,13 +496,16 @@ export function AdminUsersPanel() {
                       onClick={() => openDetailModal(user)}
                       className="hover:bg-white/[0.03] transition cursor-pointer group"
                     >
-                      {/* Name */}
+                      {/* Name & Short ID */}
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-white group-hover:text-red-300 transition text-sm">
                           {user.name}
                         </div>
-                        <div className="text-[10px] text-white/40 font-mono mt-0.5 truncate max-w-[180px]">
-                          {user.id}
+                        <div 
+                          className="text-[10px] text-white/50 font-mono font-semibold mt-0.5 tracking-wide flex items-center gap-1 group-hover:text-white/80 transition"
+                          title={`Full UID: ${user.id}`}
+                        >
+                          <span className="text-[var(--brand-red-soft)] font-bold">{formatShortUserId(user.id, user.role)}</span>
                         </div>
                       </td>
 
@@ -709,7 +726,12 @@ export function AdminUsersPanel() {
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                 <p className="text-[10px] font-bold text-white/40 uppercase">Account ID</p>
-                <p className="font-mono text-white/80 truncate mt-0.5">{selectedDetailUser.id}</p>
+                <p className="font-mono text-white font-bold tracking-wide mt-0.5">
+                  {formatShortUserId(selectedDetailUser.id, selectedDetailUser.role)}
+                </p>
+                <p className="text-[9px] font-mono text-white/30 truncate mt-0.5" title={selectedDetailUser.id}>
+                  {selectedDetailUser.id}
+                </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
                 <p className="text-[10px] font-bold text-white/40 uppercase">KYC Status</p>
@@ -769,6 +791,110 @@ export function AdminUsersPanel() {
                 </div>
               </div>
             )}
+
+            {/* Customer KYC Documents Display */}
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <label className="text-xs font-bold text-white">KYC Identity Documents</label>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  selectedDetailUser.drivingLicenseUrl || selectedDetailUser.aadhaarFrontUrl
+                    ? "bg-emerald-950/60 text-emerald-400 border-emerald-500/30"
+                    : "bg-white/5 text-white/50 border-white/10"
+                }`}>
+                  {selectedDetailUser.drivingLicenseUrl || selectedDetailUser.aadhaarFrontUrl ? "✓ Documents Available" : "No Docs Uploaded"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* DL */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2 space-y-1.5">
+                  <p className="text-[10px] font-bold text-white/70 uppercase">Driving License</p>
+                  <div className="h-24 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedDetailUser.drivingLicenseUrl ? (
+                      <>
+                        <img 
+                          src={selectedDetailUser.drivingLicenseUrl} 
+                          alt="DL" 
+                          loading="lazy" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDocModal({ title: `Driving License — ${selectedDetailUser.name}`, url: selectedDetailUser.drivingLicenseUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[9px] text-white/30 italic">Not uploaded</p>
+                    )}
+                  </div>
+                  {selectedDetailUser.drivingLicenseNo && (
+                    <p className="text-[9px] font-mono text-cyan-300 truncate font-bold">{selectedDetailUser.drivingLicenseNo}</p>
+                  )}
+                </div>
+
+                {/* Aadhaar Front */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2 space-y-1.5">
+                  <p className="text-[10px] font-bold text-white/70 uppercase">Aadhaar Front</p>
+                  <div className="h-24 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedDetailUser.aadhaarFrontUrl ? (
+                      <>
+                        <img 
+                          src={selectedDetailUser.aadhaarFrontUrl} 
+                          alt="Aadhaar Front" 
+                          loading="lazy" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDocModal({ title: `Aadhaar Front — ${selectedDetailUser.name}`, url: selectedDetailUser.aadhaarFrontUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[9px] text-white/30 italic">Not uploaded</p>
+                    )}
+                  </div>
+                  {selectedDetailUser.aadhaarFrontNo && (
+                    <p className="text-[9px] font-mono text-amber-300 truncate font-bold">{selectedDetailUser.aadhaarFrontNo}</p>
+                  )}
+                </div>
+
+                {/* Aadhaar Back */}
+                <div className="rounded-xl border border-white/10 bg-black/40 p-2 space-y-1.5">
+                  <p className="text-[10px] font-bold text-white/70 uppercase">Aadhaar Back</p>
+                  <div className="h-24 rounded-lg bg-black/70 border border-white/10 overflow-hidden relative group flex items-center justify-center">
+                    {selectedDetailUser.aadhaarBackUrl ? (
+                      <>
+                        <img 
+                          src={selectedDetailUser.aadhaarBackUrl} 
+                          alt="Aadhaar Back" 
+                          loading="lazy" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDocModal({ title: `Aadhaar Back — ${selectedDetailUser.name}`, url: selectedDetailUser.aadhaarBackUrl! })}
+                          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-[10px] font-bold text-white cursor-pointer"
+                        >
+                          👁️ Inspect
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-[9px] text-white/30 italic">Not uploaded</p>
+                    )}
+                  </div>
+                  <p className="text-[9px] text-white/40">{selectedDetailUser.aadhaarBackUrl ? "Address verified" : "Pending"}</p>
+                </div>
+              </div>
+            </div>
 
             {/* Vendor Commission Split Controller */}
             {selectedDetailUser.role === "VENDOR" && (
@@ -1045,6 +1171,55 @@ export function AdminUsersPanel() {
                 className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold px-5 py-2 cursor-pointer transition shadow-md shadow-emerald-600/30"
               >
                 Approve &amp; Unblock Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin User KYC Inspection Lightbox Modal */}
+      {previewDocModal && (
+        <div 
+          className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setPreviewDocModal(null)}
+        >
+          <div 
+            className="max-w-2xl w-full rounded-2xl border border-white/20 bg-[#0d0d12] p-5 shadow-2xl space-y-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-bold text-white">{previewDocModal.title}</h4>
+              </div>
+              <button 
+                onClick={() => setPreviewDocModal(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-white/10 bg-black/80 flex items-center justify-center max-h-[70vh]">
+              <img 
+                src={previewDocModal.url} 
+                alt="Document Full" 
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <a 
+                href={previewDocModal.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-xs text-sky-400 hover:underline flex items-center gap-1"
+              >
+                <span>↗ Open Original in New Tab</span>
+              </a>
+              <button 
+                onClick={() => setPreviewDocModal(null)}
+                className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close Preview
               </button>
             </div>
           </div>

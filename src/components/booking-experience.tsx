@@ -1281,7 +1281,7 @@ export function BookingExperience({
         errors.push("Valid 10-digit Phone Number is required.");
       }
 
-      if (!isDigiLockerVerified) {
+      if (!isDigiLockerVerified && !is6MonthKycVerified) {
         if (verificationMode === "digilocker") {
           errors.push("DigiLocker verification is not completed (or select Manual Upload).");
         } else {
@@ -1346,6 +1346,9 @@ export function BookingExperience({
           phone: cleanPhone.slice(-10),
           drivingLicenseNo,
           governmentIdNo,
+          drivingLicenseUrl: uploadedDocMeta.dl?.fileUrl || undefined,
+          aadhaarFrontUrl: uploadedDocMeta.gov?.fileUrl || undefined,
+          aadhaarBackUrl: uploadedDocMeta.govBack?.fileUrl || undefined,
           drivingLicenseFileName: drivingLicenseFile?.name || "dl_verified.pdf",
           governmentIdFileName: governmentIdFile?.name || "gov_verified.pdf",
           governmentIdBackFileName: governmentIdBackFile?.name || "gov_back_verified.pdf",
@@ -2407,9 +2410,10 @@ export function BookingExperience({
                 </div>
               )}
 
-            {/* DigiLocker Banner Section */}
-            <div className="col-span-1 md:col-span-2">
-              <style>{`
+            {/* DigiLocker & Manual Document Uploads (Hidden for 6-Month Fast-Track Verified Customers) */}
+            {!is6MonthKycVerified && (
+              <div className="col-span-1 md:col-span-2">
+                <style>{`
                 @keyframes scanSweep {
                   0% { transform: translateY(0); opacity: 0.8; }
                   50% { transform: translateY(120px); opacity: 0.9; }
@@ -2756,7 +2760,8 @@ export function BookingExperience({
                   </button>
                 </div>
               )}
-            </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-white/60 uppercase">Full Name</label>

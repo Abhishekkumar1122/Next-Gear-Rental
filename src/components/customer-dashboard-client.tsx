@@ -30,10 +30,18 @@ import {
   ShieldCheck,
   AlertTriangle,
   Menu,
-  CheckCircle2
+  CheckCircle2,
+  Crown,
+  Sparkles,
+  Trophy,
+  Gem,
+  Shield,
+  Star,
+  Award
 } from "lucide-react";
 import NotificationBell from "./notification-bell";
 import { downloadOfflinePass } from "@/lib/booking-pass-downloader";
+import { type UserVipDetails, VIP_TIER_CONFIGS, type VipTier } from "@/lib/user-vip-store";
 
 type Booking = {
   id: string;
@@ -65,6 +73,7 @@ type CustomerDashboardClientProps = {
   isBlocked?: boolean;
   blockReason?: string;
   blockCustomMessage?: string;
+  initialVipDetails?: UserVipDetails | null;
 };
 
 export function CustomerDashboardClient({
@@ -76,8 +85,14 @@ export function CustomerDashboardClient({
   isBlocked = false,
   blockReason,
   blockCustomMessage,
+  initialVipDetails = null,
 }: CustomerDashboardClientProps) {
   const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [vipDetails, setVipDetails] = useState<UserVipDetails | null>(initialVipDetails || null);
+  const [purchasingPlan, setPurchasingPlan] = useState<"monthly" | "yearly">("monthly");
+  const [activatingPass, setActivatingPass] = useState(false);
+  const [passToast, setPassToast] = useState<string | null>(null);
+  const [selectedPerkViewTier, setSelectedPerkViewTier] = useState<VipTier>(initialVipDetails?.tier || "PLATINUM");
   const [activeTab, setActiveTab] = useState<"overview" | "bookings" | "payments" | "kyc">("overview");
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isDistanceModalOpen, setIsDistanceModalOpen] = useState(false);
@@ -91,19 +106,43 @@ export function CustomerDashboardClient({
   const [referralEarned, setReferralEarned] = useState(0);
   const [referralCount, setReferralCount] = useState(0);
 
-  // Fetch KYC status
+  // Fetch KYC status (6-Month Fast-Track & Automation)
   useEffect(() => {
-    const kycParam = email && !email.endsWith("@guest.next-gear.app") ? `email=${encodeURIComponent(email)}` : (phone ? `phone=${encodeURIComponent(phone)}` : "");
-    if (!kycParam) return;
-    fetch(`/api/kyc?${kycParam}`)
+    const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+    const cleanEmail = email && !email.endsWith("@guest.next-gear.app") ? email : "";
+
+    if (!cleanPhone && !cleanEmail) return;
+
+    // 1. Check 6-Month Fast-Track KYC status first
+    const statusUrl = cleanPhone
+      ? `/api/kyc/customer-status?phone=${encodeURIComponent(cleanPhone)}&email=${encodeURIComponent(cleanEmail)}`
+      : `/api/kyc/customer-status?email=${encodeURIComponent(cleanEmail)}`;
+
+    fetch(statusUrl)
       .then((res) => res.json())
-      .then((data) => {
-        const entries = data.entries ?? [];
-        if (entries.length > 0) {
-          const status = entries[0].status; // "approved" | "review" | "rejected"
-          if (status === "approved") setKycStatus("Verified");
-          else if (status === "review") setKycStatus("In Review");
-          else if (status === "rejected") setKycStatus("Rejected");
+      .then((statusData) => {
+        if (statusData && statusData.isVerified) {
+          setKycStatus("Verified");
+          return;
+        }
+
+        // 2. Fallback to /api/kyc entries
+        const kycParam = cleanEmail
+          ? `email=${encodeURIComponent(cleanEmail)}`
+          : (cleanPhone ? `phone=${encodeURIComponent(cleanPhone)}` : "");
+        if (kycParam) {
+          fetch(`/api/kyc?${kycParam}`)
+            .then((res) => res.json())
+            .then((data) => {
+              const entries = data.entries ?? [];
+              if (entries.length > 0) {
+                const status = entries[0].status; // "approved" | "review" | "rejected"
+                if (status === "approved") setKycStatus("Verified");
+                else if (status === "review") setKycStatus("In Review");
+                else if (status === "rejected") setKycStatus("Rejected");
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch((err) => console.error("Error fetching KYC status:", err));
@@ -124,6 +163,45 @@ export function CustomerDashboardClient({
       })
       .catch((err) => console.error("Error fetching referral:", err));
   }, [email, phone]);
+
+  // Fetch VIP status if not initially provided
+  useEffect(() => {
+    if (!initialVipDetails) {
+      fetch("/api/user/vip")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.vipDetails) {
+            setVipDetails(data.vipDetails);
+            setSelectedPerkViewTier(data.vipDetails.tier);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [initialVipDetails]);
+
+  const handleActivatePlatinum = async () => {
+    try {
+      setActivatingPass(true);
+      const res = await fetch("/api/user/vip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: purchasingPlan }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.vipDetails) {
+        setVipDetails(data.vipDetails);
+        setSelectedPerkViewTier("PLATINUM");
+        setPassToast(data.message || "🎉 Platinum VIP Pass activated successfully!");
+        setTimeout(() => setPassToast(null), 6000);
+      } else {
+        alert(data?.error || "Failed to activate pass");
+      }
+    } catch (e) {
+      alert("Error activating Platinum Pass");
+    } finally {
+      setActivatingPass(false);
+    }
+  };
 
   // Format Currency
   const formatCurrency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
@@ -243,38 +321,45 @@ export function CustomerDashboardClient({
   };
 
   const totalBookingsCount = initialBookings.length;
+  const currentTier = vipDetails?.tier || "BRONZE";
   const riderClub = useMemo(() => {
-    if (totalBookingsCount === 0) return "Rookie Rider";
-    if (totalBookingsCount <= 2) return "Bronze Rider";
-    if (totalBookingsCount <= 5) return "Silver Rider";
-    return "Gold Rider";
-  }, [totalBookingsCount]);
+    switch (currentTier) {
+      case "PLATINUM":
+        return "Platinum VIP";
+      case "GOLD":
+        return "Gold VIP";
+      case "SILVER":
+        return "Silver VIP";
+      default:
+        return "Bronze Rider";
+    }
+  }, [currentTier]);
 
   const riderClubColorClass = useMemo(() => {
-    switch (riderClub) {
-      case "Gold Rider":
+    switch (currentTier) {
+      case "PLATINUM":
+        return "bg-gradient-to-r from-purple-300 via-pink-300 to-indigo-300 bg-clip-text text-transparent drop-shadow-[0_2px_10px_rgba(168,85,247,0.4)]";
+      case "GOLD":
         return "bg-gradient-to-r from-[#FFE57F] via-[#FFD700] to-[#FFA000] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(255,215,0,0.35)]";
-      case "Silver Rider":
+      case "SILVER":
         return "bg-gradient-to-r from-[#E0E0E0] via-[#F5F5F5] to-[#9E9E9E] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(255,255,255,0.15)]";
-      case "Bronze Rider":
-        return "bg-gradient-to-r from-[#D7CCC8] via-[#B0BEC5] to-[#8D6E63] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(141,110,99,0.15)]";
       default:
-        return "text-white/80";
+        return "bg-gradient-to-r from-[#D7CCC8] via-[#B0BEC5] to-[#8D6E63] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(141,110,99,0.15)]";
     }
-  }, [riderClub]);
+  }, [currentTier]);
 
   const riderClubCardClass = useMemo(() => {
-    switch (riderClub) {
-      case "Gold Rider":
+    switch (currentTier) {
+      case "PLATINUM":
+        return "border-purple-500/40 bg-gradient-to-br from-purple-950/30 via-[var(--brand-ink)] to-pink-950/20 hover:border-purple-500/70 hover:shadow-[0_0_30px_rgba(168,85,247,0.3)]";
+      case "GOLD":
         return "border-[#FFD700]/30 bg-gradient-to-br from-[#FFD700]/10 via-[var(--brand-ink)] to-[#FFA000]/5 hover:border-[#FFD700]/60 hover:shadow-[0_0_30px_rgba(255,215,0,0.25)]";
-      case "Silver Rider":
+      case "SILVER":
         return "border-[#C0C0C0]/20 bg-gradient-to-br from-[#C0C0C0]/5 via-[var(--brand-ink)] to-white/[0.02] hover:border-[#C0C0C0]/50 hover:shadow-[0_0_30px_rgba(192,192,192,0.15)]";
-      case "Bronze Rider":
-        return "border-[#CD7F32]/20 bg-gradient-to-br from-[#CD7F32]/5 via-[var(--brand-ink)] to-white/[0.02] hover:border-[#CD7F32]/50 hover:shadow-[0_0_30px_rgba(205,127,50,0.15)]";
       default:
-        return "border-white/10 bg-gradient-to-br from-white/[0.08] via-white/[0.02] to-[var(--brand-red)]/[0.04] hover:border-[var(--brand-red)]/30 hover:shadow-[0_0_30px_rgba(225,29,72,0.15)]";
+        return "border-[#CD7F32]/20 bg-gradient-to-br from-[#CD7F32]/5 via-[var(--brand-ink)] to-white/[0.02] hover:border-[#CD7F32]/50 hover:shadow-[0_0_30px_rgba(205,127,50,0.15)]";
     }
-  }, [riderClub]);
+  }, [currentTier]);
 
   const getBookingDistance = (b: Booking | any) => {
     if (b.endOdometer !== null && b.endOdometer !== undefined && b.startOdometer !== null && b.startOdometer !== undefined) {
@@ -768,7 +853,7 @@ export function CustomerDashboardClient({
           {activeTab === "kyc" && (
             <div className="bg-white/5 text-white p-5 sm:p-6 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-md space-y-8">
               <div>
-                <CustomerKycAutomationPanel userEmail={email} defaultName={name} />
+                <CustomerKycAutomationPanel userEmail={email} userPhone={phone} defaultName={name} />
               </div>
 
               <div className="border-t border-white/10 pt-6">
@@ -991,118 +1076,251 @@ export function CustomerDashboardClient({
         </div>
       )}
 
-      {/* Rider Club Benefits Modal */}
+      {/* Toast Notification */}
+      {passToast && (
+        <div className="fixed bottom-20 sm:bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/95 to-indigo-950/95 text-white text-xs font-bold shadow-2xl animate-in slide-in-from-bottom-5 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+          <span>{passToast}</span>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────────
+          VIP LOYALTY CLUB & PASS MODAL
+         ───────────────────────────────────────────────────────────────────────── */}
       {isRiderClubModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-[fade-in_0.2s_ease_forwards]">
-          <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-[var(--brand-ink)] p-6 shadow-2xl space-y-4 text-white text-left animate-[scale-up_0.2s_ease_forwards]">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2">
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white">Club Membership Perks</h3>
-                <p className="text-[10px] text-white/50 mt-0.5">Your status: {riderClub}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-[fade-in_0.2s_ease_forwards]">
+          <div className="w-full max-w-xl rounded-3xl border border-white/15 bg-gradient-to-b from-[#161622] via-[#0d0d14] to-[#07070a] p-6 shadow-2xl space-y-5 text-white text-left animate-[scale-up_0.2s_ease_forwards] max-h-[90vh] overflow-y-auto no-scrollbar">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-purple-500/20 to-pink-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 text-xl shadow-lg">
+                  👑
+                </div>
+                <div>
+                  <h3 className="text-base font-black uppercase tracking-wider text-white flex items-center gap-2">
+                    <span>VIP Loyalty Club &amp; Passes</span>
+                  </h3>
+                  <p className="text-[11px] text-white/50 mt-0.5">
+                    Unlock flat discounts, zero security deposit &amp; priority perks
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setIsRiderClubModalOpen(false)}
-                className="text-slate-400 hover:text-white transition cursor-pointer bg-transparent border-0 p-1"
+                className="p-1.5 rounded-xl border border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition cursor-pointer"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Tier Indicator Display */}
-            <div className={`text-center py-4 rounded-xl border ${
-              riderClub === "Gold Rider" 
-                ? "border-[#FFD700]/30 bg-[#FFD700]/5 text-[#FFD700]"
-                : riderClub === "Silver Rider"
-                  ? "border-[#C0C0C0]/20 bg-[#C0C0C0]/5 text-[#C0C0C0]"
-                  : riderClub === "Bronze Rider"
-                    ? "border-[#CD7F32]/20 bg-[#CD7F32]/5 text-[#CD7F32]"
-                    : "border-white/10 bg-white/5 text-white/60"
+            {/* Active Status & Progression Banner */}
+            <div className={`p-4 rounded-2xl border ${
+              currentTier === "PLATINUM"
+                ? "border-purple-500/50 bg-gradient-to-r from-purple-950/40 via-pink-950/20 to-indigo-950/30"
+                : currentTier === "GOLD"
+                  ? "border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-zinc-950"
+                  : currentTier === "SILVER"
+                    ? "border-cyan-500/40 bg-gradient-to-r from-cyan-950/40 via-slate-900 to-zinc-950"
+                    : "border-zinc-800 bg-zinc-900/60"
             }`}>
-              <span className="text-[9px] uppercase font-black tracking-widest text-white/50 block">Active Status</span>
-              <p className="text-xl font-black mt-1">{riderClub}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Current Membership</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xl font-black text-white">{VIP_TIER_CONFIGS[currentTier].label}</span>
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                      currentTier === "PLATINUM"
+                        ? "bg-purple-950 border-purple-500/40 text-purple-300"
+                        : currentTier === "GOLD"
+                          ? "bg-amber-950 border-amber-500/40 text-amber-300"
+                          : currentTier === "SILVER"
+                            ? "bg-cyan-950 border-cyan-500/40 text-cyan-300"
+                            : "bg-zinc-800 border-zinc-700 text-zinc-300"
+                    }`}>
+                      {vipDetails?.source === "admin_override"
+                        ? "🛡️ Admin Verified"
+                        : vipDetails?.source === "purchased_pass"
+                          ? "💎 Sovereign Pass"
+                          : `${vipDetails?.completedRides || 0} Trips Completed`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-2xl font-black text-white">
+                    {VIP_TIER_CONFIGS[currentTier].discountPercent}%
+                  </span>
+                  <p className="text-[9px] uppercase font-bold text-white/40">Rental Discount</p>
+                </div>
+              </div>
+
+              {/* Progression Bar to Next Tier if not Platinum */}
+              {currentTier !== "PLATINUM" && vipDetails?.nextTier && (
+                <div className="mt-3.5 pt-3 border-t border-white/10 space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold">
+                    <span className="text-white/60">
+                      Progress to {VIP_TIER_CONFIGS[vipDetails.nextTier].label}
+                    </span>
+                    <span className="text-amber-300 font-mono">
+                      {vipDetails.ridesUntilNextTier} more {vipDetails.ridesUntilNextTier === 1 ? "trip" : "trips"} needed
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-black/60 overflow-hidden p-0.5 border border-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, Math.round(((vipDetails.completedRides || 0) / (VIP_TIER_CONFIGS[vipDetails.nextTier].minRides || 1)) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Perks List */}
-            <div className="space-y-3 pt-1">
-              <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Your Exclusive Benefits:</p>
-              <div className="space-y-2.5">
-                {riderClub === "Gold Rider" && (
-                  <>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#FFD700]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Flat 15% Off</strong> on all rides automatically applied.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#FFD700]">✦</span>
-                      <p className="font-medium text-white/90"><strong>24/7 Priority Hotline</strong> for direct call support.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#FFD700]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Zero Helmet Fees</strong> and half-price damage waiver charges.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#FFD700]">✦</span>
-                      <p className="font-medium text-white/90"><strong>VIP Express Handover</strong>: Priority scans at showrooms.</p>
-                    </div>
-                  </>
-                )}
-                {riderClub === "Silver Rider" && (
-                  <>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#C0C0C0]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Flat 10% Off</strong> on all standard bookings.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#C0C0C0]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Fast-Track Chat desk</strong> to resolve support queries.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#C0C0C0]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Free Helmet Waiver</strong>: Basic helmet charge waived.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#C0C0C0]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Priority Booking slots</strong> in peak seasons.</p>
-                    </div>
-                  </>
-                )}
-                {riderClub === "Bronze Rider" && (
-                  <>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#CD7F32]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Flat 5% Off</strong> on all reservations.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#CD7F32]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Standard Chat Support</strong> desk access.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs">
-                      <span className="text-[#CD7F32]">✦</span>
-                      <p className="font-medium text-white/90"><strong>Free Road-side assistance</strong> for emergency swaps.</p>
-                    </div>
-                  </>
-                )}
-                {riderClub === "Rookie Rider" && (
-                  <>
-                    <div className="flex items-start gap-2.5 text-xs text-white/70">
-                      <span className="text-white/40">✦</span>
-                      <p className="font-medium">Welcome to Next Gear! Reserve your first ride to level up.</p>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-xs text-white/70">
-                      <span className="text-white/40">✦</span>
-                      <p className="font-medium">Unlock <strong>Bronze Status</strong> (5% flat discounts) at 1 booking.</p>
-                    </div>
-                  </>
-                )}
+            {/* 4-Tier Interactive Selector */}
+            <div>
+              <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider mb-2">Explore All 4 Tiers &amp; Perks:</p>
+              <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-black/50 border border-white/10 text-[11px] font-black">
+                {(["BRONZE", "SILVER", "GOLD", "PLATINUM"] as VipTier[]).map((t) => {
+                  const isSelected = selectedPerkViewTier === t;
+                  const isUserActive = currentTier === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setSelectedPerkViewTier(t)}
+                      className={`py-2 px-1 rounded-xl text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 relative ${
+                        isSelected
+                          ? "bg-white/15 text-white border border-white/25 shadow-md"
+                          : "text-white/50 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <span>{t === "BRONZE" ? "🥉" : t === "SILVER" ? "🥈" : t === "GOLD" ? "🥇" : "💎"}</span>
+                      <span className="text-[10px]">{t}</span>
+                      {isUserActive && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
+            {/* Selected Tier Perks Card */}
+            {(() => {
+              const cfg = VIP_TIER_CONFIGS[selectedPerkViewTier];
+              return (
+                <div className={`p-4 rounded-2xl border ${cfg.borderColor} bg-gradient-to-br ${cfg.colorGradient} space-y-2.5`}>
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-white">{cfg.label}</span>
+                      <span className="text-[9px] uppercase px-2 py-0.5 rounded-full bg-white/10 font-bold text-white/80">
+                        {cfg.minRides === 0
+                          ? "Default (0-2 Trips)"
+                          : cfg.minRides === 20
+                            ? "20+ Trips or Instant Pass"
+                            : `${cfg.minRides}+ Trips`}
+                      </span>
+                    </div>
+                    <span className="text-xs font-black text-emerald-400">
+                      {cfg.discountPercent > 0 ? `${cfg.discountPercent}% OFF Trips` : "Standard Rates"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.discountPercent > 0 ? "text-emerald-400" : "text-white/40"}>✦</span>
+                      <span><strong>{cfg.discountPercent}% Flat Discount</strong> on all rentals</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.zeroDeposit ? "text-emerald-400" : "text-white/40"}>✦</span>
+                      <span>{cfg.zeroDeposit ? <strong>₹0 Security Deposit Required</strong> : "Standard Security Deposit"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.freeDelivery ? "text-emerald-400" : "text-white/40"}>✦</span>
+                      <span>{cfg.freeDelivery ? <strong>100% Free Doorstep Delivery</strong> : cfg.tier === "SILVER" ? "50% Off Doorstep Delivery" : "Standard Delivery Fee"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.freeExtraHelmet ? "text-emerald-400" : "text-white/40"}>✦</span>
+                      <span>{cfg.freeExtraHelmet ? <strong>Free Extra Helmet Included</strong> : "Standard Helmet Rates"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.prioritySupport ? "text-emerald-400" : "text-white/40"}>✦</span>
+                      <span>{cfg.prioritySupport ? <strong>24/7 Priority Hotline &amp; Desk</strong> : "Standard Help Center"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/90">
+                      <span className={cfg.freeUpgrade ? "text-purple-400" : "text-white/40"}>✦</span>
+                      <span>{cfg.freeUpgrade ? <strong>Guaranteed Free Vehicle Upgrade</strong> : "Standard Model Lock"}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Instant Platinum Pass Upgrade Card */}
+            {currentTier !== "PLATINUM" && (
+              <div className="p-4 rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-950/50 via-indigo-950/40 to-black/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">💎</span>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-purple-200">
+                        Get Instant Platinum VIP Pass
+                      </h4>
+                      <p className="text-[10px] text-white/60">
+                        Skip the trip milestones — unlock 15% flat off &amp; zero deposit today!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Plan Options */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    onClick={() => setPurchasingPlan("monthly")}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      purchasingPlan === "monthly"
+                        ? "border-purple-500 bg-purple-950/60 text-white"
+                        : "border-white/10 bg-white/5 text-white/60 hover:text-white"
+                    }`}
+                  >
+                    <p className="text-[10px] uppercase font-bold text-purple-300">Monthly Pass</p>
+                    <p className="text-base font-black text-white mt-0.5">₹999 <span className="text-[10px] font-normal text-white/50">/ month</span></p>
+                  </button>
+
+                  <button
+                    onClick={() => setPurchasingPlan("yearly")}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer relative ${
+                      purchasingPlan === "yearly"
+                        ? "border-amber-500 bg-amber-950/40 text-white"
+                        : "border-white/10 bg-white/5 text-white/60 hover:text-white"
+                    }`}
+                  >
+                    <span className="absolute -top-2 right-2 text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 text-black">
+                      Save 75%
+                    </span>
+                    <p className="text-[10px] uppercase font-bold text-amber-300">Annual Sovereign</p>
+                    <p className="text-base font-black text-white mt-0.5">₹2,999 <span className="text-[10px] font-normal text-white/50">/ year</span></p>
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleActivatePlatinum}
+                  disabled={activatingPass}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-purple-600/30 transition cursor-pointer disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{activatingPass ? "Activating..." : `Activate ${purchasingPlan === "yearly" ? "Annual" : "Monthly"} Platinum Pass ⚡`}</span>
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => setIsRiderClubModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--brand-red)] to-[#ff4d4d] text-xs font-bold text-white hover:brightness-110 active:scale-95 transition cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition cursor-pointer"
             >
-              Awesome
+              Close
             </button>
           </div>
         </div>
@@ -1282,13 +1500,15 @@ export function CustomerDashboardClient({
                   <p className="font-bold text-sm text-white truncate capitalize">{name}</p>
                   <p className="text-[10px] text-white/50 truncate mt-0.5">{email}</p>
                   <span className={`inline-block text-[8px] font-black uppercase tracking-wider mt-1 px-2 py-0.5 rounded-full ${
-                    riderClub === "Gold Rider"
-                      ? "bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/20"
-                      : riderClub === "Silver Rider"
-                        ? "bg-[#C0C0C0]/10 text-[#C0C0C0] border border-[#C0C0C0]/20"
-                        : riderClub === "Bronze Rider"
-                          ? "bg-[#CD7F32]/10 text-[#CD7F32] border border-[#CD7F32]/20"
-                          : "bg-white/5 text-white/50 border border-white/10"
+                    riderClub === "Platinum VIP"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      : riderClub === "Gold VIP"
+                        ? "bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/20"
+                        : riderClub === "Silver VIP"
+                          ? "bg-[#C0C0C0]/10 text-[#C0C0C0] border border-[#C0C0C0]/20"
+                          : riderClub === "Bronze Rider"
+                            ? "bg-[#CD7F32]/10 text-[#CD7F32] border border-[#CD7F32]/20"
+                            : "bg-white/5 text-white/50 border border-white/10"
                   }`}>
                     {riderClub}
                   </span>

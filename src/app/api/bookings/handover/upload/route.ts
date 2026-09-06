@@ -27,19 +27,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Image size must be 5MB or smaller" }, { status: 400 });
     }
 
-    const fileName = `handover-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const upload = await uploadBufferToCloudinary({
-      buffer,
-      folder: "nextgear/handovers",
-      resourceType: "image",
-      publicId: fileName,
-    });
+    try {
+      const fileName = `handover-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const upload = await uploadBufferToCloudinary({
+        buffer,
+        folder: "nextgear/handovers",
+        resourceType: "image",
+        publicId: fileName,
+      });
 
-    return NextResponse.json({ imageUrl: upload.url }, { status: 201 });
+      return NextResponse.json({ imageUrl: upload.url }, { status: 201 });
+    } catch (uploadErr) {
+      console.warn("Cloudinary upload failed, falling back to data URL:", uploadErr);
+      // Graceful fallback to data URL so vendor handover is never blocked by external storage outages
+      return NextResponse.json({ imageUrl: image, fallback: true }, { status: 200 });
+    }
   } catch (error) {
     console.error("Handover upload API error:", error);
     return NextResponse.json(
-      { error: "Failed to upload photo to storage", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to process photo", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
