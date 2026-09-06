@@ -112,6 +112,7 @@ function ScanBookingContent() {
   const [activePreviewDoc, setActivePreviewDoc] = useState<{ title: string; url: string; docType: string } | null>(null);
   const [activeDocTab, setActiveDocTab] = useState<"dl" | "aadhaarFront" | "aadhaarBack" | "all">("all");
   const [showOtpDrawer, setShowOtpDrawer] = useState(false);
+  const [showVipDocDrawer, setShowVipDocDrawer] = useState(false);
 
   const handleSendHandoverOtp = async () => {
     if (!bookingId || !booking?.customerPhone) return;
@@ -358,12 +359,14 @@ function ScanBookingContent() {
         }
 
         // Cross-reference customer live 6-month KYC profile
+        let isCustomerKycApproved = data.booking.kycStatus === "approved";
         if (data.booking.customerPhone) {
           try {
             const kycRes = await fetch(`/api/kyc/customer-status?phone=${encodeURIComponent(data.booking.customerPhone)}`);
             if (kycRes.ok) {
               const kycData = await kycRes.json();
               if (kycData.isVerified) {
+                isCustomerKycApproved = true;
                 setKycStatus("approved");
                 setKycExpiresAt(kycData.expiresAt);
                 setMatchedDocs({ dl: true, aadhaarFront: true, aadhaarBack: true });
@@ -382,7 +385,13 @@ function ScanBookingContent() {
           setFuel(data.booking.endFuel ?? "Full");
           setUploadedPhotos(data.booking.endPhotos ?? []);
         } else {
-          setIsHandoverOtpVerified(false);
+          if (isCustomerKycApproved) {
+            setIsHandoverOtpVerified(true);
+            setWizardStep(2);
+          } else {
+            setIsHandoverOtpVerified(false);
+            setWizardStep(1);
+          }
           setOdometer(data.booking.startOdometer ? String(data.booking.startOdometer) : "");
           setFuel(data.booking.startFuel ?? "Full");
           setUploadedPhotos(data.booking.startPhotos ?? []);
@@ -917,7 +926,6 @@ function ScanBookingContent() {
                 </p>
               </div>
             </div>
-
             {booking?.customerPhone && (
               <a
                 href={`tel:${booking.customerPhone}`}
@@ -930,117 +938,56 @@ function ScanBookingContent() {
           </div>
         </div>
 
-        {/* iOS Native 3-Step Segmented Control */}
-        <div className="grid grid-cols-3 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
-          <button
-            type="button"
-            onClick={() => setWizardStep(1)}
-            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-              wizardStep === 1
-                ? "bg-white text-black font-black shadow-sm"
-                : isHandoverOtpVerified
-                ? "text-emerald-400 hover:text-emerald-300"
-                : "text-white/60 hover:text-white"
-            }`}
-          >
-            <span>{isHandoverOtpVerified ? "✓" : "1."}</span>
-            <span>KYC ID</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={!isHandoverOtpVerified}
-            onClick={() => {
-              if (isHandoverOtpVerified) setWizardStep(2);
-            }}
-            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-              wizardStep === 2
-                ? "bg-white text-black font-black shadow-sm"
-                : !isHandoverOtpVerified
-                ? "text-white/30 cursor-not-allowed opacity-50"
-                : uploadedPhotos.length >= 5 && odometer
-                ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                : "text-white/70 hover:text-white cursor-pointer"
-            }`}
-          >
-            <span>
-              {!isHandoverOtpVerified
-                ? "🔒"
-                : uploadedPhotos.length >= 5 && odometer
-                ? "✓"
-                : "2."}
-            </span>
-            <span>Bike Check</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5}
-            onClick={() => {
-              if (isHandoverOtpVerified && odometer && uploadedPhotos.length >= 5) setWizardStep(3);
-            }}
-            className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-              wizardStep === 3
-                ? "bg-white text-black font-black shadow-sm"
-                : booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
-                ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
-                ? "text-white/30 cursor-not-allowed opacity-50"
-                : "text-white/70 hover:text-white cursor-pointer"
-            }`}
-          >
-            <span>
-              {booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
-                ? "✓"
-                : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
-                ? "🔒"
-                : "3."}
-            </span>
-            <span>Handover</span>
-          </button>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 🌟 STEP 1: PHYSICAL ID CROSS-CHECK & 6-MONTH FAST-TRACK KYC               */}
-        {/* ========================================================================= */}
-        {wizardStep === 1 && (
-          <div className="space-y-3 animate-[fade-up_0.2s_ease]">
-            {kycStatus === "approved" ? (
-              /* ============================================================ */
-              /* SCENARIO A: CUSTOMER IS ALREADY VERIFIED (CLEAN VIP CARD)    */
-              /* ============================================================ */
-              <div className="bg-[#121215] border border-emerald-500/30 rounded-2xl p-5 text-center space-y-4 shadow-xl">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/50 mx-auto flex items-center justify-center text-xl text-emerald-400">
+        {/* 👑 Fast-Track VIP Clearance Banner for Approved Repeat Customers */}
+        {kycStatus === "approved" && (
+          <div className="bg-gradient-to-r from-emerald-950/70 via-neutral-900 to-[#121215] border border-emerald-500/40 rounded-2xl p-4 space-y-3 shadow-lg shadow-emerald-950/30 animate-[fade-up_0.2s_ease]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-lg text-emerald-400 font-bold shrink-0">
                   ✓
                 </div>
-                
-                <div className="space-y-1">
-                  <span className="inline-block text-[9px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                    👑 6-Month Fast-Track VIP Active
-                  </span>
-                  <h4 className="text-sm sm:text-base font-bold text-white pt-1">
-                    Customer Identity Cleared
-                  </h4>
-                  <p className="text-[11px] text-white/60 max-w-xs mx-auto leading-relaxed">
-                    <strong className="text-white">{booking?.customerName}</strong> is verified for express key handover. Zero document uploads required.
-                  </p>
-                </div>
-
-                {/* DL & Aadhaar Quick Summary Pills */}
-                <div className="grid grid-cols-2 gap-2 text-left text-xs pt-1">
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/50">Driving License</span>
-                      <span className="text-emerald-400 font-bold text-[10px]">✓ Matched</span>
-                    </div>
-                    <span className="font-mono font-bold text-white text-[11px] mt-0.5 block truncate">
-                      {dlNumber || (booking as any)?.drivingLicenseNo || "Verified DL"}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-white tracking-wide">
+                      KYC Approved User
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                      👑 6-Month VIP Active
                     </span>
                   </div>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-white/50">Aadhaar Card</span>
-                      <span className="text-emerald-400 font-bold text-[10px]">✓ Matched</span>
+                  <p className="text-[10.5px] text-white/60 mt-0.5">
+                    Express Handover Clearance • Step 1 Bypassed
+                  </p>
+                </div>
+              </div>
+
+              {/* View / Recapture Docs Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowVipDocDrawer(!showVipDocDrawer)}
+                className="px-2.5 py-1.5 bg-white/10 hover:bg-white/15 active:scale-95 border border-white/15 rounded-xl text-[10px] font-bold text-white transition flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <span>{showVipDocDrawer ? "Hide Docs ▲" : "View Docs ▼"}</span>
+              </button>
+            </div>
+
+            {/* Collapsible Document Photo Drawer & Recapture */}
+            {showVipDocDrawer && (
+              <div className="space-y-2.5 pt-2 border-t border-white/10 animate-[fade-up_0.2s_ease]">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-black/50 border border-white/10 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Driving License</span>
+                      <span className="text-emerald-400 font-bold">✓ Verified</span>
+                    </div>
+                    <span className="font-mono font-bold text-white text-[11px] mt-0.5 block truncate">
+                      {dlNumber || (booking as any)?.drivingLicenseNo || "DL on Record"}
+                    </span>
+                  </div>
+                  <div className="bg-black/50 border border-white/10 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-white/50">Aadhaar Card</span>
+                      <span className="text-emerald-400 font-bold">✓ Verified</span>
                     </div>
                     <span className="font-mono font-bold text-white text-[11px] mt-0.5 block">
                       Physical ID Matched
@@ -1048,208 +995,179 @@ function ScanBookingContent() {
                   </div>
                 </div>
 
-                {/* Collapsible Document Photo Drawer & Recapture */}
-                <div className="pt-1">
-                  <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setActiveDocTab(activeDocTab === "all" ? "dl" : "all")}
-                      className="text-[11px] text-white/50 hover:text-white font-medium underline transition cursor-pointer flex items-center gap-1"
-                    >
-                      <span>{activeDocTab === "all" ? "Hide Uploaded Photos ▲" : "Preview / Recapture Stored Photos (3) ▼"}</span>
-                    </button>
-                    {activeDocTab === "all" && (
-                      <span className="text-[9px] text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                        📸 Tap to Recapture
-                      </span>
-                    )}
-                  </div>
-
-                  {activeDocTab === "all" && (
-                    <div className="space-y-2 pt-2 animate-[fade-up_0.2s_ease]">
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { title: "Driving License", shortTitle: "DL", type: "dl" as const, url: dlPhoto || (booking as any)?.drivingLicenseUrl },
-                          { title: "Aadhaar Card (Front)", shortTitle: "Aadhaar (F)", type: "aadhaarFront" as const, url: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl },
-                          { title: "Aadhaar Card (Back)", shortTitle: "Aadhaar (B)", type: "aadhaarBack" as const, url: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl },
-                        ].map((doc, idx) => (
-                          <div key={idx} className="bg-black/60 border border-white/15 rounded-xl p-1.5 flex flex-col justify-between space-y-1.5 shadow-sm">
-                            <div
-                              onClick={() => doc.url && setActivePreviewDoc({ title: doc.title, url: doc.url, docType: doc.type })}
-                              className="aspect-[4/3] rounded-lg overflow-hidden bg-black border border-white/10 cursor-pointer relative group"
-                              title="Tap to view full screen"
-                            >
-                              {doc.url ? (
-                                <img src={doc.url} alt={doc.shortTitle} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[9px] text-white/40">No photo</div>
-                              )}
-                              <span className="absolute bottom-1 left-1 bg-black/80 px-1 py-0.2 rounded text-[7.5px] font-bold text-white/90">
-                                {doc.shortTitle}
-                              </span>
-                              <span className="absolute top-1 right-1 bg-black/80 text-[8px] text-white/70 px-1 rounded">
-                                🔍
-                              </span>
-                            </div>
-
-                            {/* Direct Recapture Button */}
-                            <label className="w-full py-1.5 px-1 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 rounded-lg text-[9.5px] font-bold text-white transition flex items-center justify-center gap-1 cursor-pointer select-none">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={(e) => handleSpotPhotoRecapture(doc.type, e)}
-                              />
-                              <span>📸</span>
-                              <span>Recapture</span>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-
-                      <p className="text-[9.5px] text-white/40 text-center">
-                        Galat document hone pe <strong className="text-amber-300">Recapture</strong> dabayein ya photo pe tap karke zoom karein.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 🌟 Handover Security OTP Verification (Required before key release even for VIPs) */}
-                {!isHandoverOtpVerified ? (
-                  <div className="bg-black/60 border border-amber-500/40 rounded-2xl p-3.5 space-y-3 shadow-md text-left">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">📲</span>
-                        <div>
-                          <h4 className="font-bold text-xs text-white uppercase tracking-wider">
-                            Handover Security OTP
-                          </h4>
-                          <p className="text-[10px] text-white/50">
-                            Customer pickup code verify karke keys release karein
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                        Required
-                      </span>
-                    </div>
-
-                    {!otpSent ? (
-                      <button
-                        type="button"
-                        onClick={handleSendHandoverOtp}
-                        disabled={isSendingOtp}
-                        className="w-full py-3 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { title: "Driving License", shortTitle: "DL", type: "dl" as const, url: dlPhoto || (booking as any)?.drivingLicenseUrl },
+                    { title: "Aadhaar Card (Front)", shortTitle: "Aadhaar (F)", type: "aadhaarFront" as const, url: aadhaarFrontPhoto || (booking as any)?.aadhaarFrontUrl },
+                    { title: "Aadhaar Card (Back)", shortTitle: "Aadhaar (B)", type: "aadhaarBack" as const, url: aadhaarBackPhoto || (booking as any)?.aadhaarBackUrl },
+                  ].map((doc, idx) => (
+                    <div key={idx} className="bg-black/70 border border-white/15 rounded-xl p-1.5 flex flex-col justify-between space-y-1.5 shadow-sm">
+                      <div
+                        onClick={() => doc.url && setActivePreviewDoc({ title: doc.title, url: doc.url, docType: doc.type })}
+                        className="aspect-[4/3] rounded-lg overflow-hidden bg-black border border-white/10 cursor-pointer relative group"
+                        title="Tap to zoom"
                       >
-                        {isSendingOtp ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        {doc.url ? (
+                          <img src={doc.url} alt={doc.shortTitle} className="w-full h-full object-cover group-hover:scale-105 transition" />
                         ) : (
-                          <>
-                            <span>📲</span>
-                            <span>Send Handover OTP to ({maskPhone(booking?.customerPhone)})</span>
-                          </>
+                          <div className="w-full h-full flex items-center justify-center text-[9px] text-white/40">No photo</div>
                         )}
-                      </button>
-                    ) : (
-                      <div className="space-y-2.5 animate-[fade-up_0.2s_ease]">
-                        {otpMessage && (
-                          <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10.5px] font-medium flex items-center justify-between">
-                            <span className="truncate mr-2">{otpMessage}</span>
-                            <button
-                              type="button"
-                              onClick={handleSendHandoverOtp}
-                              disabled={isSendingOtp}
-                              className="text-[10px] text-emerald-400 underline font-bold cursor-pointer shrink-0"
-                            >
-                              Resend
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            maxLength={6}
-                            placeholder="4-digit OTP"
-                            value={handoverOtpInput}
-                            onChange={(e) => setHandoverOtpInput(e.target.value)}
-                            className="w-32 bg-black border border-white/20 rounded-xl px-3 py-2.5 text-center text-base font-mono tracking-widest text-white focus:border-emerald-500 outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleVerifyHandoverOtp}
-                            disabled={isVerifyingOtp || !handoverOtpInput.trim()}
-                            className="flex-1 py-2.5 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl transition cursor-pointer disabled:opacity-40 shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5"
-                          >
-                            {isVerifyingOtp ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <span>✓</span>
-                                <span>Verify OTP</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        <span className="absolute bottom-1 left-1 bg-black/80 px-1 py-0.2 rounded text-[7.5px] font-bold text-white/90">
+                          {doc.shortTitle}
+                        </span>
+                        <span className="absolute top-1 right-1 bg-black/80 text-[8px] text-white/70 px-1 rounded">
+                          🔍
+                        </span>
                       </div>
-                    )}
 
-                    {/* Direct Physical Approve Offline Link */}
-                    <div className="pt-0.5 text-center">
-                      <button
-                        type="button"
-                        onClick={handleDirectPhysicalApprove}
-                        disabled={isVerifyingOtp}
-                        className="text-[10px] text-white/40 hover:text-white/70 transition underline cursor-pointer"
-                      >
-                        Customer offline / phone issue? Tap for physical ID approval
-                      </button>
+                      {/* Recapture Button */}
+                      <label className="w-full py-1 px-1 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 rounded-lg text-[9px] font-bold text-white transition flex items-center justify-center gap-1 cursor-pointer select-none">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => handleSpotPhotoRecapture(doc.type, e)}
+                        />
+                        <span>📸</span>
+                        <span>Recapture</span>
+                      </label>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-left flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-sm shrink-0">
-                      ✓
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-xs text-white flex items-center gap-1.5">
-                        <span>Handover Security OTP Verified</span>
-                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.2 rounded">Authorized</span>
-                      </div>
-                      <p className="text-[10px] text-white/60">
-                        Customer authorized for vehicle inspection & key release.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Direct Big Primary CTA Button - Gated by OTP */}
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    disabled={!isHandoverOtpVerified}
-                    onClick={() => {
-                      if (isHandoverOtpVerified) setWizardStep(2);
-                    }}
-                    className={`w-full py-3.5 text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 ${
-                      isHandoverOtpVerified
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] text-white font-black shadow-lg shadow-emerald-600/20 cursor-pointer"
-                        : "bg-white/10 text-white/40 font-bold cursor-not-allowed"
-                    }`}
-                  >
-                    <span>
-                      {isHandoverOtpVerified
-                        ? "Proceed to Step 2: Bike Inspection ➔"
-                        : "🔒 Verify OTP to Proceed to Step 2"}
-                    </span>
-                  </button>
+                  ))}
                 </div>
+                <p className="text-[9.5px] text-white/40 text-center">
+                  Galat ya expired document hone pe <strong className="text-amber-300">Recapture</strong> dabayein ya tap karke zoom karein.
+                </p>
               </div>
-            ) : (
-              /* ============================================================ */
-              /* SCENARIO B: PENDING VERIFICATION (CLEAN 1-CARD AT A TIME)     */
-              /* ============================================================ */
+            )}
+          </div>
+        )}
+
+        {/* Segmented Step Control (2-Step for Approved VIPs, 3-Step for Unverified) */}
+        {kycStatus === "approved" ? (
+          /* VIP 2-Step Segmented Control: Direct to Bike Check & Handover */
+          <div className="grid grid-cols-2 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => setWizardStep(2)}
+              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                wizardStep === 2
+                  ? "bg-white text-black font-black shadow-sm"
+                  : uploadedPhotos.length >= 5 && odometer
+                  ? "text-emerald-400 hover:text-emerald-300"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              <span>{uploadedPhotos.length >= 5 && odometer ? "✓" : "1."}</span>
+              <span>Bike Check</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!odometer || uploadedPhotos.length < 5}
+              onClick={() => {
+                if (odometer && uploadedPhotos.length >= 5) setWizardStep(3);
+              }}
+              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                wizardStep === 3
+                  ? "bg-white text-black font-black shadow-sm"
+                  : booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                  ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                  : (!odometer || uploadedPhotos.length < 5)
+                  ? "text-white/30 cursor-not-allowed opacity-50"
+                  : "text-white/70 hover:text-white cursor-pointer"
+              }`}
+            >
+              <span>
+                {booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                  ? "✓"
+                  : (!odometer || uploadedPhotos.length < 5)
+                  ? "🔒"
+                  : "2."}
+              </span>
+              <span>Handover Release</span>
+            </button>
+          </div>
+        ) : (
+          /* Unverified Customer: 3-Step Segmented Control */
+          <div className="grid grid-cols-3 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => setWizardStep(1)}
+              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                wizardStep === 1
+                  ? "bg-white text-black font-black shadow-sm"
+                  : isHandoverOtpVerified
+                  ? "text-emerald-400 hover:text-emerald-300"
+                  : "text-white/60 hover:text-white"
+              }`}
+            >
+              <span>{isHandoverOtpVerified ? "✓" : "1."}</span>
+              <span>KYC ID</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!isHandoverOtpVerified}
+              onClick={() => {
+                if (isHandoverOtpVerified) setWizardStep(2);
+              }}
+              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                wizardStep === 2
+                  ? "bg-white text-black font-black shadow-sm"
+                  : !isHandoverOtpVerified
+                  ? "text-white/30 cursor-not-allowed opacity-50"
+                  : uploadedPhotos.length >= 5 && odometer
+                  ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                  : "text-white/70 hover:text-white cursor-pointer"
+              }`}
+            >
+              <span>
+                {!isHandoverOtpVerified
+                  ? "🔒"
+                  : uploadedPhotos.length >= 5 && odometer
+                  ? "✓"
+                  : "2."}
+              </span>
+              <span>Bike Check</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5}
+              onClick={() => {
+                if (isHandoverOtpVerified && odometer && uploadedPhotos.length >= 5) setWizardStep(3);
+              }}
+              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                wizardStep === 3
+                  ? "bg-white text-black font-black shadow-sm"
+                  : booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                  ? "text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                  : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
+                  ? "text-white/30 cursor-not-allowed opacity-50"
+                  : "text-white/70 hover:text-white cursor-pointer"
+              }`}
+            >
+              <span>
+                {booking?.handoverStatus === "RELEASED" || booking?.handoverStatus === "RETURNED" || justReleased
+                  ? "✓"
+                  : (!isHandoverOtpVerified || !odometer || uploadedPhotos.length < 5)
+                  ? "🔒"
+                  : "3."}
+              </span>
+              <span>Handover</span>
+            </button>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 🌟 STEP 1: PHYSICAL ID CROSS-CHECK & ONBOARDING (Unverified Only)         */}
+        {/* ========================================================================= */}
+        {kycStatus !== "approved" && wizardStep === 1 && (
+          <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+              {/* ============================================================ */}
+              {/* PENDING VERIFICATION (CLEAN 1-CARD AT A TIME)                */}
+              {/* ============================================================ */}
               <div className="space-y-3">
                 {/* 3 Clean Document Switcher Tabs */}
                 <div className="grid grid-cols-3 gap-1 bg-[#121215] p-1 rounded-xl border border-white/[0.08]">
@@ -1305,58 +1223,51 @@ function ScanBookingContent() {
                   }[activeKey];
 
                   return (
-                    <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-3 shadow-md">
+                    <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-3 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <span>{activeKey === "dl" ? "🪪" : activeKey === "aadhaarFront" ? "💳" : "📄"}</span>
-                            <span>{docInfo.title}</span>
-                          </h4>
-                          <span className="text-[10px] text-white/50 font-mono mt-0.5 block">{docInfo.no}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🪪</span>
+                          <span className="font-bold text-xs text-white uppercase tracking-wider">
+                            {docInfo.title}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           docInfo.matched
-                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                            : "bg-white/10 text-white/60"
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                            : "bg-white/5 border-white/10 text-white/50"
                         }`}>
-                          {docInfo.matched ? "✓ Matched" : "Unverified"}
+                          {docInfo.matched ? "✓ Matched" : "Pending Check"}
                         </span>
                       </div>
 
-                      {/* Photo Thumbnail */}
-                      <div
-                        onClick={() => docInfo.url && setActivePreviewDoc({ title: docInfo.title, url: docInfo.url, docType: activeKey })}
-                        className="aspect-[16/9] w-full rounded-xl overflow-hidden bg-black/80 border border-white/10 relative group cursor-pointer"
-                      >
+                      {/* Photo Thumbnail with Tap to Fullscreen & Recapture */}
+                      <div className="relative rounded-xl overflow-hidden bg-black border border-white/10 aspect-[16/9] group">
                         {docInfo.url ? (
-                          <img src={docInfo.url} alt={docInfo.title} className="w-full h-full object-cover group-hover:scale-102 transition duration-200" />
+                          <div
+                            onClick={() => setActivePreviewDoc({ title: docInfo.title, url: docInfo.url!, docType: docInfo.recaptureType })}
+                            className="w-full h-full cursor-pointer relative"
+                            title="Tap to zoom in"
+                          >
+                            <img
+                              src={docInfo.url}
+                              alt={docInfo.title}
+                              className="w-full h-full object-contain group-hover:scale-105 transition"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                              <span className="bg-black/80 px-2.5 py-1 rounded-full text-white text-[11px] font-bold">
+                                🔍 Tap to Zoom
+                              </span>
+                            </div>
+                          </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-white/40 text-xs">
+                          <div className="w-full h-full flex flex-col items-center justify-center text-white/40 text-xs gap-1">
                             <span>📷</span>
-                            <span>No photo uploaded by rider</span>
+                            <span>No photo available</span>
                           </div>
                         )}
-                        <span className="absolute bottom-2 right-2 bg-black/80 text-[10px] text-white/80 px-2 py-0.5 rounded-full border border-white/10">
-                          🔍 Tap to Zoom
-                        </span>
-                      </div>
 
-                      {/* Action buttons */}
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={docInfo.toggle}
-                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                            docInfo.matched
-                              ? "bg-emerald-500 text-black shadow-md font-black"
-                              : "bg-white/5 hover:bg-white/10 border border-white/10 text-white/80"
-                          }`}
-                        >
-                          <span>{docInfo.matched ? "✓" : "⚪"}</span>
-                          <span>{docInfo.matched ? "Card Matched" : "Match Card"}</span>
-                        </button>
-
-                        <label className="py-2.5 px-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                        {/* Direct Recapture Float Button */}
+                        <label className="absolute bottom-2 right-2 bg-black/80 hover:bg-neutral-800 text-white border border-white/20 px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-lg active:scale-95 select-none">
                           <input
                             type="file"
                             accept="image/*"
@@ -1368,26 +1279,47 @@ function ScanBookingContent() {
                           <span>Recapture</span>
                         </label>
                       </div>
+
+                      {/* Document Details & Quick Match Toggle */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div>
+                          <span className="text-[10px] text-white/50 block">Registered Ref</span>
+                          <span className="font-mono font-bold text-xs text-white">{docInfo.no}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={docInfo.toggle}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                            docInfo.matched
+                              ? "bg-emerald-500 text-black font-black"
+                              : "bg-white/10 hover:bg-white/15 text-white"
+                          }`}
+                        >
+                          <span>{docInfo.matched ? "✓" : "○"}</span>
+                          <span>{docInfo.matched ? "Matched" : "Mark as Matched"}</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })()}
 
-                {/* 🌟 OTP Verification Card (Required for 6-Month KYC Activation) */}
-                <div className="bg-[#121215] border border-amber-500/30 rounded-2xl p-4 space-y-3 shadow-md">
+                {/* 🌟 WhatsApp OTP Handover Gate */}
+                <div className="bg-[#121215] border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-md">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-base">📲</span>
                       <div>
                         <h4 className="font-bold text-xs text-white uppercase tracking-wider">
-                          Customer OTP Verification
+                          Handover WhatsApp OTP
                         </h4>
                         <p className="text-[10px] text-white/50">
-                          Verify OTP to activate 6-Month Fast-Track Pass
+                          Verify 4-digit code sent to customer WhatsApp
                         </p>
                       </div>
                     </div>
                     <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                      Step 1 of 3
+                      Step 1 Gate
                     </span>
                   </div>
 
@@ -1396,27 +1328,27 @@ function ScanBookingContent() {
                       type="button"
                       onClick={handleSendHandoverOtp}
                       disabled={isSendingOtp}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full py-3 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isSendingOtp ? (
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
                           <span>📲</span>
-                          <span>Send 4-Digit OTP to ({maskPhone(booking?.customerPhone)})</span>
+                          <span>Send Handover OTP to ({maskPhone(booking?.customerPhone)})</span>
                         </>
                       )}
                     </button>
                   ) : (
-                    <div className="space-y-3 animate-[fade-up_0.2s_ease]">
+                    <div className="space-y-2.5 animate-[fade-up_0.2s_ease]">
                       {otpMessage && (
                         <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-[10.5px] font-medium flex items-center justify-between">
-                          <span>{otpMessage}</span>
+                          <span className="truncate mr-2">{otpMessage}</span>
                           <button
                             type="button"
                             onClick={handleSendHandoverOtp}
                             disabled={isSendingOtp}
-                            className="text-[10px] text-emerald-400 underline font-bold cursor-pointer ml-2 shrink-0"
+                            className="text-[10px] text-emerald-400 underline font-bold cursor-pointer shrink-0"
                           >
                             Resend
                           </button>
@@ -1443,7 +1375,7 @@ function ScanBookingContent() {
                           ) : (
                             <>
                               <span>✓</span>
-                              <span>Verify & Activate KYC</span>
+                              <span>Verify OTP</span>
                             </>
                           )}
                         </button>
@@ -1486,9 +1418,8 @@ function ScanBookingContent() {
                   </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
         {/* ========================================================================= */}
         {/* 🌟 STEP 2: VEHICLE CONDITION, ODOMETER & 5 MANDATORY PHOTOS               */}
@@ -1501,7 +1432,7 @@ function ScanBookingContent() {
                   <span>🏍️</span> {booking?.handoverStatus === "PENDING" ? "Vehicle Condition & Inspection" : "Return Vehicle Inspection"}
                 </h3>
                 <span className="text-[10px] text-white/50 font-mono">
-                  Step 2 of 3
+                  Step {kycStatus === "approved" ? "1 of 2" : "2 of 3"}
                 </span>
               </div>
 
@@ -1692,13 +1623,15 @@ function ScanBookingContent() {
 
             {/* Step 2 Bottom Navigation */}
             <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setWizardStep(1)}
-                className="py-3 px-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-bold text-xs rounded-xl transition cursor-pointer"
-              >
-                ← Back
-              </button>
+              {kycStatus !== "approved" && (
+                <button
+                  type="button"
+                  onClick={() => setWizardStep(1)}
+                  className="py-3 px-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  ← Back
+                </button>
+              )}
               <button
                 type="button"
                 disabled={!odometer || uploadedPhotos.length < 5}
@@ -1716,6 +1649,8 @@ function ScanBookingContent() {
                     ? "🔒 Enter Odometer to Proceed"
                     : uploadedPhotos.length < 5
                     ? `🔒 Capture 5 Photos (${uploadedPhotos.length}/5) to Proceed`
+                    : kycStatus === "approved"
+                    ? "Proceed to Handover Release ➔"
                     : "Proceed to Step 3: Handover ➔"}
                 </span>
               </button>
@@ -1732,9 +1667,14 @@ function ScanBookingContent() {
             <div className="bg-[#121215] border border-white/[0.08] rounded-2xl p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between border-b border-white/[0.08] pb-2.5">
                 <div>
-                  <label className="text-white block font-bold text-xs">
-                    Inspection Checklist
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-white block font-bold text-xs">
+                      Inspection Checklist
+                    </label>
+                    <span className="text-[10px] text-white/50 font-mono">
+                      Step {kycStatus === "approved" ? "2 of 2" : "3 of 3"}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-white/50 mt-0.5">
                     Confirm all items before releasing keys
                   </p>
@@ -1972,9 +1912,9 @@ function ScanBookingContent() {
               <button
                 type="button"
                 onClick={() => setWizardStep(2)}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 text-white/60 font-semibold text-xs rounded-xl transition cursor-pointer"
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white/70 font-semibold text-xs rounded-xl transition cursor-pointer border border-white/10 flex items-center justify-center gap-1.5"
               >
-                ← Back to Step 2 (Photos & Meter)
+                ← Back to Bike Inspection
               </button>
             </div>
           </div>
