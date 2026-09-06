@@ -58,7 +58,7 @@ const MOCK_INSPECTIONS: InspectionRecord[] = [
     endFuel: "85%",
     startPhotos: [
       "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=600&auto=format&fit=crop&q=60",
-      "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=600&auto=format&fit=crop&q=60",
+      "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=60",
     ],
     damagePhotos: [
       "https://images.unsplash.com/photo-1609630875171-b1321377ee65?w=600&auto=format&fit=crop&q=60",
@@ -83,7 +83,7 @@ const MOCK_INSPECTIONS: InspectionRecord[] = [
     startFuel: "100%",
     endFuel: "95%",
     startPhotos: [
-      "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=600&auto=format&fit=crop&q=60",
+      "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?w=600&auto=format&fit=crop&q=60",
     ],
     damagePhotos: [],
     damageReported: false,

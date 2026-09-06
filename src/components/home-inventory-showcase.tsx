@@ -16,7 +16,7 @@ import {
   ArrowRight,
   RotateCw
 } from "lucide-react";
-import { getModelMatchedVehicleInfo } from "@/lib/vehicle-model-images";
+import { getModelMatchedVehicleInfo, isValidVehicleImage } from "@/lib/vehicle-model-images";
 
 type ShowcaseItem = {
   id: string;
@@ -74,7 +74,7 @@ const FEATURED_INVENTORY: ShowcaseItem[] = [
     fuelType: "Petrol",
     badge: "Instant Book",
     badgeColor: "bg-emerald-600/90 text-white border-emerald-400 font-bold",
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "inv-4",
@@ -137,9 +137,11 @@ export function HomeInventoryShowcase() {
           const apiItems: ShowcaseItem[] = data.vehicles.map((v: any) => {
             const modelInfo = getModelMatchedVehicleInfo(v.title, v.type);
 
-            const realUploadedImage = (Array.isArray(v.imageUrls) && v.imageUrls.length > 0 && v.imageUrls[0])
+            const candidateImage = (Array.isArray(v.imageUrls) && v.imageUrls.length > 0 && v.imageUrls[0])
               ? v.imageUrls[0]
-              : v.imageUrl || v.image || modelInfo.imageUrl;
+              : v.imageUrl || v.image;
+
+            const realUploadedImage = isValidVehicleImage(candidateImage) ? candidateImage : modelInfo.imageUrl;
 
             return {
               id: v.id,

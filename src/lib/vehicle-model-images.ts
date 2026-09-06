@@ -29,7 +29,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["himalayan", "himalayan 450", "scram", "scram 411", "xpulse", "adventure"],
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1558980664-3a031cf67ea8?q=80&w=800&auto=format&fit=crop",
     category: "bike",
     categoryLabel: "Adventure Tourer",
   },
@@ -53,7 +53,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["rc 200", "rc 390", "rc 125", "r15", "r15 v3", "r15 v4", "ninja", "sports"],
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?q=80&w=800&auto=format&fit=crop",
     category: "bike",
     categoryLabel: "Super Sport",
   },
@@ -99,25 +99,25 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   // ==========================================
   {
     keywords: ["activa", "activa 6g", "activa 125", "dio", "honda activa"],
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
     category: "scooty",
     categoryLabel: "Family Scooter",
   },
   {
     keywords: ["ntorq", "ntorq 125", "tvs ntorq", "aerox", "rayzr"],
-    imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1591637333184-19aa84b3e01f?q=80&w=800&auto=format&fit=crop",
     category: "scooty",
     categoryLabel: "Sport Scooter",
   },
   {
     keywords: ["jupiter", "jupiter 125", "access", "access 125", "burgman", "fascino"],
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
     category: "scooty",
     categoryLabel: "Premium Scooter",
   },
   {
     keywords: ["ola", "ola s1", "ather", "ather 450", "chetak", "iqube", "electric"],
-    imageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1558981420-87aa9dad1c89?q=80&w=800&auto=format&fit=crop",
     category: "scooty",
     categoryLabel: "Smart Electric Scooter",
   },
@@ -133,13 +133,13 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["scorpio", "scorpio n", "scorpio-n", "xuv700", "xuv300", "bolero", "harrier", "safari"],
-    imageUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=800&auto=format&fit=crop",
     category: "car",
     categoryLabel: "Full-Size SUV",
   },
   {
     keywords: ["creta", "venue", "seltos", "sonet", "brezza", "nexon", "grand vitara", "hyryder", "kushaq", "taigun"],
-    imageUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
     category: "car",
     categoryLabel: "Compact SUV",
   },
@@ -157,7 +157,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["innova", "innova crysta", "hycross", "ertiga", "carens", "marazzo", "fortuner"],
-    imageUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=800&auto=format&fit=crop",
     category: "car",
     categoryLabel: "7-Seater Luxury MUV",
   },
@@ -166,7 +166,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
 // Fallback images when no keyword matches
 const CATEGORY_DEFAULT_IMAGES = {
   car: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop",
-  scooty: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
+  scooty: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
   bike: "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
 };
 
@@ -205,4 +205,16 @@ export function getModelMatchedVehicleInfo(title?: string, type?: string): {
     category: baselineCategory,
     categoryLabel: baselineCategory === "car" ? "Rental Car" : baselineCategory === "scooty" ? "Automatic Scooter" : "Cruiser Bike",
   };
+}
+
+/**
+ * Filter out invalid, blank, or known bad placeholder images
+ */
+export function isValidVehicleImage(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === "undefined" || trimmed === "null") return false;
+  // Exclude known stressed-woman stock photo
+  if (trimmed.includes("1568772585407")) return false;
+  return true;
 }

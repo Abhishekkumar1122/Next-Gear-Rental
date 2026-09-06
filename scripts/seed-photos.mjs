@@ -35,8 +35,8 @@ async function seedImages(vehicleId, title) {
     INSERT INTO "VendorVehicleMedia" (vehicle_id, image_url, sort_order)
     VALUES 
       ('${vehicleId}', 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800&q=80', 0),
-      ('${vehicleId}', 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=800&q=80', 1),
-      ('${vehicleId}', 'https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?w=800&q=80', 2)
+      ('${vehicleId}', 'https://images.unsplash.com/photo-1558980664-3a031cf67ea8?w=800&q=80', 1),
+      ('${vehicleId}', 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=800&q=80', 2)
   `);
 
   console.log(`Successfully seeded 3 image slideshow records for ${title}!`);

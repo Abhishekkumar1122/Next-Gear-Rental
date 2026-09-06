@@ -103,9 +103,6 @@ export const vehicles: Vehicle[] = [
     airportPickup: true,
     imageUrls: [
       "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=800&auto=format&fit=crop",
     ],
     mileageKmpl: 18,
     engineCc: 1197,
@@ -126,9 +123,6 @@ export const vehicles: Vehicle[] = [
     airportPickup: false,
     imageUrls: [
       "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1558980664-3a031cf67ea8?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
     ],
     mileageKmpl: 35,
     engineCc: 349,
@@ -148,9 +142,6 @@ export const vehicles: Vehicle[] = [
     airportPickup: true,
     imageUrls: [
       "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1558981420-87aa9dad1c89?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1591637333184-19aa84b3e01f?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
     ],
     mileageKmpl: 50,
     engineCc: 109,
@@ -170,10 +161,7 @@ export const vehicles: Vehicle[] = [
     vendorId: "v1",
     airportPickup: true,
     imageUrls: [
-      "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=800&auto=format&fit=crop",
       "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=800&auto=format&fit=crop",
     ],
     rangeKm: 312,
     rating: 4.8,
@@ -191,10 +179,7 @@ export const vehicles: Vehicle[] = [
     availabilitySlots: buildAvailabilitySlots(rollingDates(1, 8), generateHourlySlots(7, 18)),
     airportPickup: false,
     imageUrls: [
-      "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1558980664-3a031cf67ea8?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1609630875171-b1321377ee65?q=80&w=800&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?q=80&w=800&auto=format&fit=crop",
     ],
     mileageKmpl: 45,
     engineCc: 124,
@@ -214,9 +199,6 @@ export const vehicles: Vehicle[] = [
     airportPickup: true,
     imageUrls: [
       "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
-      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=800&auto=format&fit=crop",
     ],
     mileageKmpl: 20,
     engineCc: 1197,

@@ -18,6 +18,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Search, ShieldCheck, KeyRound, Clock, HelpCircle, FileText, Fuel, Calendar, AlertCircle, Bike, Car, Zap, Flame, BadgePercent, Headphones, Sparkles } from "lucide-react";
+import { getModelMatchedVehicleInfo } from "@/lib/vehicle-model-images";
 
 export const dynamic = "force-dynamic";
 
@@ -55,28 +56,7 @@ function getDefaultBadge(index: number) {
 }
 
 function getVehicleImage(title: string, type: string): string {
-  const lowerTitle = title.toLowerCase();
-  const lowerType = type.toLowerCase();
-  
-  if (lowerTitle.includes("i20") || lowerTitle.includes("hyundai")) {
-    return "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop";
-  }
-  if (lowerTitle.includes("hunter") || lowerTitle.includes("enfield") || lowerTitle.includes("bullet") || lowerTitle.includes("classic")) {
-    return "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop";
-  }
-  if (lowerTitle.includes("thar") || lowerTitle.includes("suv") || lowerTitle.includes("fortuner") || lowerTitle.includes("creta")) {
-    return "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?q=80&w=800&auto=format&fit=crop";
-  }
-  if (lowerTitle.includes("activa") || lowerTitle.includes("scooty") || lowerTitle.includes("jupiter") || lowerTitle.includes("vespa")) {
-    return "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop";
-  }
-  if (lowerType === "car") {
-    return "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop";
-  }
-  if (lowerType === "scooty") {
-    return "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop";
-  }
-  return "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop";
+  return getModelMatchedVehicleInfo(title, type).imageUrl;
 }
 
 async function getHomeTrendingRidesUncached(): Promise<HomeTrendingRide[]> {

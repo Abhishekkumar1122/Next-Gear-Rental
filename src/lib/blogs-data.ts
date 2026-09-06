@@ -193,7 +193,7 @@ Riding through the treacherous high-altitude passes of **Rohtang Pass**, **Solan
     city: "Delhi",
     targetKeywords: ["scooty rental Delhi", "scooty rent near me", "Activa rental Delhi", "cheap scooty rent Gurgaon", "scooter rental near me"],
     metaDescription: "Rent Honda Activa 6G & TVS Jupiter scooty in Delhi, Gurgaon & Noida under ₹400/day. Instant booking, helmets included, zero deposit options.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=1200&q=80",
+    featuredImageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?auto=format&fit=crop&w=1200&q=80",
     content: `
 # Scooty Rental in Delhi & NCR: Fast, Easy & Affordable
 
@@ -302,7 +302,7 @@ NRIs and foreign tourists require a valid **International Driving Permit (IDP)**
       "Khardung La bike ride guide"
     ],
     metaDescription: "Ultimate Delhi to Leh Ladakh bike road trip guide. 7-day route map, Atal Tunnel tips, packing checklist, and verified Royal Enfield Himalayan 450 rentals.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?auto=format&fit=crop&w=1200&q=80",
+    featuredImageUrl: "https://images.unsplash.com/photo-1558980664-3a031cf67ea8?auto=format&fit=crop&w=1200&q=80",
     embeddedRide: {
       title: "Royal Enfield Himalayan 450",
       type: "bike",
