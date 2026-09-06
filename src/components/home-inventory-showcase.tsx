@@ -16,6 +16,7 @@ import {
   ArrowRight,
   RotateCw
 } from "lucide-react";
+import { getModelMatchedVehicleInfo } from "@/lib/vehicle-model-images";
 
 type ShowcaseItem = {
   id: string;
@@ -134,31 +135,17 @@ export function HomeInventoryShowcase() {
         const data = await res.json();
         if (Array.isArray(data.vehicles) && data.vehicles.length > 0) {
           const apiItems: ShowcaseItem[] = data.vehicles.map((v: any) => {
-            const isCar = v.type?.toLowerCase().includes("car") || v.type?.toLowerCase().includes("suv");
-            const isScooty = v.type?.toLowerCase().includes("scooter") || v.type?.toLowerCase().includes("scooty") || v.title?.toLowerCase().includes("activa");
-            const category: "bike" | "car" | "scooty" = isCar ? "car" : isScooty ? "scooty" : "bike";
-
-            const defaultFallbackImg = isCar
-              ? "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop"
-              : isScooty
-              ? "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop"
-              : "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop";
+            const modelInfo = getModelMatchedVehicleInfo(v.title, v.type);
 
             const realUploadedImage = (Array.isArray(v.imageUrls) && v.imageUrls.length > 0 && v.imageUrls[0])
               ? v.imageUrls[0]
-              : v.imageUrl || v.image || defaultFallbackImg;
-
-            const categoryLabel = isCar
-              ? (v.title?.toLowerCase().includes("suv") || v.title?.toLowerCase().includes("thar") || v.title?.toLowerCase().includes("creta") ? "Premium SUV" : "Rental Car")
-              : isScooty
-              ? "Automatic Scooter"
-              : (v.title?.toLowerCase().includes("duke") || v.title?.toLowerCase().includes("r15") ? "Sports Bike" : "Cruiser Bike");
+              : v.imageUrl || v.image || modelInfo.imageUrl;
 
             return {
               id: v.id,
               title: v.title,
-              category,
-              categoryLabel,
+              category: modelInfo.category,
+              categoryLabel: modelInfo.categoryLabel,
               cityName: v.city ?? "India Hub",
               pricePerDay: v.pricePerDayINR ?? v.pricePerDay ?? 799,
               rating: "4.9 (Verified)",
@@ -383,12 +370,8 @@ export function HomeInventoryShowcase() {
                   src={item.imageUrl}
                   alt={item.title}
                   onError={(e) => {
-                    const fallback = item.category === "car"
-                      ? "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop"
-                      : item.category === "scooty"
-                      ? "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?q=80&w=800&auto=format&fit=crop"
-                      : "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop";
-                    (e.target as HTMLImageElement).src = fallback;
+                    const fallback = getModelMatchedVehicleInfo(item.title, item.category);
+                    (e.target as HTMLImageElement).src = fallback.imageUrl;
                   }}
                   className="w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105"
                 />
