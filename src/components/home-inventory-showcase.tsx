@@ -74,7 +74,7 @@ const FEATURED_INVENTORY: ShowcaseItem[] = [
     fuelType: "Petrol",
     badge: "Instant Book",
     badgeColor: "bg-emerald-600/90 text-white border-emerald-400 font-bold",
-    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/honda-activa-6g.jpg",
   },
   {
     id: "inv-4",

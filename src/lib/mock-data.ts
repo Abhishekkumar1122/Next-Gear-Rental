@@ -122,7 +122,7 @@ export const vehicles: Vehicle[] = [
     vendorId: "v2",
     airportPickup: false,
     imageUrls: [
-      "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
+      "/images/vehicles/royal-enfield-classic-350.jpg",
     ],
     mileageKmpl: 35,
     engineCc: 349,
@@ -141,7 +141,7 @@ export const vehicles: Vehicle[] = [
     availabilitySlots: buildAvailabilitySlots(rollingDates(1, 8), generateHourlySlots(10, 22)),
     airportPickup: true,
     imageUrls: [
-      "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
+      "/images/vehicles/honda-activa-6g.jpg",
     ],
     mileageKmpl: 50,
     engineCc: 109,
@@ -161,7 +161,7 @@ export const vehicles: Vehicle[] = [
     vendorId: "v1",
     airportPickup: true,
     imageUrls: [
-      "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Tata_Nexon_Blue_Dual_Tone.jpg/960px-Tata_Nexon_Blue_Dual_Tone.jpg",
     ],
     rangeKm: 312,
     rating: 4.8,
@@ -179,7 +179,7 @@ export const vehicles: Vehicle[] = [
     availabilitySlots: buildAvailabilitySlots(rollingDates(1, 8), generateHourlySlots(7, 18)),
     airportPickup: false,
     imageUrls: [
-      "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?q=80&w=800&auto=format&fit=crop",
+      "/images/vehicles/tvs-raider-125.jpg",
     ],
     mileageKmpl: 45,
     engineCc: 124,

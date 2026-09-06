@@ -9,6 +9,7 @@ import { getEffectiveDailyPrice } from "@/lib/pricing";
 import { splitCityAndState } from "@/lib/india-locations";
 import { Vehicle } from "@/lib/types";
 import { vehicles } from "@/lib/mock-data";
+import { getModelMatchedVehicleInfo, isValidVehicleImage } from "@/lib/vehicle-model-images";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -201,13 +202,17 @@ export async function GET(request: NextRequest) {
         const effectivePrice = getEffectiveDailyPrice(vehicle.type, vehicle.pricePerDayINR);
         if (maxPrice > 0 && effectivePrice > maxPrice) return null;
 
-        const dbImages = imageMap.get(vehicle.id) ?? [];
+        const dbImages = (imageMap.get(vehicle.id) ?? []).filter(isValidVehicleImage);
         const mockMatch = vehicles.find((v) => v.id === vehicle.id || v.title.toLowerCase().trim() === vehicle.title.toLowerCase().trim());
         const combinedImages = [...dbImages];
-        if (mockMatch && Array.isArray(mockMatch.imageUrls)) {
+        if (combinedImages.length === 0 && mockMatch && Array.isArray(mockMatch.imageUrls)) {
           for (const url of mockMatch.imageUrls) {
-            if (url && !combinedImages.includes(url)) combinedImages.push(url);
+            if (isValidVehicleImage(url) && !combinedImages.includes(url)) combinedImages.push(url);
           }
+        }
+        if (combinedImages.length === 0) {
+          const modelFallback = getModelMatchedVehicleInfo(vehicle.title, vehicle.type).imageUrl;
+          if (modelFallback) combinedImages.push(modelFallback);
         }
 
         return {

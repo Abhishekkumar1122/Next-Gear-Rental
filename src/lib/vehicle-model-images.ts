@@ -23,7 +23,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["classic 350", "classic", "bullet", "bullet 350", "meteor", "standard 350"],
-    imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/royal-enfield-classic-350.jpg",
     category: "bike",
     categoryLabel: "Classic Cruiser",
   },
@@ -41,7 +41,7 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["royal enfield", "enfield"],
-    imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/royal-enfield-classic-350.jpg",
     category: "bike",
     categoryLabel: "Cruiser Bike",
   },
@@ -71,13 +71,13 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   },
   {
     keywords: ["splendor", "splendor plus", "hf deluxe", "glamour", "shine", "unicorn"],
-    imageUrl: "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/royal-enfield-classic-350.jpg",
     category: "bike",
     categoryLabel: "Daily Commuter",
   },
   {
-    keywords: ["apache", "apache rtr", "rtr 160", "rtr 200", "raider"],
-    imageUrl: "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?q=80&w=800&auto=format&fit=crop",
+    keywords: ["raider", "tvs raider", "raider 125", "apache", "apache rtr", "rtr 160", "rtr 200"],
+    imageUrl: "/images/vehicles/tvs-raider-125.jpg",
     category: "bike",
     categoryLabel: "Track Racing Bike",
   },
@@ -99,25 +99,25 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
   // ==========================================
   {
     keywords: ["activa", "activa 6g", "activa 125", "dio", "honda activa"],
-    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/honda-activa-6g.jpg",
     category: "scooty",
     categoryLabel: "Family Scooter",
   },
   {
     keywords: ["ntorq", "ntorq 125", "tvs ntorq", "aerox", "rayzr"],
-    imageUrl: "https://images.unsplash.com/photo-1591637333184-19aa84b3e01f?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/honda-activa-6g.jpg",
     category: "scooty",
     categoryLabel: "Sport Scooter",
   },
   {
     keywords: ["jupiter", "jupiter 125", "access", "access 125", "burgman", "fascino"],
-    imageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/honda-activa-6g.jpg",
     category: "scooty",
     categoryLabel: "Premium Scooter",
   },
   {
     keywords: ["ola", "ola s1", "ather", "ather 450", "chetak", "iqube", "electric"],
-    imageUrl: "https://images.unsplash.com/photo-1558981420-87aa9dad1c89?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "/images/vehicles/honda-activa-6g.jpg",
     category: "scooty",
     categoryLabel: "Smart Electric Scooter",
   },
@@ -138,8 +138,8 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
     categoryLabel: "Full-Size SUV",
   },
   {
-    keywords: ["creta", "venue", "seltos", "sonet", "brezza", "nexon", "grand vitara", "hyryder", "kushaq", "taigun"],
-    imageUrl: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?q=80&w=800&auto=format&fit=crop",
+    keywords: ["nexon", "nexon ev", "tata nexon", "creta", "venue", "seltos", "sonet", "brezza", "grand vitara", "hyryder", "kushaq", "taigun"],
+    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Tata_Nexon_Blue_Dual_Tone.jpg/960px-Tata_Nexon_Blue_Dual_Tone.jpg",
     category: "car",
     categoryLabel: "Compact SUV",
   },
@@ -166,8 +166,8 @@ const VEHICLE_MODEL_PRESETS: VehicleModelPreset[] = [
 // Fallback images when no keyword matches
 const CATEGORY_DEFAULT_IMAGES = {
   car: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=800&auto=format&fit=crop",
-  scooty: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
-  bike: "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800&auto=format&fit=crop",
+  scooty: "/images/vehicles/honda-activa-6g.jpg",
+  bike: "/images/vehicles/royal-enfield-classic-350.jpg",
 };
 
 /**
@@ -214,7 +214,7 @@ export function isValidVehicleImage(url?: string | null): boolean {
   if (!url || typeof url !== "string") return false;
   const trimmed = url.trim();
   if (!trimmed || trimmed === "undefined" || trimmed === "null") return false;
-  // Exclude known stressed-woman stock photo
-  if (trimmed.includes("1568772585407")) return false;
+  // Exclude known stressed-woman stock photos
+  if (trimmed.includes("1568772585407") || trimmed.includes("1621252179027")) return false;
   return true;
 }

@@ -193,7 +193,7 @@ Riding through the treacherous high-altitude passes of **Rohtang Pass**, **Solan
     city: "Delhi",
     targetKeywords: ["scooty rental Delhi", "scooty rent near me", "Activa rental Delhi", "cheap scooty rent Gurgaon", "scooter rental near me"],
     metaDescription: "Rent Honda Activa 6G & TVS Jupiter scooty in Delhi, Gurgaon & Noida under ₹400/day. Instant booking, helmets included, zero deposit options.",
-    featuredImageUrl: "https://images.unsplash.com/photo-1621252179027-94459d278660?auto=format&fit=crop&w=1200&q=80",
+    featuredImageUrl: "/images/vehicles/honda-activa-6g.jpg",
     content: `
 # Scooty Rental in Delhi & NCR: Fast, Easy & Affordable
 

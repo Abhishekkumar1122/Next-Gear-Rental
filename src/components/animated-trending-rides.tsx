@@ -45,7 +45,7 @@ const FALLBACK_RIDES: Ride[] = [
   },
   {
     icon: "🛵",
-    image: "https://images.unsplash.com/photo-1621252179027-94459d278660?q=80&w=800&auto=format&fit=crop",
+    image: "/images/vehicles/honda-activa-6g.jpg",
     title: "Honda Activa 6G",
     meta: "Bengaluru · Automatic · 2 seats",
     price: "INR 399/day",
